@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Quickstart trainer: wandb logging + tmux session with a spare viewer window.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+TASK="Mjlab-Piplus-Upright"
+NUM_ENVS=""
+CPU=0
+EXTRA_ARGS=()
+
+if [[ $# -gt 0 && "$1" != --* ]]; then
+  TASK="$1"
+  shift
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --cpu)
+      CPU=1
+      shift
+      ;;
+    --num-envs)
+      NUM_ENVS="$2"
+      shift 2
+      ;;
+    *)
+      EXTRA_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$NUM_ENVS" ]]; then
+  NUM_ENVS=64
+  [[ "$CPU" -eq 0 ]] && NUM_ENVS=4096
+fi
+
+if [[ -z "${WANDB_API_KEY:-}" ]] && ! uv run wandb login --verify >/dev/null 2>&1; then
+  echo "error: not logged in to wandb. Set WANDB_API_KEY or run 'uv run wandb login'." >&2
+  exit 1
+fi
+
+if [[ "$CPU" -eq 1 ]]; then
+  export CUDA_VISIBLE_DEVICES=""
+fi
+
+SESSION="mjlab-train"
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+  echo "session '$SESSION' already running: tmux attach -t $SESSION"
+  exit 1
+fi
+
+TRAIN_CMD=(uv run train "$TASK"
+  --agent.logger wandb
+  --agent.wandb-project "$TASK"
+  --env.scene.num-envs "$NUM_ENVS"
+  "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}")
+
+tmux new-session -d -s "$SESSION" -n train
+tmux send-keys -t "$SESSION:train" "$(printf '%q ' "${TRAIN_CMD[@]}")" C-m
+
+tmux new-window -t "$SESSION" -n viewer
+tmux send-keys -t "$SESSION:viewer" "# uv run play $TASK --checkpoint-file logs/rsl_rl/<experiment>/<run>/model_N.pt --viewer viser --num-envs 1" C-m
+
+tmux attach -t "$SESSION"
