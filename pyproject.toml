@@ -8,11 +8,11 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "mjlab>=1.6.0",
+    "mjlab==1.6.0",
 ]
 
 [project.scripts]
-mjlab-lukas = "mjlab_lukas:main"
+mjx = "mjlab_lukas:main"
 
 [project.entry-points."mjlab.tasks"]
 mjlab_lukas = "mjlab_lukas.tasks"
