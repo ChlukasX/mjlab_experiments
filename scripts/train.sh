@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Quickstart trainer: wandb logging + tmux session with a spare viewer window.
+# Quickstart trainer: wandb logging. Use --tmux to wrap in a tmux session.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -7,6 +7,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 TASK="Mjlab-Piplus-Upright"
 NUM_ENVS=""
 CPU=0
+TMUX=0
+NAME=""
 EXTRA_ARGS=()
 
 if [[ $# -gt 0 && "$1" != --* ]]; then
@@ -22,6 +24,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --num-envs)
       NUM_ENVS="$2"
+      shift 2
+      ;;
+    --tmux)
+      TMUX=1
+      shift
+      ;;
+    --name)
+      NAME="$2"
       shift 2
       ;;
     *)
@@ -45,22 +55,27 @@ if [[ "$CPU" -eq 1 ]]; then
   export CUDA_VISIBLE_DEVICES=""
 fi
 
-SESSION="mjlab-train"
-if tmux has-session -t "$SESSION" 2>/dev/null; then
-  echo "session '$SESSION' already running: tmux attach -t $SESSION"
-  exit 1
-fi
-
 TRAIN_CMD=(uv run train "$TASK"
   --agent.logger wandb
   --agent.wandb-project "$TASK"
   --env.scene.num-envs "$NUM_ENVS"
+  ${NAME:+--agent.run-name "$NAME"}
   "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}")
 
-tmux new-session -d -s "$SESSION" -n train
-tmux send-keys -t "$SESSION:train" "$(printf '%q ' "${TRAIN_CMD[@]}")" C-m
+if [[ "$TMUX" -eq 1 ]]; then
+  SESSION="mjlab-train"
+  if tmux has-session -t "$SESSION" 2>/dev/null; then
+    echo "session '$SESSION' already running: tmux attach -t $SESSION"
+    exit 1
+  fi
 
-tmux new-window -t "$SESSION" -n viewer
-tmux send-keys -t "$SESSION:viewer" "# uv run play $TASK --checkpoint-file logs/rsl_rl/<experiment>/<run>/model_N.pt --viewer viser --num-envs 1" C-m
+  tmux new-session -d -s "$SESSION" -n train
+  tmux send-keys -t "$SESSION:train" "$(printf '%q ' "${TRAIN_CMD[@]}")" C-m
 
-tmux attach -t "$SESSION"
+  tmux new-window -t "$SESSION" -n viewer
+  tmux send-keys -t "$SESSION:viewer" "# uv run play $TASK --checkpoint-file logs/rsl_rl/<experiment>/<run>/model_N.pt --viewer viser --num-envs 1" C-m
+
+  tmux attach -t "$SESSION"
+else
+  "${TRAIN_CMD[@]}"
+fi
