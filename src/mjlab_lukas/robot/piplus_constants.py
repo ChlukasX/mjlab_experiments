@@ -37,7 +37,6 @@ ACTUATOR_LAG_MAX = 3
 #   delay_max_lag=ACTUATOR_LAG_MAX,
 # )
 
-# Motors used in Arms
 ACTUATOR_4438 = XmlActuatorCfg(
   target_names_expr=(
     ".*_shoulder_pitch_joint",
@@ -49,7 +48,6 @@ ACTUATOR_4438 = XmlActuatorCfg(
   delay_max_lag=ACTUATOR_LAG_MAX,
 )
 
-# Motors used in Legs
 ACTUATOR_5036 = XmlActuatorCfg(
   target_names_expr=(
     ".*_hip_pitch_joint",
@@ -76,12 +74,6 @@ HOME_KEYFRAME = EntityCfg.InitialStateCfg(
     "r_ankle_pitch_joint": 0.5,
     "l_ankle_pitch_joint": -0.5,
     ".*_ankle_roll_joint": 0.0,
-    # "r_shoulder_roll_joint": 1.2,
-    # "l_shoulder_roll_joint": -1.2,
-    # "r_shoulder_pitch_joint": 1.5708,
-    # "l_shoulder_pitch_joint": -1.5708,
-    # ".*_upper_arm_joint": 0.0,
-    # ".*_elbow_joint": 0.0,
   },
   joint_vel={".*": 0.0},
 )
