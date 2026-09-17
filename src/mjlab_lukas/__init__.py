@@ -10,6 +10,7 @@ TASKS = [
     "Mjlab-Piplus-Upright",
     "Mjlab-Piplus-NonInertial",
     "Mjlab-Piplus-Platform",
+    "Mjlab-Piplus-Ball",
 ]
 
 
