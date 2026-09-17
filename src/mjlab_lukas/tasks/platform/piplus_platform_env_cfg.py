@@ -145,6 +145,17 @@ def foot_flatness(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     return foot_up_z.clamp(0, 1).mean(dim=-1)
 
 
+def foot_grounding(env, std: float, asset_cfg: SceneEntityCfg, platform_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Reward feet staying on platform — penalises lifting off surface."""
+    robot = env.scene[asset_cfg.name]
+    platform = env.scene[platform_cfg.name]
+    ankle_z = robot.data.body_link_pose_w[:, asset_cfg.body_ids, 2]  # [B, 2]
+    plat_top = platform.data.root_link_pos_w[:, 2] + PLATFORM_HALF_H  # [B]
+    foot_bottom = ankle_z - 0.05  # capsule geom is 0.05 m below ankle body origin
+    lift = (foot_bottom - plat_top.unsqueeze(-1)).clamp(min=0)  # [B, 2]
+    return torch.exp(-lift.sum(dim=-1) / std)
+
+
 def xy_drift_gauss(env, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward for staying near platform center (same env-local-frame trick)."""
     asset = env.scene[asset_cfg.name]
@@ -153,6 +164,14 @@ def xy_drift_gauss(env, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
         env._spawn_xy = pos_xy.clone()
     dist_sq = torch.sum((pos_xy - env._spawn_xy) ** 2, dim=-1)
     return torch.exp(-dist_sq / (std * std))
+
+
+def off_platform(env, margin: float, asset_cfg: SceneEntityCfg, platform_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Terminate when robot xy drifts beyond the platform boundary."""
+    robot = env.scene[asset_cfg.name]
+    platform = env.scene[platform_cfg.name]
+    dist = (robot.data.root_link_pos_w[:, :2] - platform.data.root_link_pos_w[:, :2]).abs()
+    return (dist[:, 0] > PLATFORM_HALF_XY + margin) | (dist[:, 1] > PLATFORM_HALF_XY + margin)
 
 
 def platform_state_obs(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -192,7 +211,7 @@ def reset_platform_motion(
     env._plat_amp[env_ids, 0] = torch.rand(n, device=device) * r_max
     env._plat_amp[env_ids, 1] = torch.rand(n, device=device) * p_max
     env._plat_amp[env_ids, 2] = torch.rand(n, device=device) * h_max
-    env._plat_phase[env_ids] = torch.rand(n, 3, device=device) * 2 * math.pi
+    env._plat_phase[env_ids] = 0.0  # start flat; sin(0)=0, no tilt at spawn
     env._plat_freq[env_ids] = (
         torch.rand(n, 3, device=device) * (f_hi - f_lo) + f_lo
     )
@@ -204,6 +223,51 @@ def reset_platform_motion(
     pose[:, 2] = PLATFORM_Z
     pose[:, 3] = 1.0  # identity quaternion (w=1)
     platform.write_mocap_pose_to_sim(pose, env_ids=env_ids)
+
+
+class PushEventWithVis:
+    """Interval push event. In play mode, debug_vis exposes a velocity-scale slider
+    (0 = disabled, 1 = nominal, 2 = 2×). Training is unaffected — no attr means full scale."""
+
+    def __init__(self, cfg=None, env=None):
+        self._slider_added = False
+
+    def __call__(
+        self,
+        env,
+        env_ids,
+        velocity_range: dict,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ) -> None:
+        self._env = env
+        self._velocity_range = velocity_range
+        self._asset_cfg = asset_cfg
+        scale = getattr(env, "_push_vel_scale", 1.0)
+        if scale == 0.0:
+            return
+        scaled = {k: (v[0] * scale, v[1] * scale) for k, v in velocity_range.items()}
+        envs_mdp.push_by_setting_velocity(env, env_ids, scaled, asset_cfg)
+
+    def reset(self, env_ids=None) -> None:
+        pass
+
+    def debug_vis(self, visualizer) -> None:
+        if self._slider_added or not hasattr(visualizer, "server"):
+            return
+        if not hasattr(self, "_env"):
+            return
+        self._slider_added = True
+        env = self._env
+        env._push_vel_scale = 0.0  # disabled by default in play mode
+        with visualizer.server.gui.add_folder("Push"):
+            s = visualizer.server.gui.add_slider(
+                "Velocity scale (0=off)", min=0.0, max=2.0, step=0.1, initial_value=0.0,
+            )
+
+            def _on_change(_ev, _s=s):
+                env._push_vel_scale = float(_s.value)
+
+            s.on_update(_on_change)
 
 
 class ApplyPlatformMotion:
@@ -367,11 +431,11 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             weight=3.0,
             params={
                 "std": {
-                    ".*_hip_roll_joint":    0.05,
-                    ".*_hip_pitch_joint":   0.25,
-                    ".*_thigh_joint":       0.25,
-                    ".*_calf_joint":        0.25,
-                    ".*_ankle_pitch_joint": 0.05,
+                    ".*_hip_roll_joint":    0.05,   # tight: no lateral sway
+                    ".*_hip_pitch_joint":   0.40,   # loose: hip flex absorbs motion
+                    ".*_thigh_joint":       0.40,   # loose: knee flex absorbs motion
+                    ".*_calf_joint":        0.40,   # loose: knee flex absorbs motion
+                    ".*_ankle_pitch_joint": 0.20,   # moderate: some ankle compensation
                     ".*_ankle_roll_joint":  0.25,
                 },
                 "asset_cfg": SceneEntityCfg("robot", joint_names=(
@@ -386,15 +450,24 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         ),
         "foot_flatness": RewardTermCfg(
             func=foot_flatness,
-            weight=1.0,
+            weight=2.0,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_ankle_roll_link", "l_ankle_roll_link"])},
+        ),
+        "foot_grounding": RewardTermCfg(
+            func=foot_grounding,
+            weight=5.0,
+            params={
+                "std": 0.02,
+                "asset_cfg": SceneEntityCfg("robot", body_names=["r_ankle_roll_link", "l_ankle_roll_link"]),
+                "platform_cfg": SceneEntityCfg("platform"),
+            },
         ),
         "xy_drift": RewardTermCfg(
             func=xy_drift_gauss,
             weight=0.5,
             params={"std": 2.0, "asset_cfg": robot_cfg},
         ),
-        "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.015),
+        "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.05),
         "joint_vel":   RewardTermCfg(func=envs_mdp.joint_vel_l2,   weight=-0.005),
     }
 
@@ -404,6 +477,14 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             func=envs_mdp.bad_orientation,
             params={"limit_angle": math.radians(70.0)},
         ),
+        "off_platform": TerminationTermCfg(
+            func=off_platform,
+            params={
+                "margin": 0.5,
+                "asset_cfg": robot_cfg,
+                "platform_cfg": platform_cfg,
+            },
+        ),
     }
 
     events = {
@@ -411,8 +492,17 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             func=envs_mdp.reset_scene_to_default,
             mode="reset",
         ),
+        "randomize_yaw": EventTermCfg(
+            func=envs_mdp.reset_root_state_uniform,
+            mode="reset",
+            params={
+                "pose_range": {"z": (ROBOT_SPAWN_Z, ROBOT_SPAWN_Z), "yaw": (-math.pi, math.pi)},
+                "velocity_range": {},
+                "asset_cfg": robot_cfg,
+            },
+        ),
         "push": EventTermCfg(
-            func=envs_mdp.push_by_setting_velocity,
+            func=PushEventWithVis,
             mode="interval",
             interval_range_s=(4.0, 12.0),
             params={
