@@ -5,7 +5,23 @@ import time
 from pathlib import Path
 
 LOGS_ROOT = Path(__file__).parents[2] / "logs" / "rsl_rl"
-DEFAULT_TASK = "Mjlab-Piplus-Upright"
+
+TASKS = [
+    "Mjlab-Piplus-Upright",
+    "Mjlab-Piplus-NonInertial",
+    "Mjlab-Piplus-Platform",
+]
+
+
+def _pick_task() -> str:
+    print("Select task:")
+    for i, t in enumerate(TASKS, 1):
+        print(f"  {i}) {t}")
+    while True:
+        raw = input("Enter number: ").strip()
+        if raw.isdigit() and 1 <= int(raw) <= len(TASKS):
+            return TASKS[int(raw) - 1]
+        print(f"Enter 1–{len(TASKS)}.")
 
 
 def _task_slug(task: str) -> str:
@@ -106,7 +122,7 @@ def cmd_clean(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="mjx")
-    parser.add_argument("--task", default=DEFAULT_TASK)
+    parser.add_argument("--task", default=None)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("runs", help="List training runs")
@@ -119,4 +135,7 @@ def main() -> None:
     p_clean.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args()
+    if args.task is None:
+        args.task = _pick_task()
+
     {"runs": cmd_runs, "play": cmd_play, "clean": cmd_clean}[args.cmd](args)

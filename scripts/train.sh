@@ -4,7 +4,13 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-TASK="Mjlab-Piplus-Upright"
+TASKS=(
+  "Mjlab-Piplus-Upright"
+  "Mjlab-Piplus-NonInertial"
+  "Mjlab-Piplus-Platform"
+)
+
+TASK=""
 NUM_ENVS=""
 CPU=0
 TMUX=0
@@ -40,6 +46,14 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -z "$TASK" ]]; then
+  echo "Select task:"
+  select choice in "${TASKS[@]}"; do
+    [[ -n "$choice" ]] && TASK="$choice" && break
+    echo "Invalid selection."
+  done
+fi
 
 if [[ -z "$NUM_ENVS" ]]; then
   NUM_ENVS=64
