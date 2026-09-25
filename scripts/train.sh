@@ -7,9 +7,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 TASKS=(
   "Mjlab-Piplus-Upright"
   "Mjlab-Piplus-Locomotion"
+  "Mjlab-Piplus-Locomotion-Arms"
   "Mjlab-Piplus-NonInertial"
   "Mjlab-Piplus-Platform"
   "Mjlab-Piplus-Ball"
+  "Mjlab-Piplus-Ball-Arms"
+  "Mjlab-Piplus-Ball-Small"
 )
 
 TASK=""

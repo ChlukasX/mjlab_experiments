@@ -9,9 +9,12 @@ LOGS_ROOT = Path(__file__).parents[2] / "logs" / "rsl_rl"
 TASKS = [
     "Mjlab-Piplus-Upright",
     "Mjlab-Piplus-Locomotion",
+    "Mjlab-Piplus-Locomotion-Arms",
     "Mjlab-Piplus-NonInertial",
     "Mjlab-Piplus-Platform",
     "Mjlab-Piplus-Ball",
+    "Mjlab-Piplus-Ball-Arms",
+    "Mjlab-Piplus-Ball-Small",
 ]
 
 
