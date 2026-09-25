@@ -1,13 +1,7 @@
-"""Piplus ball-balancing experiment.
+"""Piplus ball-balancing with full arm actuation (20 DOF).
 
-The robot stands on top of a free-floating sphere.  Its foot forces transmit into
-the ball and cause it to roll — the robot must learn to counteract its own momentum
-or it slides off.  Instability is entirely self-generated (no injected forces or
-platform motion).
-
-Ball geometry:
-    radius = 0.45 m  (roughly an exercise ball relative to robot scale)
-    mass   = 5.0 kg  (light enough to respond clearly to foot forces)
+Identical to Mjlab-Piplus-Ball but uses get_piplus_robot_with_arms_cfg().
+Arm swing can contribute to angular momentum management on the ball.
 """
 
 import math
@@ -33,26 +27,19 @@ from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
 from mjlab_lukas.robot.piplus_constants import (
-    ACTUATOR_5036,
+    HOME_KEYFRAME_WITH_ARMS,
+    get_piplus_robot_with_arms_cfg,
     FULL_COLLISION,
-    HOME_KEYFRAME,
-    PIPLUS_ARTICULATION,
-    get_spec,
 )
 
 BALL_RADIUS = 0.45
 BALL_MASS = 5.0
-BALL_TOP = BALL_RADIUS * 2          # = 0.90 m
-ROBOT_SPAWN_Z = BALL_TOP + 0.5      # = 1.40 m  (0.5 m free-fall onto ball)
-BASE_HEIGHT_TARGET = BALL_TOP + 0.35  # = 1.25 m
+BALL_TOP = BALL_RADIUS * 2
+ROBOT_SPAWN_Z = BALL_TOP + 0.5
+BASE_HEIGHT_TARGET = BALL_TOP + 0.35
 
-
-# ---------------------------------------------------------------------------
-# Specs
-# ---------------------------------------------------------------------------
 
 def get_ball_spec() -> mujoco.MjSpec:
-    """Free-floating sphere.  freejoint makes it a physics body, not mocap."""
     spec = mujoco.MjSpec()
     body = spec.worldbody.add_body(name="ball_body", pos=[0, 0, BALL_RADIUS])
     body.add_freejoint(name="ball_free")
@@ -70,30 +57,26 @@ def get_ball_spec() -> mujoco.MjSpec:
     return spec
 
 
-def get_piplus_on_ball_cfg() -> EntityCfg:
+def get_piplus_on_ball_with_arms_cfg() -> EntityCfg:
     spawn_state = EntityCfg.InitialStateCfg(
         pos=(0, 0, ROBOT_SPAWN_Z),
-        joint_pos=HOME_KEYFRAME.joint_pos,
-        joint_vel=HOME_KEYFRAME.joint_vel,
+        joint_pos=HOME_KEYFRAME_WITH_ARMS.joint_pos,
+        joint_vel=HOME_KEYFRAME_WITH_ARMS.joint_vel,
     )
+    from mjlab_lukas.robot.piplus_constants import PIPLUS_ARTICULATION_WITH_ARMS, get_spec_with_arms
     return EntityCfg(
         init_state=spawn_state,
         collisions=(FULL_COLLISION,),
-        spec_fn=get_spec,
-        articulation=PIPLUS_ARTICULATION,
+        spec_fn=get_spec_with_arms,
+        articulation=PIPLUS_ARTICULATION_WITH_ARMS,
     )
 
 
-# ---------------------------------------------------------------------------
-# Custom obs / reward / termination
-# ---------------------------------------------------------------------------
-
 def ball_state_obs(env, asset_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Ball position relative to robot base + ball linear velocity [B, 5]."""
     robot = env.scene[asset_cfg.name]
     ball = env.scene[ball_cfg.name]
-    rel_pos = ball.data.root_link_pos_w - robot.data.root_link_pos_w   # [B, 3]
-    ball_vel = ball.data.root_link_vel_w[:, :2]                        # [B, 2] xy only
+    rel_pos = ball.data.root_link_pos_w - robot.data.root_link_pos_w
+    ball_vel = ball.data.root_link_vel_w[:, :2]
     return torch.cat([rel_pos, ball_vel], dim=-1)
 
 
@@ -104,14 +87,12 @@ def base_height_gauss(env, target_height: float, std: float, asset_cfg: SceneEnt
 
 
 def ball_control(env, std: float, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Reward ball moving slowly — penalises the robot destabilising the ball."""
     ball = env.scene[ball_cfg.name]
     vel_sq = ball.data.root_link_vel_w[:, :3].pow(2).sum(dim=-1)
     return torch.exp(-vel_sq / (std * std))
 
 
 def ball_escaped(env, max_dist: float, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Terminate when ball rolls more than max_dist from env origin."""
     ball = env.scene[ball_cfg.name]
     dist_sq = (
         (ball.data.root_link_pos_w[:, :2] - env.scene.env_origins[:, :2])
@@ -121,7 +102,6 @@ def ball_escaped(env, max_dist: float, ball_cfg: SceneEntityCfg) -> torch.Tensor
 
 
 def xy_centering(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Penalise robot drifting from env origin in XY."""
     asset = env.scene[asset_cfg.name]
     drift = asset.data.root_link_pos_w[:, :2] - env.scene.env_origins[:, :2]
     return -drift.pow(2).sum(dim=-1)
@@ -133,7 +113,6 @@ def robot_off_ball(
     asset_cfg: SceneEntityCfg,
     ball_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Terminate when robot base drops below ball top + margin (fell off ball)."""
     robot = env.scene[asset_cfg.name]
     ball = env.scene[ball_cfg.name]
     ball_top_z = ball.data.root_link_pos_w[:, 2] + BALL_RADIUS
@@ -141,11 +120,7 @@ def robot_off_ball(
     return robot_z < ball_top_z + min_height_above_ball
 
 
-# ---------------------------------------------------------------------------
-# Environment config
-# ---------------------------------------------------------------------------
-
-def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+def piplus_ball_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     robot_cfg = SceneEntityCfg("robot")
     ball_cfg = SceneEntityCfg("ball")
 
@@ -191,38 +166,37 @@ def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
                 "asset_cfg": robot_cfg,
             },
         ),
-        "joint_pos_limits": RewardTermCfg(func=envs_mdp.joint_pos_limits, weight=-1.0),
         "posture": RewardTermCfg(
             func=envs_mdp.posture,
             weight=3.0,
             params={
                 "std": {
-                    ".*_hip_roll_joint":    0.05,
-                    ".*_hip_pitch_joint":   0.40,
-                    ".*_thigh_joint":       0.40,
-                    ".*_calf_joint":        0.40,
-                    ".*_ankle_pitch_joint": 0.20,
-                    ".*_ankle_roll_joint":  0.25,
+                    ".*_hip_roll_joint":       0.05,
+                    ".*_hip_pitch_joint":      0.40,
+                    ".*_thigh_joint":          0.40,
+                    ".*_calf_joint":           0.40,
+                    ".*_ankle_pitch_joint":    0.20,
+                    ".*_ankle_roll_joint":     0.25,
+                    # arms loose — let them find useful poses
+                    ".*_shoulder_pitch_joint": 0.40,
+                    ".*_shoulder_roll_joint":  0.20,
+                    ".*_upper_arm_joint":      0.50,
+                    ".*_elbow_joint":          0.30,
                 },
                 "asset_cfg": SceneEntityCfg("robot", joint_names=(
                     ".*_hip_roll_joint", ".*_hip_pitch_joint",
                     ".*_thigh_joint", ".*_calf_joint",
                     ".*_ankle_pitch_joint", ".*_ankle_roll_joint",
+                    ".*_shoulder_pitch_joint", ".*_shoulder_roll_joint",
+                    ".*_upper_arm_joint", ".*_elbow_joint",
                 )),
             },
         ),
-        "ball_control": RewardTermCfg(
-            func=ball_control,
-            weight=3.0,
-            params={"std": 0.5, "ball_cfg": ball_cfg},
-        ),
-        "xy_centering": RewardTermCfg(
-            func=xy_centering,
-            weight=0.5,
-            params={"asset_cfg": robot_cfg},
-        ),
-        "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.05),
-        "joint_vel":   RewardTermCfg(func=envs_mdp.joint_vel_l2,   weight=-0.005),
+        "ball_control":     RewardTermCfg(func=ball_control,     weight=3.0,  params={"std": 0.5, "ball_cfg": ball_cfg}),
+        "xy_centering":     RewardTermCfg(func=xy_centering,    weight=0.5,  params={"asset_cfg": robot_cfg}),
+        "joint_pos_limits": RewardTermCfg(func=envs_mdp.joint_pos_limits, weight=-1.0),
+        "action_rate":      RewardTermCfg(func=envs_mdp.action_rate_l2,   weight=-0.05),
+        "joint_vel":        RewardTermCfg(func=envs_mdp.joint_vel_l2,     weight=-0.005),
     }
 
     terminations = {
@@ -261,7 +235,7 @@ def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         scene=SceneCfg(
             terrain=TerrainEntityCfg(terrain_type="plane"),
             entities={
-                "robot": get_piplus_on_ball_cfg(),
+                "robot": get_piplus_on_ball_with_arms_cfg(),
                 "ball":  EntityCfg(
                     spec_fn=get_ball_spec,
                     init_state=EntityCfg.InitialStateCfg(pos=(0, 0, BALL_RADIUS)),
@@ -288,7 +262,7 @@ def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     )
 
 
-def piplus_ball_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
+def piplus_ball_arms_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
     return RslRlOnPolicyRunnerCfg(
         actor=RslRlModelCfg(
             hidden_dims=(128, 128),
@@ -319,7 +293,7 @@ def piplus_ball_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
             desired_kl=0.01,
             max_grad_norm=1.0,
         ),
-        experiment_name="piplus_ball",
+        experiment_name="piplus_ball_arms",
         save_interval=50,
         num_steps_per_env=24,
         max_iterations=1000,
