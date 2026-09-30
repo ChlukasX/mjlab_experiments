@@ -45,7 +45,34 @@ def get_spec_with_arms() -> mujoco.MjSpec:
   for geom in spec.geoms:
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH and not geom.name:
       geom.rgba = VISUAL_RGBA
+  _fit_arm_collisions(spec)
   return spec
+
+
+def _fit_arm_collisions(spec: mujoco.MjSpec) -> None:
+  """Resize torso/arm collision geoms to match the visual meshes.
+
+  The exported MJCF undersizes them (torso box ~3 cm short per side, no elbow
+  geom, forearm is an 8 mm rod), so actuated arms clip into the torso.
+  Sizes are taken from the mesh bounding boxes in each body frame.
+  """
+  torso = spec.geom("torso_link_collision0")
+  torso.pos = [0.002, 0, 0.095]
+  torso.size = [0.098, 0.1, 0.105]  # mesh: x ±0.10, y ±0.108, z -0.012..0.201
+  for side in ("r", "l"):
+    upper = spec.geom(f"{side}_upper_arm_link_collision0")
+    upper.pos = [0, 0, -0.01]
+    upper.size = [0.035, 0.05, 0]  # mesh z -0.060..0.041
+    spec.body(f"{side}_elbow_link").add_geom(
+      name=f"{side}_elbow_link_collision0",
+      type=mujoco.mjtGeom.mjGEOM_BOX,
+      size=[0.028, 0.028, 0.028],
+      group=3,
+    )
+    forearm = spec.geom(f"{side}_wrist_link_collision0")
+    forearm.type = mujoco.mjtGeom.mjGEOM_CAPSULE
+    forearm.pos = [0, 0, -0.0625]
+    forearm.size = [0.02, 0.0325, 0]  # z -0.115..-0.01; top gap keeps it off upper arm
 
 
 ACTUATOR_LAG_MIN = 0
