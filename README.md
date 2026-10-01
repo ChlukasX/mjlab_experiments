@@ -1,6 +1,6 @@
 # mjlab-lukas
 
-Pi+ humanoid balance experiments using [mjlab]([https://mjlab.dev](https://mujocolab.github.io/mjlab/main/index.html) (MuJoCo + RSL-RL + PPO).
+Pi+ humanoid balance experiments using [mjlab](https://mujocolab.github.io/mjlab/main/index.html) (MuJoCo + RSL-RL + PPO).
 
 ## Setup
 
