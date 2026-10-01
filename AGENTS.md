@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) and other coding agents when working with code in this repository.
 
+## Workflow Rules
+
+- **New features and policies always go on a new branch** (e.g. `feat/ball-approach`), never directly on `main`. The repo is public; `main` must stay clean and working.
+- Branch before the first edit, not after. Keep the working tree clean: no stray debug files, no half-finished changes left on `main`.
+- Commit/push only on explicit user request; merge to `main` only when the user says so.
+
 ## Commands
 
 ```bash
