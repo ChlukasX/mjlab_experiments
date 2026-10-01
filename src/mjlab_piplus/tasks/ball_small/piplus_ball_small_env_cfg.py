@@ -320,22 +320,21 @@ def piplus_ball_small_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
                 "ranges": (0.4, 1.2),
             },
         ),
+        # pseudo_inertia scales mass and inertia together by exp(2*alpha).
         "ball_mass": EventTermCfg(
-            func=dr.body_mass,
+            func=dr.pseudo_inertia,
             mode="startup",
             params={
                 "asset_cfg": SceneEntityCfg("ball", body_names=("ball_body",)),
-                "operation": "scale",
-                "ranges": (0.8, 1.2),
+                "alpha_range": (math.log(0.8) / 2, math.log(1.2) / 2),  # mass x0.8-1.2
             },
         ),
         "robot_mass": EventTermCfg(
-            func=dr.body_mass,
+            func=dr.pseudo_inertia,
             mode="startup",
             params={
                 "asset_cfg": SceneEntityCfg("robot", body_names=("base_link", "torso_link")),
-                "operation": "scale",
-                "ranges": (0.9, 1.1),
+                "alpha_range": (math.log(0.9) / 2, math.log(1.1) / 2),  # mass x0.9-1.1
             },
         ),
         "base_com": EventTermCfg(
