@@ -13,6 +13,7 @@ TASKS=(
   "Mjlab-Piplus-Ball"
   "Mjlab-Piplus-Ball-Arms"
   "Mjlab-Piplus-Ball-Small"
+  "Mjlab-Piplus-Ball-Small-Turf"
 )
 
 TASK=""

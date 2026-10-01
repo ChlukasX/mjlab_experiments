@@ -41,6 +41,7 @@ from mjlab_lukas.robot.piplus_constants import (
     PIPLUS_ARTICULATION_WITH_ARMS,
     get_spec_with_arms,
 )
+from mjlab_lukas.terrains import AstroturfTerrainCfg, ground_softness
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -418,6 +419,19 @@ def piplus_ball_small_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         decimation=4,
         episode_length_s=20.0 if not play else 1e9,
     )
+
+
+def piplus_ball_small_turf_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+    """Ball-small on astroturf; turf softens from firm to soft over ~2000 iters."""
+    cfg = piplus_ball_small_env_cfg(play)
+    cfg.scene.terrain = AstroturfTerrainCfg()
+    cfg.events["ground_softness"] = EventTermCfg(
+        func=ground_softness,
+        mode="reset",
+        # ponytail: solref timeconst range is a guess; calibrate against real foot-sink tests.
+        params={"timeconst_range": (0.02, 0.06), "ramp_steps": 2000 * 24},
+    )
+    return cfg
 
 
 def piplus_ball_small_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
