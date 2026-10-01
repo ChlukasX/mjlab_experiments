@@ -36,12 +36,12 @@ uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/
 This is an `mjlab` plugin package. `mjlab` is the RL framework (MuJoCo + RSL-RL + PPO). This repo contributes a robot description and tasks to it.
 
 **Task registration flow:**
-1. `src/mjlab_lukas/tasks/__init__.py` — calls `import_packages(__name__)` which auto-imports all subpackages
-2. Each `src/mjlab_lukas/tasks/<name>/__init__.py` — imports env/runner configs and calls `register_mjlab_task()`
+1. `src/mjlab_piplus/tasks/__init__.py` — calls `import_packages(__name__)` which auto-imports all subpackages
+2. Each `src/mjlab_piplus/tasks/<name>/__init__.py` — imports env/runner configs and calls `register_mjlab_task()`
 
-**Adding a new task:** create `src/mjlab_lukas/tasks/<task_name>/` with `__init__.py` (register) and a config file; auto-imported.
+**Adding a new task:** create `src/mjlab_piplus/tasks/<task_name>/` with `__init__.py` (register) and a config file; auto-imported.
 
-**Robot config** lives in `src/mjlab_lukas/robot/piplus_constants.py`:
+**Robot config** lives in `src/mjlab_piplus/robot/piplus_constants.py`:
 - `get_piplus_robot_cfg()` — returns full `EntityCfg` (used by env configs)
 - `get_spec()` — loads MuJoCo XML and repaints visual meshes dark gray (MJCF ships light gray; vendored file left unchanged)
 - `ACTUATOR_5036` covers all leg joints; arm actuators (`ACTUATOR_4438`) are defined but commented out

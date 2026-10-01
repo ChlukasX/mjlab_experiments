@@ -20,7 +20,7 @@ from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from mjlab_lukas.robot.piplus_constants import get_piplus_robot_cfg
+from mjlab_piplus.robot.piplus_constants import get_piplus_robot_cfg
 
 
 def base_height_l2(env, target_height: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:

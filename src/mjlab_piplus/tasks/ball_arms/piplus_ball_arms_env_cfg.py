@@ -26,7 +26,7 @@ from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from mjlab_lukas.robot.piplus_constants import (
+from mjlab_piplus.robot.piplus_constants import (
     HOME_KEYFRAME_WITH_ARMS,
     get_piplus_robot_with_arms_cfg,
     FULL_COLLISION,
@@ -63,7 +63,7 @@ def get_piplus_on_ball_with_arms_cfg() -> EntityCfg:
         joint_pos=HOME_KEYFRAME_WITH_ARMS.joint_pos,
         joint_vel=HOME_KEYFRAME_WITH_ARMS.joint_vel,
     )
-    from mjlab_lukas.robot.piplus_constants import PIPLUS_ARTICULATION_WITH_ARMS, get_spec_with_arms
+    from mjlab_piplus.robot.piplus_constants import PIPLUS_ARTICULATION_WITH_ARMS, get_spec_with_arms
     return EntityCfg(
         init_state=spawn_state,
         collisions=(FULL_COLLISION,),

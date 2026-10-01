@@ -1,4 +1,4 @@
-# mjlab-lukas
+# mjlab-piplus
 
 Pi+ humanoid experiments using [mjlab](https://mujocolab.github.io/mjlab/main/index.html) (MuJoCo + RSL-RL + PPO). These are mainly personal experiments, if you want to see more with what we do with the PI+ humanoid robot, and many other cool things, check out the [Hamburg bit-bots](https://github.com/bit-bots/) RoboCup team. 
 
@@ -55,7 +55,7 @@ uv run mjx clean --dry-run                     # preview what would be deleted
 ## Repo structure
 
 ```
-src/mjlab_lukas/
+src/mjlab_piplus/
   robot/                  Pi+ MJCF + constants (actuators, collision presets)
   tasks/
     upright/              Mjlab-Piplus-Upright

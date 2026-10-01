@@ -1,5 +1,5 @@
 [project]
-name = "mjlab-lukas"
+name = "mjlab-piplus"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -12,10 +12,10 @@ dependencies = [
 ]
 
 [project.scripts]
-mjx = "mjlab_lukas:main"
+mjx = "mjlab_piplus:main"
 
 [project.entry-points."mjlab.tasks"]
-mjlab_lukas = "mjlab_lukas.tasks"
+mjlab_piplus = "mjlab_piplus.tasks"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]

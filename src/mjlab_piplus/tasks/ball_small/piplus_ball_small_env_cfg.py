@@ -35,13 +35,13 @@ from mjlab.terrains import TerrainEntityCfg
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 from mjlab.viewer import ViewerConfig
 
-from mjlab_lukas.robot.piplus_constants import (
+from mjlab_piplus.robot.piplus_constants import (
     FULL_COLLISION,
     HOME_KEYFRAME_WITH_ARMS,
     PIPLUS_ARTICULATION_WITH_ARMS,
     get_spec_with_arms,
 )
-from mjlab_lukas.terrains import AstroturfTerrainCfg, ground_softness
+from mjlab_piplus.terrains import AstroturfTerrainCfg, ground_softness
 
 # ---------------------------------------------------------------------------
 # Constants

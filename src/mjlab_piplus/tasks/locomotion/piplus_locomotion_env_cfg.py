@@ -1,8 +1,8 @@
-"""Piplus locomotion with full arm actuation (20 DOF vs 12).
+"""Piplus locomotion: track commanded (vx, vy, ω_z) on flat terrain.
 
-Identical to Mjlab-Piplus-Locomotion but with ACTUATOR_4438 enabled.
-Arm swing is unconstrained enough to develop natural counterbalancing gait.
-Separate task so leg-only and arms results can be compared directly.
+Prerequisite for all higher-level tasks (ball reception, platform locomotion).
+Velocity commands are resampled every 5–10 s; 10% of envs receive zero command
+so the policy also learns to stand still.
 """
 
 import math
@@ -27,17 +27,19 @@ from mjlab.tasks.velocity.mdp import (
     track_linear_velocity,
     upright,
 )
-from mjlab.tasks.velocity.mdp.velocity_command import UniformVelocityCommandCfg
+from mjlab.tasks.velocity.mdp.velocity_command import (
+    UniformVelocityCommandCfg,
+)
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from mjlab_lukas.robot.piplus_constants import get_piplus_robot_with_arms_cfg
+from mjlab_piplus.robot.piplus_constants import get_piplus_robot_cfg
 
 FOOT_SENSOR_NAME = "foot_contact"
 VEL_CMD_NAME = "vel_cmd"
 
 
-def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+def piplus_locomotion_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     robot_cfg = SceneEntityCfg("robot")
 
     obs_terms = {
@@ -116,25 +118,17 @@ def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             weight=1.5,
             params={
                 "std": {
-                    # legs — same as locomotion
                     ".*_hip_roll_joint":    0.10,
                     ".*_hip_pitch_joint":   0.40,
                     ".*_thigh_joint":       0.40,
                     ".*_calf_joint":        0.40,
                     ".*_ankle_pitch_joint": 0.20,
                     ".*_ankle_roll_joint":  0.15,
-                    # arms — loose enough to swing naturally
-                    ".*_shoulder_pitch_joint": 0.40,
-                    ".*_shoulder_roll_joint":  0.20,
-                    ".*_upper_arm_joint":      0.50,
-                    ".*_elbow_joint":          0.30,
                 },
                 "asset_cfg": SceneEntityCfg("robot", joint_names=(
                     ".*_hip_roll_joint", ".*_hip_pitch_joint",
                     ".*_thigh_joint", ".*_calf_joint",
                     ".*_ankle_pitch_joint", ".*_ankle_roll_joint",
-                    ".*_shoulder_pitch_joint", ".*_shoulder_roll_joint",
-                    ".*_upper_arm_joint", ".*_elbow_joint",
                 )),
             },
         ),
@@ -178,7 +172,11 @@ def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
     foot_sensor = ContactSensorCfg(
         name=FOOT_SENSOR_NAME,
-        primary=ContactMatch(mode="body", pattern=".*_ankle_roll_link", entity="robot"),
+        primary=ContactMatch(
+            mode="body",
+            pattern=".*_ankle_roll_link",
+            entity="robot",
+        ),
         fields=("found",),
         track_air_time=True,
     )
@@ -186,7 +184,7 @@ def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     return ManagerBasedRlEnvCfg(
         scene=SceneCfg(
             terrain=TerrainEntityCfg(terrain_type="plane"),
-            entities={"robot": get_piplus_robot_with_arms_cfg()},
+            entities={"robot": get_piplus_robot_cfg()},
             sensors=(foot_sensor,),
             num_envs=1,
         ),
@@ -210,7 +208,7 @@ def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     )
 
 
-def piplus_locomotion_arms_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
+def piplus_locomotion_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
     return RslRlOnPolicyRunnerCfg(
         actor=RslRlModelCfg(
             hidden_dims=(256, 128),
@@ -241,7 +239,7 @@ def piplus_locomotion_arms_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
             desired_kl=0.01,
             max_grad_norm=1.0,
         ),
-        experiment_name="piplus_locomotion_arms",
+        experiment_name="piplus_locomotion",
         save_interval=50,
         num_steps_per_env=24,
         max_iterations=3000,

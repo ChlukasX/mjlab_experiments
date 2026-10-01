@@ -32,7 +32,7 @@ from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from mjlab_lukas.robot.piplus_constants import (
+from mjlab_piplus.robot.piplus_constants import (
     ACTUATOR_5036,
     FULL_COLLISION,
     HOME_KEYFRAME,

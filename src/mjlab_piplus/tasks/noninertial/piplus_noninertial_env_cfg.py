@@ -37,7 +37,7 @@ from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
-from mjlab_lukas.robot.piplus_constants import get_piplus_robot_cfg
+from mjlab_piplus.robot.piplus_constants import get_piplus_robot_cfg
 
 # Pi+ total body mass from MJCF (sum of all body_mass values)
 ROBOT_MASS = 13.02

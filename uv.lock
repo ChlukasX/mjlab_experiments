@@ -1071,7 +1071,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mjlab-lukas"
+name = "mjlab-piplus"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
