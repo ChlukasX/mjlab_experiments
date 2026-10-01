@@ -30,6 +30,12 @@ uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/
 | `Mjlab-Piplus-Upright` | Baseline: stand upright on flat terrain |
 | `Mjlab-Piplus-NonInertial` | Sinusoidal forces injected on root body (fictitious platform acceleration) |
 | `Mjlab-Piplus-Platform` | Physical 3 m × 3 m mocap platform with roll, pitch, heave (boat motion) |
+| `Mjlab-Piplus-Locomotion` | Velocity-tracked walking on flat terrain (legs only) |
+| `Mjlab-Piplus-Locomotion-Arms` | Same, with arms actuated |
+| `Mjlab-Piplus-Ball` | Balance on a large free-rolling ball (0.45 m radius) |
+| `Mjlab-Piplus-Ball-Arms` | Same, with arms actuated |
+| `Mjlab-Piplus-Ball-Small` | Single-leg balance on a football; sim2real setup |
+| `Mjlab-Piplus-Ball-Small-Turf` | Same, on astroturf (soft two-plane terrain) |
 
 ## Architecture
 

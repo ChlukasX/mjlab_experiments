@@ -1,13 +1,14 @@
-"""Piplus small-ball balancing — two-stage curriculum.
+"""Piplus small-ball balancing: single-leg stance on a football.
 
-Robot spawns directly above ball and drops onto it (same pattern as large-ball
-task).  No approach phase — straight to balance training.
+Robot spawns above the ball with the right foot over it and drops on; the
+single-leg reward is active from step 0. Arms are actuated for counterbalancing.
 
-Stage 1 (step 0–12000, ~iter 0–500): foot on ball, stay upright.
-Stage 2 (step 12000+,  ~iter 500+): single-leg stance — other foot lifted.
+Sim2real setup: the actor sees only joint encoders + IMU (with noise and a
+5-step history); the critic also sees base linear velocity and ball state.
+Physics is randomised and the robot is pushed at intervals.
 
 Ball: standard football (radius=0.11 m, mass=0.43 kg).
-Arms enabled from start — critical for single-leg counterbalancing.
+See docs/ball_small.md.
 """
 
 import math

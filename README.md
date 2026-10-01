@@ -16,6 +16,12 @@ uv run wandb login   # required for training
 | `Mjlab-Piplus-Upright` | Baseline: stand upright on flat terrain |
 | `Mjlab-Piplus-NonInertial` | Sinusoidal forces on root body simulating platform acceleration |
 | `Mjlab-Piplus-Platform` | Physical 3 m × 3 m mocap platform with roll, pitch, heave (boat motion) |
+| `Mjlab-Piplus-Locomotion` | Velocity-tracked walking on flat terrain (legs only) |
+| `Mjlab-Piplus-Locomotion-Arms` | Same, with arms actuated |
+| `Mjlab-Piplus-Ball` | Balance on a large free-rolling ball (0.45 m radius) |
+| `Mjlab-Piplus-Ball-Arms` | Same, with arms actuated |
+| `Mjlab-Piplus-Ball-Small` | Single-leg balance on a football; sim2real setup |
+| `Mjlab-Piplus-Ball-Small-Turf` | Same, on astroturf (soft two-plane terrain) |
 
 ## Train
 
@@ -61,10 +67,16 @@ src/mjlab_piplus/
     upright/              Mjlab-Piplus-Upright
     noninertial/          Mjlab-Piplus-NonInertial
     platform/             Mjlab-Piplus-Platform
+    locomotion/           Mjlab-Piplus-Locomotion
+    locomotion_arms/      Mjlab-Piplus-Locomotion-Arms
+    ball/                 Mjlab-Piplus-Ball
+    ball_arms/            Mjlab-Piplus-Ball-Arms
+    ball_small/           Mjlab-Piplus-Ball-Small, Mjlab-Piplus-Ball-Small-Turf
+  terrains/               Custom terrains (astroturf)
 scripts/
   train.sh                GPU training launcher with wandb + optional tmux
 logs/rsl_rl/              Checkpoints (gitignored)
 docs/                     Per-experiment design notes
 ```
 
-See `AGENTS.md` for architecture details and notes relevant to further development.
+See `AGENTS.md` or `CLAUDE.md` for architecture details and notes relevant to further development.
