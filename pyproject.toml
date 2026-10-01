@@ -1,8 +1,9 @@
 [project]
 name = "mjlab-piplus"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pi+ humanoid balance experiments with mjlab (MuJoCo + RSL-RL + PPO)"
 readme = "README.md"
+license = "MIT"
 authors = [
     { name = "ChlukasX", email = "me@chlukas.xyz" }
 ]
