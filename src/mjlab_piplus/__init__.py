@@ -15,7 +15,11 @@ TASKS = [
     "Mjlab-Piplus-Ball",
     "Mjlab-Piplus-Ball-Arms",
     "Mjlab-Piplus-Ball-Small",
+    "Mjlab-Piplus-Ball-Small-Turf",
 ]
+
+# Tasks whose runner config logs into another task's experiment dir.
+LOG_DIR_OVERRIDES = {"Mjlab-Piplus-Ball-Small-Turf": "piplus_ball_small"}
 
 
 def _pick_task() -> str:
@@ -30,6 +34,8 @@ def _pick_task() -> str:
 
 
 def _task_slug(task: str) -> str:
+    if task in LOG_DIR_OVERRIDES:
+        return LOG_DIR_OVERRIDES[task]
     return task.replace("Mjlab-", "").replace("-", "_").lower()
 
 
