@@ -42,6 +42,8 @@ uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/
 | `Mjlab-Piplus-Ball-Arms` | Same, with arms actuated |
 | `Mjlab-Piplus-Ball-Small` | Single-leg balance on a football; sim2real setup |
 | `Mjlab-Piplus-Ball-Small-Turf` | Same, on astroturf (soft two-plane terrain) |
+| `Mjlab-Piplus-Ball-Mount` | Step from the floor onto the ball and hold single-leg stance (feasibility spike) |
+| `Mjlab-Piplus-Ball-Mount-Flat` | Same, sole must also be flat on the ball |
 
 ## Architecture
 
@@ -69,3 +71,21 @@ This is an `mjlab` plugin package. `mjlab` is the RL framework (MuJoCo + RSL-RL 
 - `njmax=400, nconmax=160` — sized for BOX-BOX foot/platform contact at 4096 envs without OOM
 
 **Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz).
+
+## TODO: Ball chain (find ball → walk → set stance → mount → balance)
+
+Hierarchical: Approach policy → `(vx, vy, ωz)` → frozen Locomotion policy; separate Mount+Balance policy; switcher on distance to ball. One branch per phase; placeholders in `docs/`.
+
+- [ ] 0. `feat/mount-feasibility` — can the robot get from standing onto the ball in sim? Yes (flat-sole variant trained from scratch; plain variant mount+balance in progress). ([docs](docs/mount_feasibility.md))
+- [ ] 1. `feat/locomotion-s2r` — Locomotion-Arms v2: proprio-only actor + history, noise, DR, ball obstacle, yaw-rate penalty. ([docs](docs/locomotion_s2r.md))
+- [ ] 2. `feat/ball-perception` — noisy ball position in base frame (noise, dropout, latency, FOV). ([docs](docs/ball_perception.md))
+- [ ] 3. `feat/ball-approach` — high-level policy driving the frozen locomotion policy to the stand-off pose. ([docs](docs/ball_approach.md))
+- [ ] 4. `feat/ball-mount` — Mount+Balance, warm start from Ball-Small (zero-expanded first layer), spawn curriculum. ([docs](docs/ball_mount.md))
+- [ ] 5. `feat/ball-chain` — `Mjlab-Piplus-Ball-Chain` eval task with switcher. ([docs](docs/ball_chain.md))
+- [ ] 6. `docs/ball-chain` — final docs, task table, README.
+
+Other points:
+- [ ] Fix Ball-Small policy spin (~−1.4 rad/s) with a yaw-rate penalty before using it as a warm start.
+- [ ] Train flat floor first, then continue on turf (Ball-Small recipe).
+- [ ] Actor must not use `base_lin_vel` or ball velocity (no real sensor); critic only.
+- [ ] Check whether mjlab supports an action term wrapping a frozen policy.
