@@ -16,6 +16,11 @@ TASKS = [
     "Mjlab-Piplus-Ball-Arms",
     "Mjlab-Piplus-Ball-Small",
     "Mjlab-Piplus-Ball-Small-Turf",
+    "Mjlab-Piplus-Ball-Mount",
+    "Mjlab-Piplus-Ball-Mount-Flat",
+    "Mjlab-Piplus-Ball-Mount-Size1",
+    "Mjlab-Piplus-Ball-Mount-Size1-Flat",
+    "Mjlab-Piplus-Ball-Balance-Size1",
 ]
 
 # Tasks whose runner config logs into another task's experiment dir.
@@ -89,7 +94,13 @@ def cmd_play(args: argparse.Namespace) -> None:
         run_dir = matches[0]
     else:
         run_dir = runs[0]
-    ckpt = _latest_checkpoint(run_dir)
+    if args.ckpt is not None:
+        ckpt = run_dir / f"model_{args.ckpt}.pt"
+        if not ckpt.exists():
+            print(f"No checkpoint {ckpt.name} in {run_dir}")
+            return
+    else:
+        ckpt = _latest_checkpoint(run_dir)
     if not ckpt:
         print(f"No checkpoints in {run_dir}")
         return
@@ -140,6 +151,7 @@ def main() -> None:
 
     p_play = sub.add_parser("play", help="Play latest checkpoint")
     p_play.add_argument("--run", default="latest", help="Timestamp prefix or 'latest'")
+    p_play.add_argument("--ckpt", type=int, default=None, help="Iteration N of model_N.pt (default: latest)")
 
     p_clean = sub.add_parser("clean", help="Prune old checkpoints")
     p_clean.add_argument("--keep", type=int, default=5, help="Keep every Nth checkpoint")

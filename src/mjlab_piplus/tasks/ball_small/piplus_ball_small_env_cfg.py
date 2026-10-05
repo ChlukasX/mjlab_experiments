@@ -70,15 +70,15 @@ STAGE2_STEPS = 0   # single_leg active immediately — spawn already places one 
 # Specs
 # ---------------------------------------------------------------------------
 
-def get_ball_spec() -> mujoco.MjSpec:
+def get_ball_spec(radius: float = BALL_RADIUS, mass: float = BALL_MASS) -> mujoco.MjSpec:
     spec = mujoco.MjSpec()
-    body = spec.worldbody.add_body(name="ball_body", pos=[0, 0, BALL_RADIUS])
+    body = spec.worldbody.add_body(name="ball_body", pos=[0, 0, radius])
     body.add_freejoint(name="ball_free")
     body.add_geom(
         name="ball_geom",
         type=mujoco.mjtGeom.mjGEOM_SPHERE,
-        size=[BALL_RADIUS],
-        mass=BALL_MASS,
+        size=[radius],
+        mass=mass,
         rgba=[0.2, 0.6, 0.2, 1.0],
         contype=1,
         conaffinity=1,

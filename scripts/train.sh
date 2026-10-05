@@ -14,6 +14,11 @@ TASKS=(
   "Mjlab-Piplus-Ball-Arms"
   "Mjlab-Piplus-Ball-Small"
   "Mjlab-Piplus-Ball-Small-Turf"
+  "Mjlab-Piplus-Ball-Mount"
+  "Mjlab-Piplus-Ball-Mount-Flat"
+  "Mjlab-Piplus-Ball-Mount-Size1"
+  "Mjlab-Piplus-Ball-Mount-Size1-Flat"
+  "Mjlab-Piplus-Ball-Balance-Size1"
 )
 
 TASK=""
