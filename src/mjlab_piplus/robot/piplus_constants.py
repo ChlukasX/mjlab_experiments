@@ -36,7 +36,8 @@ def get_spec_with_arms() -> mujoco.MjSpec:
       r'<!--(\s*(?:<position class="pi_actuator_arm"[^>]*/>\s*)+)-->',
       r'\1', xml, flags=re.DOTALL,
   )
-  tmp = PIPLUS_XML.parent / "_arms_tmp.xml"
+  # Per-process name: parallel runs share this directory.
+  tmp = PIPLUS_XML.parent / f"_arms_tmp_{os.getpid()}.xml"
   tmp.write_text(xml)
   try:
     spec = mujoco.MjSpec.from_file(str(tmp))
