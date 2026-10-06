@@ -48,9 +48,36 @@ STAND_FOOT_Z = 0.05  # ankle link height when standing on flat floor (measured)
 LIFTED_FOOT_Z = STAND_FOOT_Z + 0.03  # the non-support foot must clear the floor by this
 MAX_SOLE_TILT = 0.3  # rad (~17 deg): sole counts as flat on the ball below this
 
+# Drop spawn: the robot starts just above the ball at the home pose, so it
+# settles onto it instead of falling onto it. Right ankle is ~0.29 m below the
+# base at the home pose and ~0.05 m above the ball top with the sole flat.
+HOME_BASE_ABOVE_ANKLE = 0.29
+FLAT_ANKLE_ABOVE_TOP = 0.05
+DROP_CLEARANCE = 0.03  # m between sole and ball top at spawn
+
+# Standing tall on the ball: base height above the ball top with the leg at its
+# loaded home pose (0.34 m unloaded, ~5 cm of PD sag). The trained crouch sat at ~0.19 m.
+BASE_ABOVE_TOP_TARGET = 0.30
+BASE_ABOVE_TOP_STD = 0.10
+FREE_FOOT_LIFT = 0.10  # m the free foot should clear the floor (trained policies: ~0.045)
+
+
+def drop_base_z(radius):
+    """Base height of the drop spawn for a ball of this radius (float or tensor)."""
+    return 2 * radius + FLAT_ANKLE_ABOVE_TOP + HOME_BASE_ABOVE_ANKLE + DROP_CLEARANCE
+
+
+def _ball_radius(env, ball_cfg: SceneEntityCfg, ball_radius: float | None) -> torch.Tensor:
+    """[B] ball radius: the fixed value, or each env's own (randomized) geom size."""
+    if ball_radius is not None:
+        return torch.full((env.num_envs,), ball_radius, device=env.device)
+    ball = env.scene[ball_cfg.name]
+    geom_id = ball.indexing.geom_ids[ball.geom_names.index("ball_geom")]
+    return env.sim.model.geom_size[:, geom_id, 0].expand(env.num_envs)
+
 
 def _foot_on_ball(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None
 ) -> torch.Tensor:
     """[B, 2] bool: which ankle_roll links are on top of the ball.
 
@@ -62,10 +89,11 @@ def _foot_on_ball(
     ball = env.scene[ball_cfg.name]
     foot_pos = robot.data.body_link_pose_w[:, foot_cfg.body_ids, :3]
     ball_pos = ball.data.root_link_pos_w
-    ankle_z = ball_pos[:, 2] + ball_radius + ON_BALL_Z_CENTER
+    radius = _ball_radius(env, ball_cfg, ball_radius)
+    ankle_z = ball_pos[:, 2] + radius + ON_BALL_Z_CENTER
     z_ok = (foot_pos[:, :, 2] - ankle_z.unsqueeze(-1)).abs() < ON_BALL_Z_HALF
     horiz = (foot_pos[:, :, :2] - ball_pos[:, :2].unsqueeze(1)).norm(dim=-1)
-    return z_ok & (horiz < ball_radius + FOOT_ON_BALL_XY_MARGIN)
+    return z_ok & (horiz < (radius + FOOT_ON_BALL_XY_MARGIN).unsqueeze(-1))
 
 
 def ball_pos_base_obs(env, asset_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -77,26 +105,26 @@ def ball_pos_base_obs(env, asset_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) 
 
 
 def foot_to_ball_top(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float, std: float
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, std: float
 ) -> torch.Tensor:
     """exp(-d^2/std^2) of the nearest foot's distance to the ball top point."""
     robot = env.scene[foot_cfg.name]
     ball = env.scene[ball_cfg.name]
     foot = robot.data.body_link_pose_w[:, foot_cfg.body_ids, :3]  # [B, 2, 3]
     top = ball.data.root_link_pos_w.clone()
-    top[:, 2] += ball_radius
+    top[:, 2] += _ball_radius(env, ball_cfg, ball_radius)
     d2 = (foot - top.unsqueeze(1)).pow(2).sum(dim=-1).min(dim=-1).values
     return torch.exp(-d2 / std**2)
 
 
 def foot_lift(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None
 ) -> torch.Tensor:
     """Highest foot's lift from standing height, scaled to 1 at the ball top [B]."""
     robot = env.scene[foot_cfg.name]
     ball = env.scene[ball_cfg.name]
     foot_z = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 2].max(dim=-1).values
-    top_z = ball.data.root_link_pos_w[:, 2] + ball_radius
+    top_z = ball.data.root_link_pos_w[:, 2] + _ball_radius(env, ball_cfg, ball_radius)
     return ((foot_z - STAND_FOOT_Z) / (top_z - STAND_FOOT_Z)).clamp(0.0, 1.0)
 
 
@@ -119,7 +147,7 @@ def _sole_tilt(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch
 
 
 def _support_foot(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float, flat: bool
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, flat: bool
 ) -> torch.Tensor:
     """[B, 2] bool: foot on the ball (and the sole flat against it, if `flat`)."""
     on_ball = _foot_on_ball(env, foot_cfg, ball_cfg, ball_radius)
@@ -129,13 +157,18 @@ def _support_foot(
 
 
 def foot_on_ball_reward(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float, flat: bool
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, flat: bool
 ) -> torch.Tensor:
     return _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1).float()
 
 
 def single_leg_stance_lifted(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float, flat: bool
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+    lifted_z: float = LIFTED_FOOT_Z,
 ) -> torch.Tensor:
     """One foot on the ball (sole flat if `flat`), the other clearly off the floor.
 
@@ -144,12 +177,46 @@ def single_leg_stance_lifted(
     """
     on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat)
     foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
-    other_lifted = (on_ball.flip(-1) & ~on_ball) & (foot_z > LIFTED_FOOT_Z)
+    other_lifted = (on_ball.flip(-1) & ~on_ball) & (foot_z > lifted_z)
     return (on_ball.any(dim=-1) & other_lifted.any(dim=-1)).float()
 
 
+def stand_tall_on_ball(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+) -> torch.Tensor:
+    """With a foot on the ball: exp(-((h - target) / std)^2), h = base height above the ball top.
+
+    Rewards standing up on the ball instead of holding a deep crouch.
+    """
+    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1)
+    ball = env.scene[ball_cfg.name]
+    top_z = ball.data.root_link_pos_w[:, 2] + _ball_radius(env, ball_cfg, ball_radius)
+    h = env.scene[foot_cfg.name].data.root_link_pos_w[:, 2] - top_z
+    err = (h - BASE_ABOVE_TOP_TARGET) / BASE_ABOVE_TOP_STD
+    return on_ball.float() * torch.exp(-err.pow(2))
+
+
+def free_foot_lift(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+) -> torch.Tensor:
+    """With one foot on the ball: how far the other foot is lifted, 0 to 1 at FREE_FOOT_LIFT."""
+    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat)
+    foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
+    lift = ((foot_z - STAND_FOOT_Z) / FREE_FOOT_LIFT).clamp(0.0, 1.0)
+    free = on_ball.flip(-1) & ~on_ball
+    return (free.float() * lift).amax(dim=-1)
+
+
 def sole_flat(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None
 ) -> torch.Tensor:
     """Dense: (1 + cos(tilt)) / 2 for a foot that is on the ball.
 
@@ -239,7 +306,7 @@ def piplus_ball_balance_env_cfg(
     foot_cfg = SceneEntityCfg("robot", body_names=("r_ankle_roll_link", "l_ankle_roll_link"))
     ball_params = {"foot_cfg": foot_cfg, "ball_cfg": SceneEntityCfg("ball"), "ball_radius": radius}
 
-    cfg.scene.entities["robot"].init_state.pos = (ROBOT_SPAWN_X, 0.0, 2 * radius + 0.5)
+    cfg.scene.entities["robot"].init_state.pos = (ROBOT_SPAWN_X, 0.0, drop_base_z(radius))
     ball = cfg.scene.entities["ball"]
     ball.spec_fn = partial(get_ball_spec, radius=radius, mass=mass)
     ball.init_state.pos = (0.0, RIGHT_FOOT_Y, radius)

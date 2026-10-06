@@ -19,6 +19,9 @@ TASKS=(
   "Mjlab-Piplus-Ball-Mount-Size1"
   "Mjlab-Piplus-Ball-Mount-Size1-Flat"
   "Mjlab-Piplus-Ball-Balance-Size1"
+  "Mjlab-Piplus-Ball-MountBalance"
+  "Mjlab-Piplus-Ball-MountBalance-Mix30"
+  "Mjlab-Piplus-Ball-MountBalance-Mix70"
 )
 
 TASK=""
