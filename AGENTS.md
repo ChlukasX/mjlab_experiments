@@ -44,6 +44,9 @@ uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/
 | `Mjlab-Piplus-Ball-Small-Turf` | Same, on astroturf (soft two-plane terrain) |
 | `Mjlab-Piplus-Ball-Mount` | Step from the floor onto the ball and hold single-leg stance (feasibility spike) |
 | `Mjlab-Piplus-Ball-Mount-Flat` | Same, sole must also be flat on the ball |
+| `Mjlab-Piplus-Ball-Mount-Size1[-Flat]` | Same on a size 1 football (radius 0.07 m) |
+| `Mjlab-Piplus-Ball-Balance-Size1` | Drop onto a size 1 ball and balance (flat sole) |
+| `Mjlab-Piplus-Ball-MountBalance[-Mix30/-Mix70]` | One policy for mount + balance on a randomized ball (size 1-5, mass, friction); 50/50 mount/drop spawn mix, -Mix30/-Mix70 change the ratio |
 
 ## Architecture
 
@@ -80,7 +83,7 @@ Hierarchical: Approach policy → `(vx, vy, ωz)` → frozen Locomotion policy; 
 - [ ] 1. `feat/locomotion-s2r` — Locomotion-Arms v2: proprio-only actor + history, noise, DR, ball obstacle, yaw-rate penalty. ([docs](docs/locomotion_s2r.md))
 - [ ] 2. `feat/ball-perception` — noisy ball position in base frame (noise, dropout, latency, FOV). ([docs](docs/ball_perception.md))
 - [ ] 3. `feat/ball-approach` — high-level policy driving the frozen locomotion policy to the stand-off pose. ([docs](docs/ball_approach.md))
-- [ ] 4. `feat/ball-mount` — Mount+Balance, warm start from Ball-Small (zero-expanded first layer), spawn curriculum. ([docs](docs/ball_mount.md))
+- [ ] 4. `feat/ball-mount-balance` — one Mount+Balance policy on a domain-randomized ball, 50/50 mount/drop spawn mix (ratio sweep with -Mix30/-Mix70). Run `mountbalance-mix50-v1` in progress. ([docs](docs/ball_mount.md))
 - [ ] 5. `feat/ball-chain` — `Mjlab-Piplus-Ball-Chain` eval task with switcher. ([docs](docs/ball_chain.md))
 - [ ] 6. `docs/ball-chain` — final docs, task table, README.
 
