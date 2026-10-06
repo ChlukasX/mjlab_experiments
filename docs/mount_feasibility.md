@@ -6,6 +6,8 @@ Spike to answer one question before building the rest of the ball chain: **can t
 
 The Ball-Small task hides this step by dropping the robot onto the ball.
 
+Run-by-run record with launch commands: [experiment_log.md](experiment_log.md).
+
 ## Tasks
 
 | Task | Success condition | Log dir |

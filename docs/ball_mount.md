@@ -6,7 +6,7 @@ Task IDs: `Mjlab-Piplus-Ball-MountBalance` (50/50 mix), `-Mix30`, `-Mix70`
 
 One policy that covers both skills — step onto the ball and balance on it — on a domain-randomized ball. This is the skill the later approach policy hands over to ([ball_approach.md](ball_approach.md)); the end goal is the robot walking to a ball by itself, mounting it and balancing ([ball_chain.md](ball_chain.md)). Builds on [mount_feasibility.md](mount_feasibility.md).
 
-Config: `tasks/ball_mount/piplus_ball_mountbalance_env_cfg.py`, events in `tasks/ball_mount/events.py`.
+Config: `tasks/ball_mount/piplus_ball_mountbalance_env_cfg.py`, events in `tasks/ball_mount/events.py`. Run-by-run record and launch commands: [experiment_log.md](experiment_log.md).
 
 ## Spawn mix (experiment variable)
 
@@ -21,13 +21,15 @@ The **share of mount spawns is `mount_fraction`**. The baseline is **50/50**. Di
 
 | Task | Mount share | Log dir | Run |
 |------|-------------|---------|-----|
+| `Mjlab-Piplus-Ball-MountBalance-Mix0` | 0% (drops only, diagnostic) | `piplus_ball_mountbalance_mix0` | not run |
+| `Mjlab-Piplus-Ball-MountBalance-Mix100` | 100% (mounts only, diagnostic) | `piplus_ball_mountbalance_mix100` | not run |
 | `Mjlab-Piplus-Ball-MountBalance` | 50% | `piplus_ball_mountbalance` | `mountbalance-mix50-v1` |
 | `Mjlab-Piplus-Ball-MountBalance-Mix30` | 30% | `piplus_ball_mountbalance_mix30` | not run |
 | `Mjlab-Piplus-Ball-MountBalance-Mix70` | 70% | `piplus_ball_mountbalance_mix70` | not run |
 
 More weight on drops trains balancing more (the harder skill in earlier runs); more weight on mounts trains the step-up and the hand-off. Find the best ratio by comparing the evaluation below across these runs.
 
-The drop used to start 0.5 m above the ball (a free fall, about 3 m/s on impact). In the first run (`mountbalance-mix50-v1`) every drop spawn failed within about 2 s on every ball size, so the policy was learning to survive a fall, not to balance. The drop is now a gentle settle; `Ball-Balance-Size1` uses the same height.
+The drop used to start with the base 0.5 m above the ball top (sole about 0.16 m above its contact height, ~1.8 m/s on impact). In the first run (`mountbalance-mix50-v1`) every drop spawn failed within about 2 s on every ball size. A fixed size 1 ball with that same drop was learned (`balance-size1-flat-v1`, episode 950/1000), so the failure comes from the harder mix (randomized size and mass, size not observed, mixed spawns) and the lower drop is an easier curriculum choice, not a proven fix. The drop is now a gentle settle; `Ball-Balance-Size1` uses the same height.
 
 **Choosing the spawn in play.** The play viewer (viser) has a **Spawn mode** dropdown under Commands: *Random mix* (the task's ratio), *Mount* or *Drop*. Changing it resets the env with that mode, so a single `uv run mjx --task Mjlab-Piplus-Ball-MountBalance play` shows both. It exists only in play configs (`SpawnModeCommand` in `events.py`).
 
@@ -58,6 +60,13 @@ Those of `Mjlab-Piplus-Ball-Mount-Flat`: foot on the ball with the sole flat, si
 | `stand_tall` | +2.0 | With a foot on the ball: `exp(-((h − 0.30) / 0.10)²)`, h = base height above the ball top. |
 | `free_foot_lift` | +1.0 | With one foot on the ball: lift of the other foot, 0 to 1 over 10 cm of clearance. |
 | `single_leg_stance` test | | Other foot must now clear the floor by 10 cm (ankle above 0.15 m), was 3 cm (0.08 m). |
+
+| `support_on_ball` | +4.0 | Foot flat on the ball and whole-robot CoM within 0.12 m of the ball centre (`foot_on_ball` is now only a +1.0 touch bonus). |
+| `com_over_ball` | +2.0 | With a foot on the ball: `exp(-(d / 0.25)²)`, d = CoM-to-ball distance. |
+| `com_toward_ball_velocity` | +1.0 | Momentum: CoM speed toward the ball while it is not yet over it. |
+| `push_up_velocity` | +0.5 | Upward CoM speed while the base is below the standing-tall height. |
+
+`stance` also requires the CoM within 0.12 m of the ball centre, and `xy_centering` is off (weight 0). The last four terms were added after the `mb2-*` runs showed the robot standing beside the ball with a foot propped on it (CoM 0.26 m away); see [experiment_log.md](experiment_log.md).
 
 Why: the first run's mount spawns all succeeded (100%, on the ball within 0.26 s and held for 20 s), but as a deep crouch. The base sat 0.19 m above the ball top (about 0.29–0.30 m when standing tall on the home-pose legs) and the free foot hovered 4.5 cm above the floor, which passed the old 3 cm test. A separate hand-off reward is not needed: the mount-to-stance chain already completes immediately, so the new terms shape the quality of the balance. On that run's mount spawns the new terms score 0.30 (`stand_tall`) and 0.43 (`free_foot_lift`), and none pass the 10 cm stance test.
 

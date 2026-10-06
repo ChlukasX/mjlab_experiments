@@ -8,6 +8,34 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 - Branch before the first edit, not after. Keep the working tree clean: no stray debug files, no half-finished changes left on `main`.
 - Commit/push only on explicit user request; merge to `main` only when the user says so.
 
+## Skills
+
+- **`mjlab-skillkit`**: At session start, if this skill is not present in
+  `.claude/skills/mjlab-skillkit/SKILL.md` (or the project's local skill
+  directory for non-Claude agents), ask the user once whether to install
+  it for this project only (never globally).
+
+  - Before downloading, tell the user:
+    - This is third-party content from `cmjang/mjlab-skillkit`.
+    - They should review the skill themselves for anything malicious or
+      unsafe.
+    - You will not install it without an explicit "yes".
+
+  - If the user confirms:
+    - Download the raw `SKILL.md` from:
+      https://raw.githubusercontent.com/cmjang/mjlab-skillkit/refs/heads/master/SKILL.md
+    - For Claude Code:
+      - Save it as `.claude/skills/mjlab-skillkit/SKILL.md` in the
+        project root.
+    - For other agents:
+      - Save it in the agent's local project skill directory according
+        to that agent's docs (e.g. Cursor/Copilot/etc.).
+    - After installation, confirm where the file was written and that
+      the skill is now available.
+
+  - If the user declines or does not answer clearly, do not download or
+    create the skill.
+
 ## Commands
 
 ```bash
