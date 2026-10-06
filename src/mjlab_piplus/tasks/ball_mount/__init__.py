@@ -38,7 +38,7 @@ register_mjlab_task(
 
 # One policy for both skills on a randomized ball (size 1-5, mass, friction).
 # Suffix = share of resets that start beside the ball (rest are dropped onto it).
-for pct in (50, 30, 70):
+for pct in (50, 30, 70, 0, 100):
   env_cfg = partial(piplus_ball_mountbalance_env_cfg, mount_fraction=pct / 100)
   register_mjlab_task(
     task_id="Mjlab-Piplus-Ball-MountBalance" + ("" if pct == 50 else f"-Mix{pct}"),

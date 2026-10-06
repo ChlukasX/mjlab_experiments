@@ -28,12 +28,17 @@ from mjlab_piplus.tasks.ball_mount.events import (
 )
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     BALL_SIZES,
+    COM_OVER_BALL,
     FREE_FOOT_LIFT,
     STAND_FOOT_Z,
     _ball_radius,
+    com_over_ball,
+    com_toward_ball_velocity,
     free_foot_lift,
     piplus_ball_mount_env_cfg,
+    push_up_velocity,
     stand_tall_on_ball,
+    support_on_ball,
 )
 from mjlab_piplus.tasks.ball_small.piplus_ball_small_env_cfg import (
     piplus_ball_small_ppo_runner_cfg,
@@ -119,12 +124,36 @@ def piplus_ball_mountbalance_env_cfg(
         k: v for k, v in cfg.rewards["single_leg_stance"].params.items() if k != "flat"
     }
     cfg.rewards["single_leg_stance"].params["lifted_z"] = STAND_FOOT_Z + FREE_FOOT_LIFT
+    cfg.rewards["single_leg_stance"].params["com_max"] = COM_OVER_BALL
     cfg.rewards["stand_tall"] = RewardTermCfg(
         func=stand_tall_on_ball, weight=2.0, params={**ball_params, "flat": flat_sole}
     )
     cfg.rewards["free_foot_lift"] = RewardTermCfg(
         func=free_foot_lift, weight=1.0, params={**ball_params, "flat": flat_sole}
     )
+
+    # Weight on the ball, not a foot propped on it: a foot resting on the ball while
+    # standing on the floor beside it only gets the small touch bonus now.
+    cfg.rewards["foot_on_ball"].weight = 1.0
+    cfg.rewards["support_on_ball"] = RewardTermCfg(
+        func=support_on_ball,
+        weight=4.0,
+        params={**ball_params, "flat": flat_sole, "com_max": COM_OVER_BALL},
+    )
+    cfg.rewards["com_over_ball"] = RewardTermCfg(
+        func=com_over_ball, weight=2.0, params={**ball_params, "flat": flat_sole}
+    )
+    # Momentum for the mount: lean toward the ball, then push up. (Set weight 0 to ablate.)
+    cfg.rewards["com_toward_ball_velocity"] = RewardTermCfg(
+        func=com_toward_ball_velocity,
+        weight=1.0,
+        params={**ball_params, "flat": flat_sole, "com_max": COM_OVER_BALL},
+    )
+    cfg.rewards["push_up_velocity"] = RewardTermCfg(
+        func=push_up_velocity, weight=0.5, params={**ball_params, "flat": flat_sole}
+    )
+    # Centering on the env origin works against moving over the ball.
+    cfg.rewards["xy_centering"].weight = 0.0
 
     # Play only: viewer dropdown to pick the spawn mode.
     if play:

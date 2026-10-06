@@ -24,6 +24,8 @@ TASKS = [
     "Mjlab-Piplus-Ball-MountBalance",
     "Mjlab-Piplus-Ball-MountBalance-Mix30",
     "Mjlab-Piplus-Ball-MountBalance-Mix70",
+    "Mjlab-Piplus-Ball-MountBalance-Mix0",
+    "Mjlab-Piplus-Ball-MountBalance-Mix100",
 ]
 
 # Tasks whose runner config logs into another task's experiment dir.

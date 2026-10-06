@@ -21,6 +21,7 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
+    COM_OVER_BALL,
     FREE_FOOT_LIFT,
     STAND_FOOT_Z,
     _ball_radius,
@@ -63,7 +64,7 @@ for step in range(n_steps):
         action = policy(obs)
     obs, _, dones, _ = env.step(action)
     failed |= dones.bool()
-    stance = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z + FREE_FOOT_LIFT) > 0
+    stance = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z + FREE_FOOT_LIFT, COM_OVER_BALL) > 0
     new = stance & first_stance.isnan() & ~failed
     first_stance[new] = step * u.step_dt
     if step >= n_steps - last:

@@ -62,6 +62,13 @@ BASE_ABOVE_TOP_STD = 0.10
 FREE_FOOT_LIFT = 0.10  # m the free foot should clear the floor (trained policies: ~0.045)
 
 
+# Weight on the ball: the whole-robot centre of mass must be over the ball, not
+# beside it with a foot resting on top. Trained policies sat 0.25 m away.
+COM_OVER_BALL = 0.12  # m horizontal CoM-to-ball-centre distance that counts as supported
+COM_SIGMA = 0.25  # m, width of the dense com_over_ball reward
+COM_VEL_CAP = 0.5  # m/s cap for the momentum rewards
+
+
 def drop_base_z(radius):
     """Base height of the drop spawn for a ball of this radius (float or tensor)."""
     return 2 * radius + FLAT_ANKLE_ABOVE_TOP + HOME_BASE_ABOVE_ANKLE + DROP_CLEARANCE
@@ -162,6 +169,13 @@ def foot_on_ball_reward(
     return _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1).float()
 
 
+def _com_to_ball(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
+    """[B, 2] horizontal vector from the whole-robot centre of mass to the ball centre."""
+    robot = env.scene[foot_cfg.name]
+    com = env.sim.data.subtree_com[:, robot.indexing.root_body_id]
+    return env.scene[ball_cfg.name].data.root_link_pos_w[:, :2] - com[:, :2]
+
+
 def single_leg_stance_lifted(
     env,
     foot_cfg: SceneEntityCfg,
@@ -169,6 +183,7 @@ def single_leg_stance_lifted(
     ball_radius: float | None,
     flat: bool,
     lifted_z: float = LIFTED_FOOT_Z,
+    com_max: float | None = None,
 ) -> torch.Tensor:
     """One foot on the ball (sole flat if `flat`), the other clearly off the floor.
 
@@ -178,7 +193,73 @@ def single_leg_stance_lifted(
     on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat)
     foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
     other_lifted = (on_ball.flip(-1) & ~on_ball) & (foot_z > lifted_z)
-    return (on_ball.any(dim=-1) & other_lifted.any(dim=-1)).float()
+    stance = on_ball.any(dim=-1) & other_lifted.any(dim=-1)
+    if com_max is not None:
+        stance = stance & (_com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < com_max)
+    return stance.float()
+
+
+def support_on_ball(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+    com_max: float,
+) -> torch.Tensor:
+    """1 if a foot is on the ball and the centre of mass is over it (weight actually on the ball)."""
+    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1)
+    over = _com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < com_max
+    return (on_ball & over).float()
+
+
+def com_over_ball(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+) -> torch.Tensor:
+    """With a foot on the ball: exp(-(d / COM_SIGMA)^2), d = horizontal CoM-to-ball distance.
+
+    Dense signal for shifting the weight onto the ball (broad: still has a gradient at 0.25 m).
+    """
+    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1)
+    d = _com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1)
+    return on_ball.float() * torch.exp(-(d / COM_SIGMA).pow(2))
+
+
+def com_toward_ball_velocity(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+    com_max: float,
+) -> torch.Tensor:
+    """Momentum: with a foot on the ball but the CoM not yet over it, speed toward the ball (0 to 1 at COM_VEL_CAP)."""
+    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1)
+    to_ball = _com_to_ball(env, foot_cfg, ball_cfg)
+    dist = to_ball.norm(dim=-1)
+    vel = env.scene[foot_cfg.name].data.root_com_lin_vel_w[:, :2]
+    toward = (vel * to_ball / dist.clamp_min(1e-6).unsqueeze(-1)).sum(dim=-1)
+    gate = on_ball & (dist > 0.5 * com_max)
+    return gate.float() * (toward / COM_VEL_CAP).clamp(0.0, 1.0)
+
+
+def push_up_velocity(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+) -> torch.Tensor:
+    """Pushing up: with a foot on the ball and the base still below the standing-tall height, upward speed (0 to 1 at COM_VEL_CAP)."""
+    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1)
+    robot = env.scene[foot_cfg.name]
+    top_z = env.scene[ball_cfg.name].data.root_link_pos_w[:, 2] + _ball_radius(env, ball_cfg, ball_radius)
+    below = (robot.data.root_link_pos_w[:, 2] - top_z) < BASE_ABOVE_TOP_TARGET - 0.03
+    return (on_ball & below).float() * (robot.data.root_com_lin_vel_w[:, 2] / COM_VEL_CAP).clamp(0.0, 1.0)
 
 
 def stand_tall_on_ball(
