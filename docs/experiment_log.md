@@ -104,7 +104,97 @@ Changes to `Mjlab-Piplus-Ball-MountBalance` (not yet trained):
 
 Also registered `-Mix0` (drops only) and `-Mix100` (mounts only) as diagnostic tasks to separate the two skills. Check on the old `mb2-base` mount spawns: `foot_on_ball` 1.00 (now ×1.0), `support_on_ball` 0, `com_over_ball` 0.34, `stance` 0.
 
-Planned runs (4 parallel, from scratch, 8000 it): `mb3-com` (momentum weights 0), `mb3-mom` (defaults), `mb3-mix100` (mount only), `mb3-mix0` (drop only). Results: _TBD._
+Planned runs (4 parallel, from scratch, 8000 it): `mb3-com` (momentum weights 0), `mb3-mom` (defaults), `mb3-mix100` (mount only), `mb3-mix0` (drop only). Launched Oct 6 2026 (commit `f23e003`), local GPU, 4096 envs, 8000 it, from scratch, four in parallel:
+
+| Run | Task | wandb | Override | Question |
+|-----|------|-------|----------|----------|
+| `mb3-com` | `Ball-MountBalance` (50/50) | `takz69kv` | `--env.rewards.com_toward_ball_velocity.weight 0.0 --env.rewards.push_up_velocity.weight 0.0` | Do the centre-of-mass rewards alone fix the mount? |
+| `mb3-mom` | `Ball-MountBalance` (50/50) | `v65vdr23` | none | Do the momentum terms help on top? |
+| `mb3-mix100` | `Ball-MountBalance-Mix100` (mounts only) | `ibkavjhd` (project `...-Mix100`) | none | Does the mount work when it is the only skill? |
+| `mb3-mix0` | `Ball-MountBalance-Mix0` (drops only) | `vdove580` (project `...-Mix0`) | none | Can lateral balance be learned on a randomized ball? |
+
+Results (all finished 8000 it; training numbers at the last iteration; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s, success = stance with CoM within 0.12 m of the ball, flat sole, free foot 10 cm off the floor):
+
+| Run | Reward | Episode (of 1000) | `support_on_ball` | `single_leg_stance` | `com_over_ball` | `stand_tall` | `free_foot_lift` | Eval success |
+|-----|--------|-------------------|-------------------|---------------------|-----------------|--------------|------------------|--------------|
+| `mb3-com` (50/50) | 53 | 370 | 1.49 | 0.07 | 0.71 | 0.30 | 0.09 | 0% (mount spawns survive 99%, drops 0%) |
+| `mb3-mom` (50/50) | 59 | 476 | 0.08 | 0.08 | 0.52 | 0.41 | 0.15 | 0% (mount spawns survive 96 to 100%, drops 0%) |
+| `mb3-mix100` (mounts only) | 130 | 844 | 3.21 | 0 | 1.51 | 0.59 | 0.16 | 0% (survives 98 to 100%) |
+| `mb3-mix0` (drops only) | 84 | 496 | 1.62 | 1.62 | 0.80 | 0.77 | 0.41 | **97%** (94% size 1-2, 99% size 3, 100% size 4-5) |
+
+**Findings**
+- **Balance on a randomized ball is learnable:** drops only reach 97% success on all sizes, so the sideways topple of the `mb2-*` runs is gone when drops are trained alone.
+- **In the 50/50 mix the drops fail completely (0% survive) in both runs,** although the same drops are solved in isolation. The two skills interfere; the policy that results balances neither. The momentum terms did not help (`mb3-mom` is no better than `mb3-com`).
+- **Mounts only get the centre of mass over the ball but never finish the mount.** Probe on `mb3-mix100` `model_7999` (256 envs): by 0.5 to 1 s the CoM is 0.06 to 0.10 m from the ball centre (over it), but the base sits 0.20 m above the ball top (stand-tall target 0.30 m), the right ankle is only 0.03 m above the top (the flat-sole value is 0.049), and the **left foot is still on the floor in 85 to 87% of the episodes** (ankle ~0.063 m; it needs to be above 0.15 m). It rests in a two-foot straddle: one foot on the ball, one on the floor, weight between them. `support_on_ball` (+4) already pays for this, so there is little reason to take the unstable step to one leg. The missing last step is straightening the right leg (~10 cm) and lifting the left foot.
+
+### `mb4-*`: warm start from the balance policy, ratio sweep (finished)
+
+Launched Oct 7 2026 (commit `f23e003`), local GPU, 4096 envs. Rebalanced weights (override): `--env.rewards.support_on_ball.weight 2.0 --env.rewards.single_leg_stance.weight 8.0 --env.rewards.free_foot_lift.weight 3.0`. Warm starts resume `mb3-mix0` `model_7999` (97% drop success), copied into the target experiment folder as `2026-10-07_00-00-00_init-from-mix0`, with `--agent.resume True --agent.load-run 2026-10-07_00-00-00_init-from-mix0 --agent.load-checkpoint model_7999.pt --agent.max-iterations 5000`.
+
+| Run | Task | Start | Weights | wandb | Outcome |
+|-----|------|-------|---------|-------|---------|
+| `mb4-w1-warm` | `-Mix100` | mix0 | default | `5zigzhfb` | **Stopped** after ~1100 it: episodes ~7 steps, `base_too_low` on ~580 envs per it, no mount terms. Replaced by w5. |
+| `mb4-w2-warm-rebal` | `-Mix100` | mix0 | rebalanced | `z0zc80h7` | **Stopped** after ~1100 it, same collapse. Replaced by w6. |
+| `mb4-w3-warm-rebal-mix50` | 50/50 | mix0 | rebalanced | `4ooj3qv7` | 5000 it. Drops 90 to 100% success, **mounts 0% survive**. Overall 49%. |
+| `mb4-w4-scratch-rebal` | `-Mix100` | scratch | rebalanced | `c888lh97` | 8000 it. Mounts survive 97 to 100%, **0% success**: `support_on_ball` 1.48 (of 2.0), `single_leg_stance` 0.001 (of 8.0), `com_over_ball` 1.41. |
+| `mb4-w5-warm-rebal-mix30` | `-Mix30` | mix0 | rebalanced | `8s0can0a` | 5000 it. Drops 93 to 100%, **mounts 0% survive**. Overall 68%. |
+| `mb4-w6-warm-rebal-mix70` | `-Mix70` | mix0 | rebalanced | `y01jq2ff` | 5000 it. Drops 97 to 100%, **mounts 0% survive**. Overall 29%. |
+
+Eval (1024 envs, 20 s, same success definition as `mb3`). Overall success tracks the share of drop spawns in the mix (49%, 68%, 29% against 50%, 70%, 30% drops), so the mount share contributes nothing.
+
+**Findings**
+- **Warm starting keeps the balance and fixes the 50/50 interference** (drops 90 to 100% in all three mixed runs, against 0% in `mb2`/`mb3`), **but no run learned to mount:** every mount spawn dies (0% survive) in all three warm-start runs after 5000 iterations.
+- **Hypothesis for the mount collapse (not tested):** on a mount spawn the per-step reward is net negative (`action_rate` −2.3 and `joint_vel` −0.44 against `upright` +0.40 and no mount reward yet), so ending the episode early is the best option and PPO learns to fall. `mb4-w4` survives only because it learned to stand from scratch before the penalties grew. mjlab has `is_terminated` and `is_alive` reward functions that could remove this incentive.
+- **From scratch the mounts stall in the straddle** (`mb4-w4`): foot on the ball and weight over it, left foot on the floor, never one leg (one eval env reached the stance at 10.5 s).
+- **Mount-ratio sweep:** no information about the best ratio, since no run mounts.
+
+### `mb5-*`: termination penalty and straddle penalty (in progress)
+
+Tests the two ideas from the `mb4` findings. New reward terms in `Mjlab-Piplus-Ball-MountBalance` (both weight 0 by default, enabled per run): `termination_penalty` (mjlab `is_terminated`, excludes time-outs; −200 gives about −4 per failure because rewards are scaled by dt = 0.02) and `straddle_penalty` (indicator: foot on the ball, CoM within 0.12 m of it, other foot on the floor; −4 roughly cancels the straddle's rewards). All use the rebalanced weights from `mb4` (`support_on_ball` 2.0, `single_leg_stance` 8.0, `free_foot_lift` 3.0). Launched Oct 7 2026 on uncommitted code (working tree after `f23e003`); the local GPU had an unrelated process, so two runs went to cl06.
+
+| Run | Where | Task | Start | Penalties | wandb | Question |
+|-----|-------|------|-------|-----------|-------|----------|
+| `mb5-a-warm50-term` | local | 50/50 | `mb3-mix0` `model_7999`, 5000 it | termination −200 | `dktmlt7n` | Is the warm-start mount collapse a suicide incentive? (compare `mb4-w3`) |
+| `mb5-b-warm50-term-straddle` | local | 50/50 | same | termination −200, straddle −4 | `n1uxnyx7` | Does the straddle penalty add anything? |
+| `mb5-c-scratch100-term-straddle` | cl06 | Mix100 | scratch, 8000 it | termination −200, straddle −4 | `57wtz5gn` | Does it leave the straddle from scratch? |
+| `mb5-d-scratch100-straddle` | cl06 | Mix100 | scratch, 8000 it | straddle −4 only | `9wk80h7i` | Straddle penalty alone (compare `mb4-w4`, and `c` for the termination effect). |
+
+Launch (base, local): `bash scripts/train.sh Mjlab-Piplus-Ball-MountBalance --name mb5-a-warm50-term` + resume flags from `mb4` + `--env.rewards.support_on_ball.weight 2.0 --env.rewards.single_leg_stance.weight 8.0 --env.rewards.free_foot_lift.weight 3.0 --env.rewards.termination_penalty.weight -200.0`; add `--env.rewards.straddle_penalty.weight -4.0` for the straddle runs. cl06 runs use `Mjlab-Piplus-Ball-MountBalance-Mix100`, `--agent.max-iterations 8000`, and `tee` their output to `~/runlogs/`. The local runs' console logs did not flush iteration lines; follow them through wandb and checkpoints.
+
+Results (all four finished; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s):
+
+| Run | Drops | Mounts | Eval overall | Training end (blend of both modes) |
+|-----|-------|--------|--------------|------------------------------------|
+| `mb5-a-warm50-term` | 96 to 100% success | **0% survive** | 51% | reward 38, `single_leg_stance` 1.70, `base_too_low` 10 per it |
+| `mb5-b-warm50-term-straddle` | 91 to 100% | **0% survive** | 51% | reward 45, `single_leg_stance` 1.92 |
+| `mb5-c-scratch100-term-straddle` | n/a (mounts only) | survive 91 to 98%, **0% success** (one env reached the stance, at 18.9 s) | 0% | reward 94, episode 822, `support_on_ball` 1.07, **`single_leg_stance` 0.000**, `stand_tall` 0.45 |
+| `mb5-d-scratch100-straddle` | n/a (mounts only) | survive 98 to 99%, **0% success** (a few envs reached the stance at 9 to 12 s but did not hold it) | 0% | reward 100, episode 752, `support_on_ball` 1.02, **`single_leg_stance` 0.001**, `stand_tall` 0.60 |
+
+- **The termination penalty does not rescue the warm-start mounts** (`a`, `b` match `mb4-w3/w5/w6`: every mount spawn dies). The suicide-incentive hypothesis from `mb4` is not supported, at least not alone. The straddle penalty also changed nothing for the warm starts.
+- **From scratch the straddle persists** with the penalty: both finished with 0% eval success, and `single_leg_stance` is ~0. Adding the termination penalty (`c`) made no difference over the straddle penalty alone (`d`), and neither differs from `mb4-w4` (no penalties).
+- **Why the warm-start mounts die (probe on `mb5-a` `model_12998`, mount spawns, deterministic policy):** the first action is huge. Mean |action| is 2.7 to 4.4 with a maximum of 9 to 20, in units where 1 = 0.5 rad of joint-target offset (the hip roll joints sit around 12), so joint targets are several radians beyond the joint limits. The base drops from 0.39 m to below 0.30 m within 5 steps and 124 of 128 envs terminate at step 6.
+- **Actions are unbounded in this repo.** `RslRlOnPolicyRunnerCfg.clip_actions` is `None` and `JointPositionActionCfg.clip` is unset, so the policy output goes straight to the PD target. The learned action noise `std_param` grew from the initial 1.0 to 2.4 to 3.9 (mean) in every ball-balancing policy, while it shrank for Locomotion-Arms:
+
+| Policy | mean `std_param` |
+|--------|------------------|
+| Ball-Small v5 (21k it) | 2.59 |
+| `mount-flat-v1` | 2.66 |
+| `balance-size1-flat-v1` | 2.42 |
+| `mb3-mix0` | 3.95 |
+| `mb3-mix100`-derived `mb4-w4` | 3.37 |
+| Locomotion-Arms | 0.62 |
+
+So these balance policies behave close to bang-bang at the joint limits with a large noise level, which is consistent with the jerky `action_rate`, the "stomp" mount and the instant collapse on unseen starts. Candidate fixes: clip actions (runner `clip_actions` and/or the action term `clip` to the joint ranges), lower `entropy_coef` (0.01) or use a log-std parametrisation. Not tried yet.
+
+### Bounded actions and lower entropy (`-Clip` tasks, implemented, not yet trained)
+
+Motivated by the `mb5` probe (unbounded actions, noise std grown to 2.4 to 3.9). New task variants `Mjlab-Piplus-Ball-MountBalance-Clip`, `-Mix100-Clip` and `-Mix0-Clip` (log dirs `piplus_ball_mountbalance[_mix100|_mix0]_clip`):
+- **Action clipping:** the joint position targets (0.5 × action + default pose) are clipped to each joint's range from the robot spec (`JointPositionActionCfg.clip`), e.g. hip pitch ±2.84 rad, hip roll −1.0 to +0.15 rad (right) / −0.15 to +1.0 (left). A raw action of +12 now gives targets of 0.15 to 2.84 rad instead of 5 to 7 rad.
+- **Entropy bonus:** `entropy_coef` 0.01 → 0.001 in these variants (override on any task with `--agent.algorithm.entropy-coef`). Clipping is also available alone on the `-Clip` tasks with `--agent.algorithm.entropy-coef 0.01`.
+- **Smoke test** (`-Mix100-Clip`, 1024 envs, ~170 it, wandb off): mean noise std 1.00 → 0.93 → 0.90 → 0.86 at it 0/50/100/150, whereas the unclipped `mb3-mix0` was at 1.19 by it 400 and ended at 3.95. Standing by it ~200 (reward 13.6, episode length 545).
+- Clipping is to the hard joint limits; the `joint_pos_limits` penalty still uses the soft limits.
+
+Planned runs (from scratch, mounts only, rebalanced weights as `mb4-w4` for a direct comparison): clip + low entropy; clip only; low entropy only on the unclipped task. Results: _TBD._
 
 ## Open questions
 
