@@ -9,9 +9,11 @@ critic does. Rewards are the flat-sole Ball-Mount ones with per-env radius.
 See docs/ball_mount.md.
 """
 
+import mujoco
 import torch
 
 from mjlab.envs import ManagerBasedRlEnvCfg
+from mjlab.envs.mdp import is_terminated
 from mjlab.envs.mdp import dr
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationTermCfg
@@ -20,6 +22,7 @@ from mjlab.rl import RslRlOnPolicyRunnerCfg
 
 from mjlab.managers.reward_manager import RewardTermCfg
 
+from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
 from mjlab_piplus.tasks.ball_mount.events import (
     SpawnModeCommandCfg,
     ball_mass_from_size,
@@ -35,6 +38,7 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     com_over_ball,
     com_toward_ball_velocity,
     free_foot_lift,
+    free_foot_on_floor,
     piplus_ball_mount_env_cfg,
     push_up_velocity,
     stand_tall_on_ball,
@@ -47,6 +51,16 @@ from mjlab_piplus.tasks.ball_small.piplus_ball_small_env_cfg import (
 RADIUS_RANGE = (BALL_SIZES[1][0], BALL_SIZES[5][0])  # 0.07-0.11 m
 MASS_RANGE = (BALL_SIZES[1][1], BALL_SIZES[5][1])  # 0.14-0.43 kg
 FRICTION_RANGE = (0.3, 1.2)
+
+
+def _joint_limit_clip() -> dict[str, tuple[float, float]]:
+    """Joint name -> (lo, hi) from the robot spec, for clipping position targets."""
+    spec = get_spec_with_arms()
+    return {
+        j.name: (float(j.range[0]), float(j.range[1]))
+        for j in spec.joints
+        if j.type == mujoco.mjtJoint.mjJNT_HINGE
+    }
 
 
 def ball_privileged_obs(env, ball_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -70,9 +84,18 @@ def ball_privileged_obs(env, ball_cfg: SceneEntityCfg) -> torch.Tensor:
 
 
 def piplus_ball_mountbalance_env_cfg(
-    play: bool = False, mount_fraction: float = 0.5, flat_sole: bool = True
+    play: bool = False,
+    mount_fraction: float = 0.5,
+    flat_sole: bool = True,
+    bounded_actions: bool = False,
 ) -> ManagerBasedRlEnvCfg:
-    """`mount_fraction`: share of resets that start beside the ball (rest are drops)."""
+    """`mount_fraction`: share of resets that start beside the ball (rest are drops).
+
+    `bounded_actions`: clip the joint position targets to the joint limits. Without
+    it the action is unbounded (target = 0.5 * action rad); the earlier runs ended up
+    with mean |action| of 3 to 4 and the noise std grown to ~3, i.e. targets several
+    rad past the limits.
+    """
     # Size-5 geometry is the reference the geom_size scale is applied to.
     cfg = piplus_ball_mount_env_cfg(play, flat_sole=flat_sole, ball_size=5)
     ball_cfg = SceneEntityCfg("ball")
@@ -152,6 +175,18 @@ def piplus_ball_mountbalance_env_cfg(
     cfg.rewards["push_up_velocity"] = RewardTermCfg(
         func=push_up_velocity, weight=0.5, params={**ball_params, "flat": flat_sole}
     )
+    # Off by default (weight 0, so earlier runs stay reproducible); enable per run:
+    #   termination_penalty: -200 is about -4 per failure (rewards are scaled by dt=0.02);
+    #     without it a mount spawn with net-negative step rewards rewards ending the
+    #     episode early (mb4 warm starts: 0% of mounts survived).
+    #   straddle_penalty: -2 to -6, cancels the reward for resting with one foot on the
+    #     floor and one on the ball (mb4-w4 sat there).
+    cfg.rewards["termination_penalty"] = RewardTermCfg(func=is_terminated, weight=0.0)
+    cfg.rewards["straddle_penalty"] = RewardTermCfg(
+        func=free_foot_on_floor,
+        weight=0.0,
+        params={**ball_params, "flat": flat_sole, "com_max": COM_OVER_BALL},
+    )
     # Centering on the env origin works against moving over the ball.
     cfg.rewards["xy_centering"].weight = 0.0
 
@@ -164,15 +199,30 @@ def piplus_ball_mountbalance_env_cfg(
         func=ball_privileged_obs, params={"ball_cfg": ball_cfg}
     )
 
+    if bounded_actions:
+        cfg.actions["joint_pos"].clip = _joint_limit_clip()
+
     cfg.episode_length_s = 20.0 if not play else 1e9
     return cfg
 
 
-def piplus_ball_mountbalance_ppo_runner_cfg(mix_pct: int = 50) -> RslRlOnPolicyRunnerCfg:
-    """`mix_pct`: mount-spawn share in percent; 50 is the base task, others get their own dir."""
+def piplus_ball_mountbalance_ppo_runner_cfg(
+    mix_pct: int = 50, bounded_actions: bool = False
+) -> RslRlOnPolicyRunnerCfg:
+    """`mix_pct`: mount-spawn share in percent; 50 is the base task, others get their own dir.
+
+    `bounded_actions` also lowers the entropy bonus 0.01 -> 0.001: the Gaussian std grew
+    from 1.0 to 2.4 to 3.9 in every earlier ball-balancing run.
+    """
     cfg = piplus_ball_small_ppo_runner_cfg()
     cfg.actor.hidden_dims = (512, 256, 128)
     cfg.critic.hidden_dims = (512, 256, 128)
-    cfg.experiment_name = "piplus_ball_mountbalance" + ("" if mix_pct == 50 else f"_mix{mix_pct}")
+    cfg.experiment_name = (
+        "piplus_ball_mountbalance"
+        + ("" if mix_pct == 50 else f"_mix{mix_pct}")
+        + ("_clip" if bounded_actions else "")
+    )
     cfg.max_iterations = 8000
+    if bounded_actions:
+        cfg.algorithm.entropy_coef = 0.001
     return cfg

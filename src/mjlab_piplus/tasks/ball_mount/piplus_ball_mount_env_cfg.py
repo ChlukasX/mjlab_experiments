@@ -262,6 +262,26 @@ def push_up_velocity(
     return (on_ball & below).float() * (robot.data.root_com_lin_vel_w[:, 2] / COM_VEL_CAP).clamp(0.0, 1.0)
 
 
+def free_foot_on_floor(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    flat: bool,
+    com_max: float,
+) -> torch.Tensor:
+    """Straddle indicator: foot on the ball, CoM over it, but the other foot still on the floor.
+
+    Meant as a penalty (negative weight) so the two-foot straddle stops being a
+    comfortable resting place on the way to a single-leg stance.
+    """
+    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat)
+    foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
+    free_on_floor = (on_ball.flip(-1) & ~on_ball) & (foot_z < STAND_FOOT_Z + 0.03)
+    over = _com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < com_max
+    return (free_on_floor.any(dim=-1) & over).float()
+
+
 def stand_tall_on_ball(
     env,
     foot_cfg: SceneEntityCfg,
