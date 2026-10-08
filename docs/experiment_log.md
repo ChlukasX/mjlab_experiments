@@ -194,7 +194,35 @@ Motivated by the `mb5` probe (unbounded actions, noise std grown to 2.4 to 3.9).
 - **Smoke test** (`-Mix100-Clip`, 1024 envs, ~170 it, wandb off): mean noise std 1.00 → 0.93 → 0.90 → 0.86 at it 0/50/100/150, whereas the unclipped `mb3-mix0` was at 1.19 by it 400 and ended at 3.95. Standing by it ~200 (reward 13.6, episode length 545).
 - Clipping is to the hard joint limits; the `joint_pos_limits` penalty still uses the soft limits.
 
-Planned runs (from scratch, mounts only, rebalanced weights as `mb4-w4` for a direct comparison): clip + low entropy; clip only; low entropy only on the unclipped task. Results: _TBD._
+### `mb6-*`: bounded actions and lower entropy, ablation (in progress)
+
+Launched Oct 8 2026 at commit `1d3c0bd`/`5e70e4d`. From scratch, 8000 it, 4096 envs, rebalanced weights as `mb4-w4` (`--env.rewards.support_on_ball.weight 2.0 --env.rewards.single_leg_stance.weight 8.0 --env.rewards.free_foot_lift.weight 3.0`), no termination or straddle penalty. The saved `env.yaml` of each run confirms the clip setting (bounded: joint ranges from the spec; none for `ent-only`) and `agent.yaml` the entropy value.
+
+| Run | Where | Task | Action clip | `entropy_coef` | wandb | Question |
+|-----|-------|------|-------------|----------------|-------|----------|
+| `mb6-clip-ent` | local | `Ball-MountBalance-Mix100-Clip` | bounded | 0.001 | `ybvjkhey` | Do bounded actions + low entropy leave the straddle? (compare `mb4-w4`) |
+| `mb6-clip-only` | local | `...-Mix100-Clip` + `--agent.algorithm.entropy-coef 0.01` | bounded | 0.01 | `gh9vnlyp` | Is clipping alone enough? |
+| `mb6-ent-only` | cl06 | `Ball-MountBalance-Mix100` + `--agent.algorithm.entropy-coef 0.001` | none | 0.001 | `8ivkwv6c` | Is low entropy alone enough? |
+| `mb6-clip-ent-mix50` | cl06 | `Ball-MountBalance-Clip` (50/50) | bounded | 0.001 | `id02o2gz` | Do bounded actions keep the drops and learn the mount in the mix? |
+
+The cl06 runs log to `~/runlogs/mb6-ent-only.log` and `mb6-clip-ent-mix50.log`; the local runs' console logs do not flush iteration lines, so follow them through wandb and checkpoints.
+
+Results (all finished 8000 it; training = last iteration; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s; success = single-leg stance with the CoM over the ball, flat sole, free foot 10 cm off the floor):
+
+| Run | Action noise std | Reward | Episode (of 1000) | `support_on_ball` (max 2) | `stand_tall` (max 2) | `action_rate` | `single_leg_stance` (max 8) | Eval |
+|-----|------------------|--------|-------------------|---------------------------|----------------------|---------------|------------------------------|------|
+| `mb6-clip-ent` | **0.27** | **252** | 981 | 1.89 | 0.84 | **−0.07** | 0.00 | mounts survive 99 to 100%, **0% success** |
+| `mb6-clip-only` | 3.33 | 128 | 851 | 1.51 | 0.61 | −3.28 | 0.00 | survive 99 to 100%, 0% |
+| `mb6-ent-only` | 0.21 | 192 | 978 | **0.00** | 0.69 | −0.05 | 0.00 | survive 99%, 0% |
+| `mb6-clip-ent-mix50` | 0.31 | 140 | 527 | 0.94 | 0.44 | −0.05 | 0.26 | mounts survive 99 to 100%, 0% success; **drops 0% survive** |
+
+**Findings**
+- **The entropy bonus drives the noise growth,** not the missing clip: with 0.001 the std stays 0.2 to 0.3, with 0.01 it still grows to 3.3 even with the clip.
+- **Clip + low entropy gives a very different policy:** `action_rate` −0.07 (about 40 times smoother than the earlier −3), full-length episodes, weight over the ball (`support_on_ball` 1.89 of 2), reward 252 (earlier mounts-only runs 94 to 130).
+- **Low entropy alone does not mount** (`mb6-ent-only` never uses the ball, `support_on_ball` 0): the clip is what keeps the exploration useful.
+- **Still no single-leg stance in any run.** Probe on `mb6-clip-ent` `model_7999` (256 envs, mount spawns): CoM 0.083 m from the ball centre (over it), right ankle 0.045 m above the ball top (flat sole), but the base is 0.21 m above the top (target 0.30, still crouched ~9 cm) and the free foot hovers at ankle 0.075 m (2.5 cm off the floor, needs 10 cm clearance); it is on the floor in 31 to 37% of the time. So it is a stable crouched near-single-leg posture, one step short of the success definition.
+- **50/50 from scratch with clip + low entropy loses the drops again** (0% survive), as every earlier 50/50 run did.
+
 
 ## Open questions
 
