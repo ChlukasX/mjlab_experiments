@@ -282,6 +282,41 @@ def free_foot_on_floor(
     return (free_on_floor.any(dim=-1) & over).float()
 
 
+def _mount_phi(
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None
+) -> torch.Tensor:
+    """Progress potential in [0, 1] along the mount: foot on the ball top, then CoM over the
+    ball, then base height and the free foot's clearance (only counted with the CoM over
+    the ball)."""
+    robot = env.scene[foot_cfg.name]
+    top_z = env.scene[ball_cfg.name].data.root_link_pos_w[:, 2] + _ball_radius(env, ball_cfg, ball_radius)
+    p_foot = foot_to_ball_top(env, foot_cfg, ball_cfg, ball_radius, 0.15)
+    c = torch.exp(-(_com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) / COM_SIGMA).pow(2))
+    h = ((robot.data.root_link_pos_w[:, 2] - top_z) / BASE_ABOVE_TOP_TARGET).clamp(0.0, 1.0)
+    foot_z = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 2]
+    lift = ((foot_z.min(dim=-1).values - STAND_FOOT_Z) / FREE_FOOT_LIFT).clamp(0.0, 1.0)
+    return 0.15 * p_foot + 0.85 * c * (0.3 + 0.35 * h + 0.35 * lift)
+
+
+def mount_potential(
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    gamma: float,
+) -> torch.Tensor:
+    """Potential-based shaping gamma * phi(s') - phi(s): pays for progress along the mount
+    and nothing for resting in the straddle (so the straddle is not a place to farm
+    reward). Zero on the first step after a reset."""
+    phi = _mount_phi(env, foot_cfg, ball_cfg, ball_radius)
+    prev = getattr(env, "_mount_phi_prev", None)
+    if prev is None or prev.shape != phi.shape:
+        prev = phi.clone()
+    reward = torch.where(env.episode_length_buf <= 1, torch.zeros_like(phi), gamma * phi - prev)
+    env._mount_phi_prev = phi.detach().clone()
+    return reward
+
+
 def stand_tall_on_ball(
     env,
     foot_cfg: SceneEntityCfg,

@@ -70,6 +70,39 @@ def ground_friction(
     ) * (hi - lo)
 
 
+@requires_model_fields("geom_friction")
+def ball_rolling_resistance(
+    env,
+    env_ids: torch.Tensor | None,
+    ball_cfg: SceneEntityCfg,
+    mu_roll_max: float,
+    steps_per_iter: int,
+    hold_iters: float,
+    ramp_iters: float,
+) -> None:
+    """Reset: give the ball a large rolling-friction coefficient so it barely rolls under the
+    robot's weight, then release it over training.
+
+    Rolling friction (the third `geom_friction` entry, torque <= mu_roll * normal force) is a
+    constraint, so it stays stable; joint damping on a 0.12 to 0.5 kg ball blew up the
+    simulation (damping * dt / mass > 1). The coefficient is `base + level * (mu_roll_max -
+    base)` with level 1 for the first `hold_iters` PPO iterations, then falling linearly to 0
+    over `ramp_iters` (`ramp_iters` <= 0 keeps the ball locked all training). With the
+    robot's weight on the ball (hundreds of N) 0.05 m resists several N m, far more than a
+    foot can apply, so the ball stays put while the mount is learned.
+    """
+    env_ids = _all_envs(env, env_ids)
+    it = env.common_step_counter / max(steps_per_iter, 1)
+    level = 1.0 if ramp_iters <= 0 else float(min(1.0, max(0.0, 1.0 - (it - hold_iters) / ramp_iters)))
+    ball = env.scene[ball_cfg.name]
+    geom_id = ball.indexing.geom_ids[ball.geom_names.index("ball_geom")]
+    if not hasattr(env, "_ball_mu_roll_base"):
+        env._ball_mu_roll_base = float(env.sim.model.geom_friction[0, geom_id, 2])
+    base = env._ball_mu_roll_base
+    env.sim.model.geom_friction[env_ids, geom_id, 2] = base + level * (mu_roll_max - base)
+    env.ball_lock_level = level
+
+
 def reset_mount_or_drop(
     env,
     env_ids: torch.Tensor | None,

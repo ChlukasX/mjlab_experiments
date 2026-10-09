@@ -75,6 +75,7 @@ uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/
 | `Mjlab-Piplus-Ball-Mount-Flat` | Same, sole must also be flat on the ball |
 | `Mjlab-Piplus-Ball-Mount-Size1[-Flat]` | Same on a size 1 football (radius 0.07 m) |
 | `Mjlab-Piplus-Ball-Balance-Size1` | Drop onto a size 1 ball and balance (flat sole) |
+| `Mjlab-Piplus-Ball-MountCurr-{Release,ReleasePot,Pot,Locked}` | Mount-only curriculum on a randomized ball: ball locked by rolling resistance then released, and/or potential-based progress reward |
 | `Mjlab-Piplus-Ball-MountBalance[-Mix30/-Mix70]` | One policy for mount + balance on a randomized ball (size 1-5, mass, friction); 50/50 mount/drop spawn mix, -Mix30/-Mix70 change the ratio |
 
 ## Architecture
