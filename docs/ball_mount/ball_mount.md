@@ -4,9 +4,9 @@ Branch: `feat/ball-mount-balance` — **in progress**
 
 Task IDs: `Mjlab-Piplus-Ball-MountBalance` (50/50 mix), `-Mix30`, `-Mix70`
 
-One policy that covers both skills — step onto the ball and balance on it — on a domain-randomized ball. This is the skill the later approach policy hands over to ([ball_approach.md](ball_approach.md)); the end goal is the robot walking to a ball by itself, mounting it and balancing ([ball_chain.md](ball_chain.md)). Builds on [mount_feasibility.md](mount_feasibility.md).
+One policy that covers both skills — step onto the ball and balance on it — on a domain-randomized ball. This is the skill the later approach policy hands over to ([ball_approach.md](../ball_approach/ball_approach.md)); the end goal is the robot walking to a ball by itself, mounting it and balancing ([ball_chain.md](../ball_chain/ball_chain.md)). Builds on [mount_feasibility.md](../mount_feasibility/mount_feasibility.md).
 
-Config: `tasks/ball_mount/piplus_ball_mountbalance_env_cfg.py`, events in `tasks/ball_mount/events.py`. Run-by-run record and launch commands: [experiment_log.md](experiment_log.md).
+Config: `tasks/ball_mount/piplus_ball_mountbalance_env_cfg.py`, events in `tasks/ball_mount/events.py`. Run-by-run record and launch commands: [ball_mount_log.md](ball_mount_log.md).
 
 ## Spawn mix (experiment variable)
 
@@ -53,7 +53,7 @@ MuJoCo mixes two geoms' friction with a max unless contact priorities differ. Th
 
 ## Rewards and terminations
 
-Those of `Mjlab-Piplus-Ball-Mount-Flat`: foot on the ball with the sole flat, single-leg stance, `foot_to_ball_top`, `foot_lift`, `sole_flat`, upright, posture and the smoothness penalties, with the ball radius read per env. 20 s episodes. See [mount_feasibility.md](mount_feasibility.md) for the on-ball test. Two terms and one stricter test were added after the first run:
+Those of `Mjlab-Piplus-Ball-Mount-Flat`: foot on the ball with the sole flat, single-leg stance, `foot_to_ball_top`, `foot_lift`, `sole_flat`, upright, posture and the smoothness penalties, with the ball radius read per env. 20 s episodes. See [mount_feasibility.md](../mount_feasibility/mount_feasibility.md) for the on-ball test. Two terms and one stricter test were added after the first run:
 
 | Term | Weight | Purpose |
 |------|--------|---------|
@@ -66,7 +66,7 @@ Those of `Mjlab-Piplus-Ball-Mount-Flat`: foot on the ball with the sole flat, si
 | `com_toward_ball_velocity` | +1.0 | Momentum: CoM speed toward the ball while it is not yet over it. |
 | `push_up_velocity` | +0.5 | Upward CoM speed while the base is below the standing-tall height. |
 
-`stance` also requires the CoM within 0.12 m of the ball centre, and `xy_centering` is off (weight 0). The last four terms were added after the `mb2-*` runs showed the robot standing beside the ball with a foot propped on it (CoM 0.26 m away); see [experiment_log.md](experiment_log.md).
+`stance` also requires the CoM within 0.12 m of the ball centre, and `xy_centering` is off (weight 0). The last four terms were added after the `mb2-*` runs showed the robot standing beside the ball with a foot propped on it (CoM 0.26 m away); see [ball_mount_log.md](ball_mount_log.md).
 
 Why: the first run's mount spawns all succeeded (100%, on the ball within 0.26 s and held for 20 s), but as a deep crouch. The base sat 0.19 m above the ball top (about 0.29–0.30 m when standing tall on the home-pose legs) and the free foot hovered 4.5 cm above the floor, which passed the old 3 cm test. A separate hand-off reward is not needed: the mount-to-stance chain already completes immediately, so the new terms shape the quality of the balance. On that run's mount spawns the new terms score 0.30 (`stand_tall`) and 0.43 (`free_foot_lift`), and none pass the 10 cm stance test.
 

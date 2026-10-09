@@ -76,7 +76,7 @@ src/mjlab_piplus/
 scripts/
   train.sh                GPU training launcher with wandb + optional tmux
 logs/rsl_rl/              Checkpoints (gitignored)
-docs/                     Per-experiment design notes
+docs/                     One directory per experiment: design notes + run log (see docs/README.md)
 ```
 
 See `AGENTS.md` or `CLAUDE.md` for architecture details and notes relevant to further development.

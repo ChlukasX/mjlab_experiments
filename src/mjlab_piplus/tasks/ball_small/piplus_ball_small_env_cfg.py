@@ -8,7 +8,7 @@ Sim2real setup: the actor sees only joint encoders + IMU (with noise and a
 Physics is randomised and the robot is pushed at intervals.
 
 Ball: standard football (radius=0.11 m, mass=0.43 kg).
-See docs/ball_small.md.
+See docs/ball_small/ball_small.md.
 """
 
 import math

@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 - **New features and policies always go on a new branch** (e.g. `feat/ball-approach`), never directly on `main`. The repo is public; `main` must stay clean and working.
 - Branch before the first edit, not after. Keep the working tree clean: no stray debug files, no half-finished changes left on `main`.
 - Commit/push only on explicit user request; merge to `main` only when the user says so.
+- **Docs are one directory per experiment** (`docs/<experiment>/<experiment>.md` for the design, `docs/<experiment>/<experiment>_log.md` for its run log). Never mix several experiments in one log; see `docs/README.md` for the index and conventions.
 
 ## Skills
 
@@ -107,12 +108,12 @@ This is an `mjlab` plugin package. `mjlab` is the RL framework (MuJoCo + RSL-RL 
 
 Hierarchical: Approach policy → `(vx, vy, ωz)` → frozen Locomotion policy; separate Mount+Balance policy; switcher on distance to ball. One branch per phase; placeholders in `docs/`.
 
-- [ ] 0. `feat/mount-feasibility` — can the robot get from standing onto the ball in sim? Yes (flat-sole variant trained from scratch; plain variant mount+balance in progress). ([docs](docs/mount_feasibility.md))
-- [ ] 1. `feat/locomotion-s2r` — Locomotion-Arms v2: proprio-only actor + history, noise, DR, ball obstacle, yaw-rate penalty. ([docs](docs/locomotion_s2r.md))
-- [ ] 2. `feat/ball-perception` — noisy ball position in base frame (noise, dropout, latency, FOV). ([docs](docs/ball_perception.md))
-- [ ] 3. `feat/ball-approach` — high-level policy driving the frozen locomotion policy to the stand-off pose. ([docs](docs/ball_approach.md))
-- [ ] 4. `feat/ball-mount-balance` — one Mount+Balance policy on a domain-randomized ball, 50/50 mount/drop spawn mix (ratio sweep with -Mix30/-Mix70). Run `mountbalance-mix50-v1` in progress. ([docs](docs/ball_mount.md))
-- [ ] 5. `feat/ball-chain` — `Mjlab-Piplus-Ball-Chain` eval task with switcher. ([docs](docs/ball_chain.md))
+- [ ] 0. `feat/mount-feasibility` — can the robot get from standing onto the ball in sim? Yes (flat-sole variant trained from scratch; plain variant mount+balance in progress). ([docs](docs/mount_feasibility/mount_feasibility.md))
+- [ ] 1. `feat/locomotion-s2r` — Locomotion-Arms v2: proprio-only actor + history, noise, DR, ball obstacle, yaw-rate penalty. ([docs](docs/locomotion_s2r/locomotion_s2r.md))
+- [ ] 2. `feat/ball-perception` — noisy ball position in base frame (noise, dropout, latency, FOV). ([docs](docs/ball_perception/ball_perception.md))
+- [ ] 3. `feat/ball-approach` — high-level policy driving the frozen locomotion policy to the stand-off pose. ([docs](docs/ball_approach/ball_approach.md))
+- [ ] 4. `feat/ball-mount-balance` — one Mount+Balance policy on a domain-randomized ball, 50/50 mount/drop spawn mix (ratio sweep with -Mix30/-Mix70). Run `mountbalance-mix50-v1` in progress. ([docs](docs/ball_mount/ball_mount.md))
+- [ ] 5. `feat/ball-chain` — `Mjlab-Piplus-Ball-Chain` eval task with switcher. ([docs](docs/ball_chain/ball_chain.md))
 - [ ] 6. `docs/ball-chain` — final docs, task table, README.
 
 Other points:

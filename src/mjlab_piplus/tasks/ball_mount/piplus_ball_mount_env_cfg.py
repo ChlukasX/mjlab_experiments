@@ -5,7 +5,7 @@ Same 20 DOF, rewards and randomisation as Ball-Small, plus a dense
 foot-to-ball-top reward. The actor additionally sees the ball position in the
 base frame (privileged for now; real perception comes in a later phase).
 
-See docs/mount_feasibility.md.
+See docs/mount_feasibility/mount_feasibility.md.
 """
 
 from functools import partial

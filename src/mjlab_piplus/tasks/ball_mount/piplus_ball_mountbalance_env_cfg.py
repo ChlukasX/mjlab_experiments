@@ -6,7 +6,7 @@ is randomized per env: radius 0.07-0.11 m (FIFA size 1 to 5), mass tied to the
 radius, ball and ground friction. The actor does not see the ball size; the
 critic does. Rewards are the flat-sole Ball-Mount ones with per-env radius.
 
-See docs/ball_mount.md.
+See docs/ball_mount/ball_mount.md.
 """
 
 import mujoco

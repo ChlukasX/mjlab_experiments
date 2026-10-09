@@ -17,4 +17,4 @@ Switcher: dist-to-ball < d_stand → hand off from walk to mount
 - Metric: full-chain success rate under pushes, turf and ball randomisation. Hand-off failures show up here.
 - Final write-up replaces these placeholders with measured results.
 
-Components: [locomotion_s2r.md](locomotion_s2r.md), [ball_perception.md](ball_perception.md), [ball_approach.md](ball_approach.md), [ball_mount.md](ball_mount.md), [mount_feasibility.md](mount_feasibility.md).
+Components: [locomotion_s2r.md](../locomotion_s2r/locomotion_s2r.md), [ball_perception.md](../ball_perception/ball_perception.md), [ball_approach.md](../ball_approach/ball_approach.md), [ball_mount.md](../ball_mount/ball_mount.md), [mount_feasibility.md](../mount_feasibility/mount_feasibility.md).

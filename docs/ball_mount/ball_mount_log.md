@@ -1,47 +1,8 @@
-# Experiment protocol: ball mount and balance
+# Ball mount + balance (randomized ball): run log
 
-Chronological record of the training runs for the ball mount / balance work (Oct 2026). One row per run; add a row when a run is launched and fill in the result when it finishes. Design and findings are in [mount_feasibility.md](mount_feasibility.md) and [ball_mount.md](ball_mount.md); this file is the run-by-run log and the commands to reproduce them.
+One row per run, newest last; add a row at launch and fill in the result when it finishes. Design and findings: [ball_mount.md](ball_mount.md). Shared conventions (launching, resuming, metrics, eval): [../README.md](../README.md).
 
-## Conventions
-
-- **Launch:** `bash scripts/train.sh <task> --name <run-name> [overrides]` (wandb project = task id, default 4096 envs). Parallel runs: stagger launches by ~20 s.
-- **Where:** `local` = the 4090 on this machine, `cl06` = the 5090 (shared home, so same code and logs).
-- **Logs / checkpoints:** `logs/rsl_rl/<experiment>/<timestamp>_<run-name>/model_N.pt`. The experiment dir comes from the task (see the task table in `AGENTS.md`).
-- **Config actually used:** `logs/rsl_rl/<experiment>/<run>/params/env.yaml` (reward weights, events) and `agent.yaml`.
-- **Resume:** `--agent.resume True --agent.load-run <run dir name> --agent.load-checkpoint model_N.pt --agent.max-iterations <additional>`. The iteration counter continues from N.
-- **Reward overrides on the command line:** `--env.rewards.<term>.weight <value>`.
-- **Metrics quoted** are the last logged iteration (`Mean reward`, `Mean episode length`, `Episode_Reward/*` = reward-weighted per-episode terms; max about 4 for `foot_on_ball` and `single_leg_stance`, 2 for `sole_flat`). They are training numbers, with pushes and noise on. The log's episode length only counts finished episodes, so it is low right after a resume.
-- **Eval:** `uv run python scripts/eval_mountbalance.py --checkpoint <model.pt>` (success by spawn mode and ball size). **Play:** `uv run mjx --task <task> play [--run <prefix>] [--ckpt N]`; MountBalance has a Spawn mode dropdown.
-- **Ball sizes:** size 5 = radius 0.11 m, 0.43 kg; size 1 = radius 0.07 m, 0.14 kg (assumed mini ball, check against the real one).
-
-## 1. Mount feasibility: size 5 ball (branch `feat/mount-feasibility`)
-
-Task `Mjlab-Piplus-Ball-Mount` (and `-Flat`): robot starts standing, ball 0.30 m ahead of the right foot, 10 s episodes. Spike runs v1 to v4 had wandb disabled.
-
-| Run | Machine | Setup | Result | Takeaway |
-|-----|---------|-------|--------|----------|
-| `mount-spike-v1` | local, 2048 envs | From scratch, 400 it. Dense `foot_to_ball_top` reward. | Reward 22, episode 500/500, `foot_on_ball` 0 | Learns to stand, never steps on. |
-| `mount-spike-v2-lift` | local, 2048 envs | Resumed v1 `model_399`, + `foot_lift` reward measured from 0.10 m. Stopped at 1600 it. | `foot_lift` 0.0000 throughout | Bug: standing ankle height is 0.050 m, so lifts below 5 cm paid nothing. |
-| `mount-spike-v3-lift-fix` | local, 2048 envs | Resumed v2 `model_1600`, `STAND_FOOT_Z` = 0.05. To `model_4599`. | Mounting starts ~it 2000; peak reward 84 at it 2421, `foot_on_ball` ~3.0 (of 4); drifts to jerky control (reward 44, `action_rate` −2.8 at it 3756) | Mounting is feasible in sim. `single_leg_stance` was identical to `foot_on_ball` (Ball-Small check never needs a lifted foot). |
-| `mount-spike-v4/v5-flat-sole` | local, 2048 envs | Resumed v3 `model_2400`, added flat-sole requirement and `sole_flat = exp(-tilt²/0.2²)`. v4 killed after 2 min; v5 (`r32i1cnm`) 3000 it. | v5: `foot_on_ball` (flat) 0, `foot_lift` 0.97 | Foot reaches the ball but the sole is rolled over. |
-| `mount-flat-sole-scratch` | cl06, 4096 | Same flat shaping, from scratch, 5000 it (`7se9n1gp`). | Reward 40, `sole_flat` 0. Probe: median sole tilt 112°, 0 of 44672 samples under 17°. | `exp(-tilt²/0.2²)` ≈ 0 at that tilt: no gradient. |
-| `mount-flat-sole-v2-scratch` | cl06, 4096 | `sole_flat = (1 + cos tilt)/2`, from scratch, 5000 it (`jm04uwmd`). | Reward 96, episode 483, `foot_on_ball` 3.72, `single_leg_stance` 3.57, `sole_flat` 1.88 | Flat sole learned from scratch. |
-| `mount-balance-v1` | cl06, 4096 | Plain `Ball-Mount`, resumed v3 `model_2400`, 3000 it (`ioq6yazr`); free foot must clear the floor by 3 cm. | Reward 56, episode 437, `foot_on_ball` 3.37, `single_leg_stance` 3.25, `action_rate` −3.34 | Mount + balance without the flat requirement. Jerky. |
-| `mount-flat-v1` | cl06, 4096 | `Ball-Mount-Flat`, from scratch, 5000 it (`w3mq6c0w`). | Reward 100, episode 487, `foot_on_ball` 3.74, `single_leg_stance` 3.61, `sole_flat` 1.89, `action_rate` −2.53 | Reproduces `v2-scratch`. Flat is better than plain on every metric; mean action change per step 0.47 vs 0.85. |
-| `mount-smooth-v1` | cl06, 4096 | Plain `Ball-Mount`, from scratch, `action_rate` −0.05, `joint_vel` −0.015, 5000 it (`z2x62wty`). | Reward 25, `foot_on_ball` 0, `foot_lift` 0.39 | 5× smoothness from scratch never mounts. Smooth an existing policy instead. |
-
-Measurements on the finished policies (probe scripts, not in the repo): on-ball ankle sits 0.049 m above the ball top with a flat sole (flat run) and 0.037 m (plain run, tilted sole).
-
-## 2. Size 1 ball
-
-| Run | Machine | Setup | Result | Takeaway |
-|-----|---------|-------|--------|----------|
-| `mount-size1-v1` | cl06, 4096 | `Ball-Mount-Size1`, from scratch, 5000 it (`iwc06dqm`). | Reward 58, episode 431, `foot_on_ball` 3.37, `single_leg_stance` 3.28, `action_rate` −2.94 | Mounts a size 1 ball. |
-| `mount-size1-flat-v1` | cl06, 4096 | `Ball-Mount-Size1-Flat`, from scratch, 5000 it (`47ya5hv8`). | Reward 93, episode 484, `foot_on_ball` 3.65, `single_leg_stance` 3.51, `sole_flat` 1.88, `action_rate` −2.61 | |
-| `mount-size1-flat-v2-cont` | local, 4096 | Resumed `size1-flat-v1` `model_4999`, 5000 more (to `model_9998`; `qt3bwrlm`). Rewards were still rising. | Reward 115, episode 496, `foot_on_ball` 3.83, `single_leg_stance` 3.78, `sole_flat` 1.94, `action_rate` −1.58 | Continuing helped: reward 93 → 115 and smoother actions. |
-| `balance-size1-flat-v1` | local, 4096 | `Ball-Balance-Size1` (drop onto the size 1 ball, flat sole), from scratch, 10000 it (`20doj5z7`). Drop spawn: base 0.5 m above the ball top. | Reward 163, episode 950/1000, `foot_on_ball` 3.74, `single_leg_stance` 3.72, `sole_flat` 1.89, `action_rate` −1.91 | Drop-and-balance is learnable on a fixed size 1 ball even with the higher drop. |
-
-## 3. One policy for mount + balance on a randomized ball (branch `feat/ball-mount-balance`)
+Branch `feat/ball-mount-balance`. Task `Mjlab-Piplus-Ball-MountBalance` and variants.
 
 Task `Mjlab-Piplus-Ball-MountBalance`: per reset 50% mount / 50% drop, ball radius 0.07 to 0.11 m, mass tied to radius, ball and ground friction 0.3 to 1.2, actor does not see the size, network 512-256-128, 20 s episodes, flat sole. Details in [ball_mount.md](ball_mount.md).
 
@@ -224,8 +185,28 @@ Results (all finished 8000 it; training = last iteration; eval = `scripts/eval_m
 - **50/50 from scratch with clip + low entropy loses the drops again** (0% survive), as every earlier 50/50 run did.
 
 
-## Open questions
+### `mb7-*`: finish the mount, and drops with bounded actions (in progress)
+
+Launched Oct 8 2026 (commit `5e70e4d`, docs `2a40d4e`), local GPU, 4096 envs. Motivated by the `mb6-clip-ent` training curve, which was still improving at the end (reward 227 → 249 over its last 3000 it; `free_foot_lift` 0.17 → 0.61; `stand_tall` 0.69 → 0.84) but never reached the single-leg stance.
+
+| Run | Task | Start | Change | wandb | Question |
+|-----|------|-------|--------|-------|----------|
+| `mb7-clip-ent-final-x2` | `Ball-MountBalance-Mix100-Clip` | resume `mb6-clip-ent` `model_7999`, 4000 more it | `free_foot_lift` 6 (was 3), `stand_tall` 4 (was 2), `single_leg_stance` 16 (was 8), `support_on_ball` 2 | `1tflsg2d` | Do stronger final-step terms finish the mount (stand up, lift the free foot)? |
+| `mb7-mix0-clip` | `Ball-MountBalance-Mix0-Clip` | scratch, 8000 it | default weights (as `mb3-mix0`), clip + `entropy_coef` 0.001 | `jusgbeng` | Does drop balancing survive bounded actions and low entropy? (compare `mb3-mix0`: 97%) |
+
+Results (both finished; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s):
+
+| Run | Training end | Eval |
+|-----|--------------|------|
+| `mb7-clip-ent-final-x2` (4000 it from `mb6-clip-ent`) | reward 299, episode 972/1000, `stand_tall` 2.23 of 4, `free_foot_lift` 2.18 of 6, `support_on_ball` 1.86 of 2, `single_leg_stance` **0.00**, `action_rate` −0.09 | mounts survive 99 to 100%, **0% success** (one env in the size 3 bin reached the stance at 1.1 s) |
+| `mb7-mix0-clip` (drops only, 8000 it) | reward 35, episode 125/1000, `single_leg_stance` 0.30 of 4, `base_too_low` ~15 per it | **drops 0% survive on every ball size** |
+
+**Findings**
+- **Doubling the final-step terms plateaued:** over 4000 iterations `stand_tall` and `free_foot_lift` kept rising, then flattened (2.14 → 2.18 and 2.18 over the last 2000 it); the free foot never crossed the 10 cm clearance, so `single_leg_stance` stayed 0.
+- **Bounded actions + low entropy break drop balancing:** the same drops-only task reached 97% success with unbounded actions and entropy 0.01 (`mb3-mix0`), and 0% survival with clip + entropy 0.001 (`mb7-mix0-clip`). Learning was slower from the start (`single_leg_stance` 0.18 vs 0.38 at it ~1150) and then stalled at episode length ~125.
+- **So the two changes trade off:** the unbounded, high-noise setting solves balance (drops) but not the mount; the bounded, low-noise setting gives a smooth, tall mount posture but cannot balance a drop. The drops-only run changed clip and entropy together, so which one hurts balancing is not yet known. Untested explanations: the low entropy ends exploration too early (std ~0.3) for the harder balance problem, or the clipped targets limit how hard the policy can push (corrections need large target errors).
+
+
 
 - Which mount / drop ratio works best (`-Mix30`, `-Mix70` are registered, not run).
 - Whether the 5× smoothness result changes when applied by resuming a mounted policy.
-- Real size 1 ball radius and mass.
