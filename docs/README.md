@@ -1,6 +1,6 @@
 # Experiment docs
 
-One directory per experiment: `docs/<experiment>/<experiment>.md` is the design and findings, `docs/<experiment>/<experiment>_log.md` is that experiment's run log (when it has trained runs). **Never mix several experiments in one log.** Add a row to the log when a run is launched and fill in the result when it finishes.
+Here you will find the docs for the experiments.
 
 ## Experiments
 
@@ -20,7 +20,6 @@ One directory per experiment: `docs/<experiment>/<experiment>.md` is the design 
 ## Conventions (shared by all experiments)
 
 - **Launch:** `bash scripts/train.sh <task> --name <run-name> [overrides]` (wandb project = task id, default 4096 envs). Parallel runs: stagger launches by ~20 s.
-- **Where:** `local` = the 4090 on this machine, `cl06` = the 5090 (shared home, so same code and logs).
 - **Logs / checkpoints:** `logs/rsl_rl/<experiment>/<timestamp>_<run-name>/model_N.pt`. The experiment dir comes from the task (see the task table in `AGENTS.md`).
 - **Config actually used:** `logs/rsl_rl/<experiment>/<run>/params/env.yaml` (reward weights, events) and `agent.yaml`.
 - **Resume:** `--agent.resume True --agent.load-run <run dir name> --agent.load-checkpoint model_N.pt --agent.max-iterations <additional>`. The iteration counter continues from N.
