@@ -18,6 +18,7 @@ One directory per experiment: `docs/<experiment>/<experiment>.md` is the design 
 | ball_mount_curriculum | `Mjlab-Piplus-Ball-MountCurr-{Release,ReleasePot,Pot,Locked}` | [spec](ball_mount_curriculum/ball_mount_curriculum.md), [log](ball_mount_curriculum/ball_mount_curriculum_log.md) |
 | ball_mount_rewards | `Mjlab-Piplus-Ball-MountMin[-Clip\|-Locked]` | [spec](ball_mount_rewards/ball_mount_rewards.md), [log](ball_mount_rewards/ball_mount_rewards_log.md) |
 | balance_from_mount | `Mjlab-Piplus-Ball-BalanceFromMount[-Mix50]` | [spec](balance_from_mount/balance_from_mount.md), [log](balance_from_mount/balance_from_mount_log.md) |
+| balance_deploy | audit and retraining of the balance policy for the real robot | [spec](balance_deploy/balance_deploy.md), [log](balance_deploy/balance_deploy_log.md) |
 | locomotion_s2r, ball_perception, ball_approach, ball_chain | placeholders for the ball chain | [locomotion_s2r](locomotion_s2r/locomotion_s2r.md), [ball_perception](ball_perception/ball_perception.md), [ball_approach](ball_approach/ball_approach.md), [ball_chain](ball_chain/ball_chain.md) |
 
 ## Conventions (shared by all experiments)
