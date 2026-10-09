@@ -8,7 +8,7 @@ From scratch, mounts only, 2048 envs, 6000 iterations, settings as in the [desig
 
 | Run | Task | Where | wandb | Outcome |
 |-----|------|-------|-------|---------|
-| `mc1-release` | `MountCurr-Release` | local | `g3448ra4` | In progress. At it 849 (ball still locked): reward 200, episode 965/1000, `support_on_ball` 1.13, `com_over_ball` 1.45, `single_leg_stance` 0: the straddle again, even on a locked ball. |
+| `mc1-release` | `MountCurr-Release` | local | `g3448ra4` | **Finished, 6000 it, 0% success.** Final training: reward 220.5, episode 929/1000, `support_on_ball` 1.74 of 2, `com_over_ball` 1.60 of 2, `single_leg_stance` 0.0028 (0.000 in every window until it ~4500, then ~0.001). Eval (1024 envs, free ball): mounts survive 100% / 99% / 92% (size 1-2 / 3 / 4-5), success 0%. The straddle persisted through the locked phase (it 0-1000), the release (1000-4000) and the free ball (4000-6000). |
 | `mc1-releasepot` | `MountCurr-ReleasePot` | local | `0yz48kxc` | **Stopped at it ~1120** (degenerate, see below). |
 | `mc1-pot` | `MountCurr-Pot` | cl06 | `kbj6ti7w` | **Stopped at it ~1840** (degenerate). |
 | `mc1-locked` | `MountCurr-Locked` | cl06 | `6pzgviha` | **Stopped at it ~1820** (degenerate). |
@@ -42,4 +42,13 @@ With the terminal potential fixed the dive-and-die exploit is gone (`fell_over` 
 | v3 | free, locked | 300 it, init std 0.4, settling 2.5 s, **potential gated by a foot on the ball** (`phi = 0.15 p + 0.85 p c (0.3 + 0.35 h + 0.35 l)`, `p` = closeness of the nearest foot to the ball top): the v2 trajectory now scores 0.00 to 0.01 | **No stance, no mount, and no difference between free and locked ball.** Both converged to the same optimum: best score 14.48, mean 13.6, 100% of samples alive at the end, std collapsed 0.40 -> 0.09, longest stance 0.00 s. Replay of the best trajectory: **standing still** (CoM 0.297 m from the ball, both feet on the floor at 0.050 m, potential 0.00); 14.5 is the survival reward of standing for 6.5 s. Premature convergence to the safe plateau: any bold move terminates and costs the full potential, so the search never leaves it. |
 
 **Reading so far.** Open-loop CEM (v1 to v3) found no mount on a free or a locked ball: v1 and v2 found exploits of the reward (a dive at the horizon, a body draped over the ball), and once those were closed v3 settled on standing still. That is not evidence that the mount is infeasible: the search collapsed onto the safe plateau early (std 0.4 -> 0.09 in ~120 iterations), and an open-loop trajectory through an unstable single-support phase on a rolling ball is a hard target even if a closed-loop mount exists. PPO shows the same pattern (stand still with the potential reward; straddle without it).
+
+## Status after round 1 and the model-based search (Oct 9 2026)
+
+Nothing reaches the single-leg stance on top of the ball from the standing start:
+- PPO without a potential reward ends in the straddle (`mc1-release`: 0% success, also after a locked-then-released ball).
+- PPO with the potential reward either dives and dies (terminal potential not zero) or stands still (terminal potential zero) (`mc1`, `mc1b`).
+- Open-loop CEM finds reward exploits, then stands still (v1 to v3), identical for a free and a locked ball.
+
+Untried: closed-loop search, a reverse curriculum from straddle states, a scripted mount, a changed setup (ball holder, different foot or ball). The balance side is solved in simulation but its policies are bang-bang (see [balance_deploy](../balance_deploy/balance_deploy.md)).
 
