@@ -287,7 +287,8 @@ def _mount_phi(
 ) -> torch.Tensor:
     """Progress potential in [0, 1] along the mount: foot on the ball top, then CoM over the
     ball, then base height and the free foot's clearance (only counted with the CoM over
-    the ball)."""
+    the ball AND a foot on the ball top: without that gate, draping the body over the ball
+    with both feet off it scored 0.45 and the search converged on it)."""
     robot = env.scene[foot_cfg.name]
     top_z = env.scene[ball_cfg.name].data.root_link_pos_w[:, 2] + _ball_radius(env, ball_cfg, ball_radius)
     p_foot = foot_to_ball_top(env, foot_cfg, ball_cfg, ball_radius, 0.15)
@@ -295,7 +296,7 @@ def _mount_phi(
     h = ((robot.data.root_link_pos_w[:, 2] - top_z) / BASE_ABOVE_TOP_TARGET).clamp(0.0, 1.0)
     foot_z = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 2]
     lift = ((foot_z.min(dim=-1).values - STAND_FOOT_Z) / FREE_FOOT_LIFT).clamp(0.0, 1.0)
-    return 0.15 * p_foot + 0.85 * c * (0.3 + 0.35 * h + 0.35 * lift)
+    return 0.15 * p_foot + 0.85 * p_foot * c * (0.3 + 0.35 * h + 0.35 * lift)
 
 
 def mount_potential(
