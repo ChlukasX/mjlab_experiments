@@ -1,6 +1,6 @@
 # Experiment docs
 
-One directory per experiment: `docs/<experiment>/<experiment>.md` is the design and findings, `docs/<experiment>/<experiment>_log.md` is that experiment's run log (when it has trained runs). **Never mix several experiments in one log.** Add a row to the log when a run is launched and fill in the result when it finishes.
+Here you will find the docs for the experiments.
 
 ## Experiments
 
