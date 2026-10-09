@@ -15,6 +15,18 @@ From scratch, mounts only, 2048 envs, 6000 iterations, settings as in the [desig
 
 **The three potential-reward runs learned an exploit.** Episode length 22 steps (0.45 s), `upright` 0.02, reward flat at ~29 from iteration ~300, and ~90 of ~100 episodes per iteration ended in `fell_over`. The policy throws itself at the ball, collects the potential gain on the way and dies. This is the known flaw of potential-based shaping with early termination: the shaped return telescopes to `gamma^T phi(s_T) - phi(s_0)`, so ending the episode in a high-potential state keeps the gain at no cost; the correct form needs `phi(terminal) = 0`. Fix in `mount_potential` (commit below): the potential of a terminated state is 0, so a fall costs `-phi(s)`; a test with violent random actions gives about −4.8 on terminating steps against −0.3 otherwise.
 
-### Round 1b: potential reward with terminal potential 0
+### Round 1b: potential reward with terminal potential 0 (stopped)
 
-Relaunched the three potential runs as `mc1b-*` (same tasks and settings, fixed reward). Results: _TBD._
+Relaunched the three potential runs as `mc1b-*` (same tasks and settings, fixed reward), Oct 9 2026, commit `37ca427`.
+
+| Run | Task | Where | wandb | Outcome |
+|-----|------|-------|-------|---------|
+| `mc1b-releasepot` | `MountCurr-ReleasePot` | local | `yfy78x6p` | **Stopped at it ~1500**: stands still, never goes to the ball |
+| `mc1b-pot` | `MountCurr-Pot` | cl06 | `dpumn1k9` | **Stopped at it ~1560**: same |
+| `mc1b-locked` | `MountCurr-Locked` | cl06 | `7arp8izu` | **Stopped at it ~1520**: same, so it did not test the locked-ball stance |
+
+With the terminal potential fixed the dive-and-die exploit is gone (`fell_over` ~0, episode length 1000), but all three converge by it ~400 to a **do-nothing optimum**: reward flat at 36 (almost all from `upright`), `mount_potential` slightly negative (-0.4 to -0.5, the `gamma < 1` leak of standing still), `support_on_ball`, `com_over_ball` and `single_leg_stance` 0. A fall now costs the full potential and standing is safe and pays, so the policy never explores toward the ball. This is a stall, not a hint about feasibility.
+
+`mc1-release` (no potential, rebalanced rewards) at it 1956, ball releasing (level 0.68): reward 221, episode 946/1000, `support_on_ball` 1.73 of 2, `com_over_ball` 1.65 of 2, `single_leg_stance` 0.000 in every window, including the first 1000 iterations with the ball locked. The straddle persists on a locked ball, so the lock alone does not get the second foot off the floor.
+
+**Takeaway.** Neither the lock nor the potential reward gets PPO to the stance, and the locked-ball feasibility question is still open. Next: a model-based search for a mount trajectory that does not depend on PPO exploration (`scripts/mount_cem.py`), on a fixed ball, free and locked. See [Model-based search](#model-based-search).
