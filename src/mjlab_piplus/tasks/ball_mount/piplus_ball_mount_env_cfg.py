@@ -307,12 +307,18 @@ def mount_potential(
 ) -> torch.Tensor:
     """Potential-based shaping gamma * phi(s') - phi(s): pays for progress along the mount
     and nothing for resting in the straddle (so the straddle is not a place to farm
-    reward). Zero on the first step after a reset."""
+    reward). Zero on the first step after a reset.
+
+    The potential of a terminal state is 0 (a fall costs -phi(s)). Without that the shaped
+    return telescopes to gamma^T phi(s_T) - phi(s_0), so diving at the ball and dying in a
+    high-potential state keeps the whole gain: the first version of this reward did exactly
+    that (episodes of 22 steps, 90% ending in fell_over)."""
     phi = _mount_phi(env, foot_cfg, ball_cfg, ball_radius)
     prev = getattr(env, "_mount_phi_prev", None)
     if prev is None or prev.shape != phi.shape:
         prev = phi.clone()
-    reward = torch.where(env.episode_length_buf <= 1, torch.zeros_like(phi), gamma * phi - prev)
+    phi_next = torch.where(env.termination_manager.terminated, torch.zeros_like(phi), phi)
+    reward = torch.where(env.episode_length_buf <= 1, torch.zeros_like(phi), gamma * phi_next - prev)
     env._mount_phi_prev = phi.detach().clone()
     return reward
 
