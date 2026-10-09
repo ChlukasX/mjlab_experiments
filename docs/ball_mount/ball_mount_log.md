@@ -210,3 +210,14 @@ Results (both finished; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s):
 
 - Which mount / drop ratio works best (`-Mix30`, `-Mix70` are registered, not run).
 - Whether the 5× smoothness result changes when applied by resuming a mounted policy.
+### Hand-off test: balance policy takes over from the straddle (Oct 9 2026)
+
+`scripts/eval_handoff.py`, 1024 envs, mount spawns, 20 s. Mount policy `mb7-clip-ent-final-x2` `model_11998` (bounded targets, as trained) runs until the robot has been in the straddle for 1 s (foot flat on the ball, CoM within 0.12 m of the ball centre); then the drop-balance policy `mb3-mix0` `model_7999` (unbounded targets, 97% on drops) takes over for that env (its clip is lifted inside the action term, so both policies see the raw action in their observation). A first version clipped the action before stepping, which changed the "last action" observation and made the baseline survive 32% instead of 99%; that run was discarded.
+
+| Mode | Reached straddle | Success | Survived |
+|------|------------------|---------|----------|
+| mount policy only | 100% (mean 1.5 s) | 0% | 99 to 100% |
+| mount policy, then balance policy after 1 s in the straddle | 100% (mean 1.5 s) | **0%** | **0%** (1% in the smallest bin) |
+
+Conclusion: the existing balance policy does **not** rescue the straddle; every env falls after the switch. It was trained from a start with the free leg hanging and has never seen this posture. The "two skills plus a switcher" design therefore needs a mount policy that reaches a state the balance policy can handle (or a balance policy trained on straddle starts). Next: the mount curriculum experiments, see [ball_mount_curriculum](../ball_mount_curriculum/ball_mount_curriculum.md).
+
