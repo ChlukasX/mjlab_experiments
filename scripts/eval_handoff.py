@@ -46,6 +46,8 @@ parser.add_argument("--mode", choices=["handoff", "mount_only", "balance_only"],
 parser.add_argument("--num-envs", type=int, default=1024)
 parser.add_argument("--hold", type=float, default=1.0, help="seconds in the straddle before the switch")
 parser.add_argument("--hold-frac", type=float, default=0.9)
+parser.add_argument("--switch-clearance", type=float, default=None,
+                    help="switch on a real stance instead: free sole this many m off the floor")
 args = parser.parse_args()
 
 dev = "cuda:0"
@@ -102,7 +104,10 @@ for step in range(n_steps):
         action = torch.where(handed.unsqueeze(-1), a_bal, a_mount)
     obs, _, dones, _ = env.step(action)
     failed |= dones.bool()
-    sup = support_on_ball(u, foot_cfg, ball_cfg, None, True, COM_OVER_BALL) > 0
+    if args.switch_clearance is None:
+        sup = support_on_ball(u, foot_cfg, ball_cfg, None, True, COM_OVER_BALL) > 0
+    else:
+        sup = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z, COM_OVER_BALL, args.switch_clearance) > 0
     counter = torch.where(sup & ~failed, counter + 1, torch.zeros_like(counter))
     new = (counter >= hold_steps) & ~handed
     handoff_t[new] = step * u.step_dt

@@ -2,7 +2,8 @@
 
 Runs one 20 s episode per env (pushes on, observation noise off). An env counts
 as a success if it never terminated early and had single-leg stance (sole flat
-on the ball, other foot lifted) for at least `--hold-frac` of the last 3 s.
+on the ball, the other sole's lowest corner `--free-foot-clearance` off the floor,
+centre of mass over the ball) for at least `--hold-frac` of the last 3 s.
 Envs are binned by their own randomized ball radius and by spawn mode.
 
     uv run python scripts/eval_mountbalance.py \
@@ -25,6 +26,9 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     FREE_FOOT_LIFT,
     STAND_FOOT_Z,
     _ball_radius,
+    _com_to_ball,
+    _sole_clearance,
+    _support_foot,
     single_leg_stance_lifted,
 )
 
@@ -33,6 +37,10 @@ parser.add_argument("--checkpoint", required=True)
 parser.add_argument("--task", default="Mjlab-Piplus-Ball-MountBalance")
 parser.add_argument("--num-envs", type=int, default=1024)
 parser.add_argument("--hold-frac", type=float, default=0.9)
+parser.add_argument("--free-foot-clearance", type=float, default=FREE_FOOT_LIFT,
+                    help="m the free foot must clear the floor in the success test")
+parser.add_argument("--probe", action="store_true",
+                    help="also print the posture and actuator saturation over the last 3 s")
 args = parser.parse_args()
 
 dev = "cuda:0"
@@ -51,7 +59,8 @@ foot_cfg.resolve(u.scene)
 ball_cfg = SceneEntityCfg("ball")
 
 obs = env.get_observations()
-mount = u.spawn_is_mount.clone()  # spawn mode of each env's first episode
+# Spawn mode of each env's first episode (the plain Ball-Mount tasks only have mounts).
+mount = getattr(u, "spawn_is_mount", torch.ones(u.num_envs, dtype=torch.bool, device=dev)).clone()
 radius = _ball_radius(u, ball_cfg, None).clone()
 n_steps = int(20.0 / (u.step_dt)) - 1  # stop before the time-out reset
 last = int(3.0 / u.step_dt)
@@ -59,16 +68,35 @@ failed = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
 hold = torch.zeros(u.num_envs, device=dev)
 first_stance = torch.full((u.num_envs,), float("nan"), device=dev)
 
+# Probe: sums over the last 3 s. Free foot = the one not on the ball (the lower one).
+robot = u.scene["robot"]
+mj = u.sim.mj_model
+force_max = torch.tensor(
+    [mj.actuator(f"robot/{n}").forcerange[1] for n in robot.actuator_names], device=dev
+)
+probe = {k: torch.zeros(u.num_envs, device=dev) for k in ("com", "base", "free_z", "sole", "on_floor", "on_ball")}
+saturated = torch.zeros(u.num_envs, len(robot.actuator_names), device=dev)
+
 for step in range(n_steps):
     with torch.no_grad():
         action = policy(obs)
     obs, _, dones, _ = env.step(action)
     failed |= dones.bool()
-    stance = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z + FREE_FOOT_LIFT, COM_OVER_BALL) > 0
+    stance = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z, COM_OVER_BALL, args.free_foot_clearance) > 0
     new = stance & first_stance.isnan() & ~failed
     first_stance[new] = step * u.step_dt
     if step >= n_steps - last:
         hold += stance.float()
+        free_z = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 2].min(dim=-1).values
+        top_z = u.scene["ball"].data.root_link_pos_w[:, 2] + radius
+        probe["com"] += _com_to_ball(u, foot_cfg, ball_cfg).norm(dim=-1)
+        probe["base"] += robot.data.root_link_pos_w[:, 2] - top_z
+        probe["free_z"] += free_z - STAND_FOOT_Z
+        sole = _sole_clearance(u, foot_cfg).min(dim=-1).values  # lower sole's lowest corner
+        probe["sole"] += sole
+        probe["on_floor"] += (sole < 0.01).float()
+        probe["on_ball"] += _support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1).float()
+        saturated += (robot.data.actuator_force.abs() > 0.95 * force_max).float()
 
 success = ~failed & (hold / last >= args.hold_frac)
 edges = [0.0, 0.083, 0.097, 1.0]
@@ -87,3 +115,22 @@ for is_mount, label in ((True, "mount"), (False, "drop")):
             f" {(~failed[m]).float().mean().item():>9.0%} {t_str:>12}"
         )
 print(f"overall success {success.float().mean().item():.0%}, survived {(~failed).float().mean().item():.0%}")
+
+if args.probe:
+    print("\nProbe, mean over the last 3 s, envs that survived:")
+    print(f"{'spawn':<6} {'envs':>5} {'CoM-ball m':>11} {'base-top m':>11} {'free ankle m':>12} {'free sole m':>12} {'on floor':>9} {'on ball':>8}")
+    for is_mount, label in ((True, "mount"), (False, "drop")):
+        m = (mount == is_mount) & ~failed
+        if not m.any():
+            continue
+        v = {k: (x[m] / last).mean().item() for k, x in probe.items()}
+        print(
+            f"{label:<6} {int(m.sum()):>5} {v['com']:>11.3f} {v['base']:>11.3f} {v['free_z']:>12.3f} {v['sole']:>12.3f}"
+            f" {v['on_floor']:>9.0%} {v['on_ball']:>8.0%}"
+        )
+        h = hold[m] / last
+        print(f"  stance held: mean {h.mean().item():.0%} of the last 3 s; envs above 50%: {(h > 0.5).float().mean().item():.0%}")
+        sat = (saturated[m] / last).mean(dim=0)
+        print("  share of steps at the force limit (>95%): " + ", ".join(
+            f"{n} {x:.0%}" for n, x in zip(robot.actuator_names, sat.tolist()) if x > 0.02
+        ) or "  none")

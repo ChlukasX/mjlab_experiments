@@ -153,6 +153,24 @@ def _sole_tilt(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch
     return torch.acos((normal * to_foot).sum(dim=-1).clamp(-1.0, 1.0))
 
 
+# Sole corners in the ankle_roll_link frame (the four sole capsules: 16 cm long, 5 cm wide,
+# bottom 5 cm below the link origin).
+_SOLE_CORNERS = [(x, y, -0.05) for x in (-0.10, 0.065) for y in (-0.035, 0.035)]
+
+
+def _sole_clearance(env, foot_cfg: SceneEntityCfg) -> torch.Tensor:
+    """[B, 2] height of each sole's lowest corner above the floor (z = 0).
+
+    The ankle link height alone is not a lift test: on tiptoe the link rises ~4.5 cm
+    with the toes still on the floor (mountbalance-mix50-v1 passed the 3 cm test that way).
+    """
+    pose = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids]  # [B, 2, 7]
+    corners = torch.tensor(_SOLE_CORNERS, device=pose.device)  # [4, 3]
+    quat = pose[..., None, 3:7].expand(-1, -1, 4, -1)
+    z = pose[..., None, 2] + quat_apply(quat, corners.expand_as(quat[..., :3]))[..., 2]
+    return z.min(dim=-1).values
+
+
 def _support_foot(
     env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, flat: bool
 ) -> torch.Tensor:
@@ -184,15 +202,21 @@ def single_leg_stance_lifted(
     flat: bool,
     lifted_z: float = LIFTED_FOOT_Z,
     com_max: float | None = None,
+    sole_clearance: float | None = None,
 ) -> torch.Tensor:
     """One foot on the ball (sole flat if `flat`), the other clearly off the floor.
 
     Ball-Small's version of this check passes at floor height, so it never
-    required the second foot to lift.
+    required the second foot to lift. `sole_clearance` (m) tests the free sole's lowest
+    corner instead of the ankle height `lifted_z`, which a foot on tiptoe passes.
     """
     on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat)
-    foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
-    other_lifted = (on_ball.flip(-1) & ~on_ball) & (foot_z > lifted_z)
+    if sole_clearance is None:
+        foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
+        lifted = foot_z > lifted_z
+    else:
+        lifted = _sole_clearance(env, foot_cfg) > sole_clearance
+    other_lifted = (on_ball.flip(-1) & ~on_ball) & lifted
     stance = on_ball.any(dim=-1) & other_lifted.any(dim=-1)
     if com_max is not None:
         stance = stance & (_com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < com_max)
@@ -219,13 +243,19 @@ def com_over_ball(
     ball_cfg: SceneEntityCfg,
     ball_radius: float | None,
     flat: bool,
+    linear_range: float | None = None,
 ) -> torch.Tensor:
     """With a foot on the ball: exp(-(d / COM_SIGMA)^2), d = horizontal CoM-to-ball distance.
 
     Dense signal for shifting the weight onto the ball (broad: still has a gradient at 0.25 m).
+    The exp kernel is already at 0.89 in the straddle (d = 0.087 m; a real stance has d =
+    0.011 m), so the last stretch pays almost nothing. `linear_range` (m) uses
+    1 - d / linear_range instead: the same slope all the way to the ball centre.
     """
     on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1)
     d = _com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1)
+    if linear_range is not None:
+        return on_ball.float() * (1.0 - d / linear_range).clamp(0.0, 1.0)
     return on_ball.float() * torch.exp(-(d / COM_SIGMA).pow(2))
 
 
@@ -349,11 +379,18 @@ def free_foot_lift(
     ball_cfg: SceneEntityCfg,
     ball_radius: float | None,
     flat: bool,
+    sole: bool = False,
 ) -> torch.Tensor:
-    """With one foot on the ball: how far the other foot is lifted, 0 to 1 at FREE_FOOT_LIFT."""
+    """With one foot on the ball: how far the other foot is lifted, 0 to 1 at FREE_FOOT_LIFT.
+
+    `sole` measures the free sole's lowest corner instead of the ankle height (tiptoe pays
+    up to ~0.45 of this term with the ankle height)."""
     on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat)
-    foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
-    lift = ((foot_z - STAND_FOOT_Z) / FREE_FOOT_LIFT).clamp(0.0, 1.0)
+    if sole:
+        height = _sole_clearance(env, foot_cfg)
+    else:
+        height = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2] - STAND_FOOT_Z
+    lift = (height / FREE_FOOT_LIFT).clamp(0.0, 1.0)
     free = on_ball.flip(-1) & ~on_ball
     return (free.float() * lift).amax(dim=-1)
 

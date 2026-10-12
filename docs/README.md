@@ -16,6 +16,7 @@ One directory per experiment: `docs/<experiment>/<experiment>.md` is the design 
 | ball_size1 | `Mjlab-Piplus-Ball-Mount-Size1[-Flat]`, `Mjlab-Piplus-Ball-Balance-Size1` | [spec](ball_size1/ball_size1.md), [log](ball_size1/ball_size1_log.md) |
 | ball_mount | `Mjlab-Piplus-Ball-MountBalance[-MixN][-Clip]` | [spec](ball_mount/ball_mount.md), [log](ball_mount/ball_mount_log.md) |
 | ball_mount_curriculum | `Mjlab-Piplus-Ball-MountCurr-{Release,ReleasePot,Pot,Locked}` | [spec](ball_mount_curriculum/ball_mount_curriculum.md), [log](ball_mount_curriculum/ball_mount_curriculum_log.md) |
+| ball_mount_rewards | `Mjlab-Piplus-Ball-MountMin[-Clip\|-Locked]` | [spec](ball_mount_rewards/ball_mount_rewards.md), [log](ball_mount_rewards/ball_mount_rewards_log.md) |
 | locomotion_s2r, ball_perception, ball_approach, ball_chain | placeholders for the ball chain | [locomotion_s2r](locomotion_s2r/locomotion_s2r.md), [ball_perception](ball_perception/ball_perception.md), [ball_approach](ball_approach/ball_approach.md), [ball_chain](ball_chain/ball_chain.md) |
 
 ## Conventions (shared by all experiments)

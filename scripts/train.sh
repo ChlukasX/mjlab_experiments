@@ -31,6 +31,9 @@ TASKS=(
   "Mjlab-Piplus-Ball-MountCurr-ReleasePot"
   "Mjlab-Piplus-Ball-MountCurr-Pot"
   "Mjlab-Piplus-Ball-MountCurr-Locked"
+  "Mjlab-Piplus-Ball-MountMin"
+  "Mjlab-Piplus-Ball-MountMin-Clip"
+  "Mjlab-Piplus-Ball-MountMin-Locked"
 )
 
 TASK=""
