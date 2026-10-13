@@ -47,6 +47,8 @@ parser.add_argument("--mode", choices=["handoff", "mount_only", "balance_only"],
 parser.add_argument("--num-envs", type=int, default=1024)
 parser.add_argument("--hold", type=float, default=1.0, help="seconds in the straddle before the switch")
 parser.add_argument("--hold-frac", type=float, default=0.9)
+parser.add_argument("--balance-bounded", action="store_true",
+                    help="the balance policy was trained with clipped joint targets: keep the clip")
 parser.add_argument("--switch-clearance", type=float, default=None,
                     help="switch on a real stance instead: free sole this many m off the floor")
 args = parser.parse_args()
@@ -113,7 +115,7 @@ for step in range(n_steps):
     new = (counter >= hold_steps) & ~handed
     handoff_t[new] = step * u.step_dt
     handed |= new
-    if args.mode == "handoff" and new.any():
+    if args.mode == "handoff" and new.any() and not args.balance_bounded:
         term._clip[new] = UNBOUNDED  # this env's balance policy runs unbounded from now on
     if step >= n_steps - last:
         stance = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, True, lifted_z, COM_OVER_BALL) > 0

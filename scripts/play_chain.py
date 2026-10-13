@@ -43,6 +43,9 @@ parser.add_argument("--balance-ckpt", default=BALANCE_CKPT)
 parser.add_argument("--num-envs", type=int, default=1)
 parser.add_argument("--hold", type=float, default=0.2, help="seconds in the stance before the switch")
 parser.add_argument("--switch-clearance", type=float, default=0.06)
+parser.add_argument("--balance-task", default=BALANCE_TASK, help="task of the balance checkpoint (agent config)")
+parser.add_argument("--balance-bounded", action="store_true",
+                    help="the balance policy was trained with clipped joint targets: keep the clip")
 parser.add_argument("--viewer", choices=["viser", "native"], default="viser")
 parser.add_argument("--steps", type=int, default=0, help="headless check: run this many steps, no viewer")
 args = parser.parse_args()
@@ -73,7 +76,7 @@ class ChainPolicy:
 
     def __init__(self):
         self.mount = load_policy(MOUNT_TASK, args.mount_ckpt)
-        self.balance = load_policy(BALANCE_TASK, args.balance_ckpt)
+        self.balance = load_policy(args.balance_task, args.balance_ckpt)
         self.term = u.action_manager.get_term("joint_pos")
         self.bounded = self.term._clip.clone()
         self.foot_cfg = SceneEntityCfg("robot", body_names=("r_ankle_roll_link", "l_ankle_roll_link"))
@@ -105,7 +108,8 @@ class ChainPolicy:
         new = (self.counter >= self.hold_steps) & ~self.handed
         if new.any():
             self.handed |= new
-            self.term._clip[new] = torch.tensor([-float("inf"), float("inf")], device=dev)
+            if not args.balance_bounded:
+                self.term._clip[new] = torch.tensor([-float("inf"), float("inf")], device=dev)
             self.switches += int(new.sum())
             if new[0]:
                 print(f"[chain] env 0: balance policy at {u.episode_length_buf[0].item() * u.step_dt:.2f} s", flush=True)
