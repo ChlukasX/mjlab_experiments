@@ -78,6 +78,7 @@ uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/
 | `Mjlab-Piplus-Ball-MountCurr-{Release,ReleasePot,Pot,Locked}` | Mount-only curriculum on a randomized ball: ball locked by rolling resistance then released, and/or potential-based progress reward |
 | `Mjlab-Piplus-Ball-MountMin[-Clip/-Locked]` | Mount only, pruned reward set, free-foot lift measured at the sole, staged stance target (unbounded / bounded actions / locked ball) |
 | `Mjlab-Piplus-Ball-BalanceFromMount[-Mix50]` | Balance on the randomized ball starting from recorded hand-off states of the mount policy (-Mix50: half drops) |
+| `Mjlab-Piplus-Ball-Chain` | Mount scene played by two policies with a switch (mount, then balance): `uv run python scripts/play_chain.py` |
 | `Mjlab-Piplus-Ball-MountBalance[-Mix30/-Mix70]` | One policy for mount + balance on a randomized ball (size 1-5, mass, friction); 50/50 mount/drop spawn mix, -Mix30/-Mix70 change the ratio |
 
 ## Architecture
