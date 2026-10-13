@@ -163,6 +163,46 @@ def reset_mount_or_drop(
     )
 
 
+def reset_from_mount_states(
+    env,
+    env_ids: torch.Tensor | None,
+    path: str,
+    fraction: float = 1.0,
+    neighbours: int = 64,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ball_cfg: SceneEntityCfg = SceneEntityCfg("ball"),
+) -> None:
+    """Reset: start `fraction` of the envs in a recorded hand-off state of the mount policy
+    (scripts/record_mount_states.py): robot in the single-leg stance on the ball, moving.
+
+    Each env takes a random one of the recorded states whose ball radius is closest to its
+    own. Must run after the spawn event it overrides; the other envs keep that spawn.
+    """
+    env_ids = _all_envs(env, env_ids)
+    if not hasattr(env, "_mount_states"):
+        data = torch.load(path, map_location=env.device)
+        env._mount_states, env._mount_states_nj = data["states"], data["num_joints"]
+    states, nj = env._mount_states, env._mount_states_nj
+    env_ids = env_ids[torch.rand(len(env_ids), device=env.device) < fraction]
+    if len(env_ids) == 0:
+        return
+    if hasattr(env, "spawn_is_mount"):
+        env.spawn_is_mount[env_ids] = True
+    # ponytail: nearest-radius lookup, no height correction; with tens of thousands of
+    # states the radius mismatch is well below 1 mm. Correct z by the difference if the
+    # file is small.
+    radius = _ball_radius(env, ball_cfg, None)[env_ids]
+    idx = torch.searchsorted(states[:, 0].contiguous(), radius)
+    idx = idx + torch.randint(-neighbours, neighbours + 1, idx.shape, device=env.device)
+    s = states[idx.clamp(0, len(states) - 1)]
+    origin = torch.zeros(len(env_ids), 13, device=env.device)
+    origin[:, :3] = env.scene.env_origins[env_ids]
+    robot = env.scene[robot_cfg.name]
+    robot.write_root_state_to_sim(s[:, 1:14] + origin, env_ids=env_ids)
+    robot.write_joint_state_to_sim(s[:, 14 : 14 + nj], s[:, 14 + nj : 14 + 2 * nj], env_ids=env_ids)
+    env.scene[ball_cfg.name].write_root_state_to_sim(s[:, 14 + 2 * nj :] + origin, env_ids=env_ids)
+
+
 _SPAWN_MODES = {"Random mix": "random", "Mount": "mount", "Drop": "drop"}
 
 

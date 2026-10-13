@@ -34,6 +34,8 @@ TASKS=(
   "Mjlab-Piplus-Ball-MountMin"
   "Mjlab-Piplus-Ball-MountMin-Clip"
   "Mjlab-Piplus-Ball-MountMin-Locked"
+  "Mjlab-Piplus-Ball-BalanceFromMount"
+  "Mjlab-Piplus-Ball-BalanceFromMount-Mix50"
 )
 
 TASK=""

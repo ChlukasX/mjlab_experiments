@@ -42,6 +42,7 @@ ENV_TASK = "Mjlab-Piplus-Ball-MountBalance-Mix100-Clip"  # bounded targets; lift
 parser = argparse.ArgumentParser()
 parser.add_argument("--mount-ckpt", required=True)
 parser.add_argument("--balance-ckpt", required=True)
+parser.add_argument("--balance-task", default=BALANCE_TASK, help="task of the balance checkpoint (agent config)")
 parser.add_argument("--mode", choices=["handoff", "mount_only", "balance_only"], default="handoff")
 parser.add_argument("--num-envs", type=int, default=1024)
 parser.add_argument("--hold", type=float, default=1.0, help="seconds in the straddle before the switch")
@@ -66,7 +67,7 @@ def load_policy(task: str, ckpt: str):
 
 
 mount_policy = load_policy(MOUNT_TASK, args.mount_ckpt)
-balance_policy = load_policy(BALANCE_TASK, args.balance_ckpt)
+balance_policy = load_policy(args.balance_task, args.balance_ckpt)
 
 # The mount policy was trained with joint targets clipped to the joint limits (the env
 # above), the balance policy without. After the switch the clip is lifted for that env
