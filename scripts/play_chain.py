@@ -44,15 +44,26 @@ parser.add_argument("--num-envs", type=int, default=1)
 parser.add_argument("--hold", type=float, default=0.2, help="seconds in the stance before the switch")
 parser.add_argument("--switch-clearance", type=float, default=0.06)
 parser.add_argument("--balance-task", default=BALANCE_TASK, help="task of the balance checkpoint (agent config)")
+parser.add_argument("--fit-head", action="store_true",
+                    help="head collision box resized to the head mesh (not what the policies trained on)")
 parser.add_argument("--balance-bounded", action="store_true",
                     help="the balance policy was trained with clipped joint targets: keep the clip")
 parser.add_argument("--viewer", choices=["viser", "native"], default="viser")
 parser.add_argument("--steps", type=int, default=0, help="headless check: run this many steps, no viewer")
+parser.add_argument("--dump", default=None,
+                    help="with --steps: save sampled simulator states and contact statistics here "
+                    "(input of scripts/check_collisions.py)")
 args = parser.parse_args()
 
 dev = "cuda:0"
 cfg = load_env_cfg(TASK, play=True)
 cfg.scene.num_envs = args.num_envs
+if args.fit_head:
+    from functools import partial
+
+    from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
+
+    cfg.scene.entities["robot"].spec_fn = partial(get_spec_with_arms, fit_head=True)
 env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev))
 u = env.unwrapped
 
@@ -120,8 +131,31 @@ class ChainPolicy:
 policy = ChainPolicy()
 if args.steps:
     obs = env.get_observations()
-    for _ in range(args.steps):
+    d, radius = u.sim.data, u.sim.model.geom_size[:, u.sim.mj_model.geom("ball/ball_geom").id, 0]
+    qpos, rad, phase, nefc_max, nacon_max = [], [], [], 0, 0
+    for step in range(args.steps):
         obs, _, _, _ = env.step(policy(obs))
+        if args.dump:
+            nefc_max = max(nefc_max, int(d.nefc.max()))
+            nacon_max = max(nacon_max, int(d.nacon.max()))
+            if step % 5 == 0:  # ponytail: every 0.1 s, all envs; thin out if the file gets big
+                qpos.append(d.qpos.clone().cpu())
+                rad.append(radius.expand(u.num_envs).clone().cpu())
+                phase.append(policy.handed.clone().cpu())
+    if args.dump:
+        torch.save(
+            {
+                "qpos": torch.cat(qpos), "radius": torch.cat(rad), "balance_phase": torch.cat(phase),
+                "nefc_max": nefc_max, "njmax": cfg.sim.njmax,
+                "nacon_max": nacon_max, "naconmax": cfg.sim.nconmax * u.num_envs,
+            },
+            args.dump,
+        )
+        import mujoco
+
+        mujoco.mj_saveModel(u.sim.mj_model, args.dump + ".mjb")
+        print(f"[chain] max constraint rows in one env {nefc_max} (njmax {cfg.sim.njmax}); "
+              f"max contacts in all envs {nacon_max} (limit {cfg.sim.nconmax * u.num_envs})")
     print(
         f"[chain] {args.steps} steps, {u.num_envs} envs: {policy.switches} switches, "
         f"{policy.falls} falls after a switch, {int(policy.handed.sum())} envs on the balance policy now"

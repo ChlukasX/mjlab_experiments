@@ -26,8 +26,12 @@ def get_spec() -> mujoco.MjSpec:
   return spec
 
 
-def get_spec_with_arms() -> mujoco.MjSpec:
-  """Like get_spec() but with arm joints and actuators uncommented."""
+def get_spec_with_arms(fit_head: bool = False) -> mujoco.MjSpec:
+  """Like get_spec() but with arm joints and actuators uncommented.
+
+  `fit_head` also resizes the head collision box to the head mesh (see
+  `_fit_head_collision`); off by default because the existing policies were trained
+  without it."""
   xml = PIPLUS_XML.read_text()
   # Uncomment single-line arm joint entries: <!--<joint ... pi_joint_arm ... />-->
   xml = re.sub(r'<!--(<joint[^>]+pi_joint_arm[^>]+/>)-->', r'\1', xml)
@@ -47,7 +51,22 @@ def get_spec_with_arms() -> mujoco.MjSpec:
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH and not geom.name:
       geom.rgba = VISUAL_RGBA
   _fit_arm_collisions(spec)
+  if fit_head:
+    _fit_head_collision(spec)
   return spec
+
+
+def _fit_head_collision(spec: mujoco.MjSpec) -> None:
+  """Resize the head collision box to the head mesh's bounding box.
+
+  The exported box covers x -0.024..0.076, y ±0.055, z 0.033..0.077 of a mesh that spans
+  x -0.048..0.081, y ±0.086, z -0.013..0.091 (head_pitch_link frame), and the camera bar
+  in front of it has no geom. The ball policies park a hand inside the uncovered part:
+  hand and head meshes intersect in 84% of the chain's states, up to 27 mm
+  (scripts/check_collisions.py). The box now also contains the camera bar."""
+  head = spec.geom("head_pitch_link_collision0")
+  head.pos = [0.0165, 0, 0.039]
+  head.size = [0.0645, 0.085, 0.052]
 
 
 def _fit_arm_collisions(spec: mujoco.MjSpec) -> None:

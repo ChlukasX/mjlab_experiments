@@ -1,0 +1,47 @@
+# Collision check of the robot model
+
+Branch: `feat/collision-check` (off `feat/balance-smooth`) — **findings in, fixes proposed**
+
+Question: in the viewer the feet are inside the ball and the arms inside the head. The ball tasks use all 20 leg and arm joints, so is the collision model complete, and is the simulation enforcing it?
+
+## Method
+
+- `scripts/play_chain.py --steps 1000 --num-envs 256 --dump FILE` records simulator states of the chain (mount `mm3-c10-s16`, balance `bs1-clip-exc`; 20 s, every 0.1 s) with the largest number of constraint rows and contacts seen.
+- `scripts/check_collisions.py FILE` compares, for every pair of robot bodies that are not parent and child and for each foot against ball and floor, the distance between the **visual meshes** (convex hulls: what the viewer shows) and between the **collision primitives** (what the simulation enforces), over 2000 states. Meshes that intersect while the primitives are apart or missing are a gap in the collision model. Limit of the method: convex hulls overstate the overlap of concave parts and of links that nest at a joint.
+
+## Findings (Oct 13 2026)
+
+**1. The solver is not dropping contacts.** At most 93 constraint rows in an env (limit `njmax` 200) and 2037 contacts over 256 envs (limit 25 600).
+
+**2. Foot in the ball: real penetration, from the default soft contact.** The foot's collision primitives (the two inner sole capsules) are inside the ball in 54% of the states by more than 2 mm; the foot mesh agrees with its primitives (57%), so what the viewer shows is what the simulation does.
+
+| | Foot into ball | Ball into floor |
+|---|---|---|
+| median | 2.8 mm | 2.9 mm |
+| 90th percentile | 7.2 mm | 7.5 mm |
+| maximum | 23 mm | 18.5 mm |
+| small balls (r < 0.083 m), median / p90 | 3.4 / 8.3 mm | 4.3 / 10.2 mm |
+
+All geoms use MuJoCo's default contact (`solref` 0.02 s, `solimp` 0.9 to 0.95), whose resting penetration under gravity is about 3 mm whatever the mass; the rest is the policy pushing. Together the robot sits about 6 mm (median) and up to 4 cm lower than a rigid ball would hold it. A real football also gives a few mm under 13 kg, so this is not obviously wrong, but the stiffness is an untuned default and it is not randomized. Foot-ball contact is `condim` 3 with the foot's friction (the foot geoms have priority 1), so the ball's rolling and torsional friction (its `condim` 6) only act against the floor.
+
+**3. Hand in the head: a gap in the collision model, fixed by a larger head box.** The head's collision box covers x −0.024..0.076, y ±0.055, z 0.033..0.077 of a mesh spanning x −0.048..0.081, y ±0.086, z −0.013..0.091, and the camera bar has no primitive. The left hand and the head meshes intersect in 84% of the states, up to 27 mm, the hand and the camera in 11%; the primitives touch in 0.2%. With the box resized to the mesh (`get_spec_with_arms(fit_head=True)`, flag `--fit-head` in `play_chain.py` and `eval_handoff.py`):
+
+| | Hand-head meshes intersect | Hand-off success |
+|---|---|---|
+| as trained | 84% (27 mm) | 83% |
+| head box fitted, same policies | 0% | 81% (60 / 92 / 92% by ball size) |
+
+The policies do not depend on the gap: they keep working with it closed.
+
+**4. Forearm against upper arm: unclear.** Their meshes intersect in 14 to 67% of the states (up to 17 mm) with the elbow folded, the primitives in under 1%: the forearm capsule was deliberately shortened to stay off the upper arm (`_fit_arm_collisions`). Whether the real elbow reaches these angles has to be checked on the robot or against the joint's mechanical stop; the hull test alone cannot tell.
+
+**5. Probably harmless hull overlaps.** Hip roll link against base (−9 mm) and calf (−20 mm), shoulder pitch link against upper arm (−8 mm): links that nest around a joint, and the hip pitch, hip roll and shoulder links have no primitive of their own (the thigh cylinder sits inside the hip roll link's volume). No pair of legs, of arm and leg, or of arm and torso meshes intersects.
+
+Bodies without a collision primitive: both shoulder pitch and shoulder roll links, both hip pitch and hip roll links, the camera.
+
+## Proposed changes (not applied to training yet)
+
+1. **Make the fitted head box the default** for the arm tasks. Measured cost for the chain: none. Not measured for Ball-Small and Locomotion-Arms.
+2. **Ball contact stiffness:** randomize `solref` on the ball and foot contacts (for example time constant 0.01 to 0.03 s; 0.01 is the lower limit at the 5 ms step) instead of one default, and measure the real ball's give under the robot's weight. This changes the dynamics, so the mount and balance policies need a resume on it.
+3. **Elbow:** measure the real elbow's range; then either tighten the joint range or lengthen the forearm capsule.
+4. Shoulder and hip links: add primitives only if a check on new policies shows real intersections there.
