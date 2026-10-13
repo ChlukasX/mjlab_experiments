@@ -110,14 +110,17 @@ This is an `mjlab` plugin package. `mjlab` is the RL framework (MuJoCo + RSL-RL 
 
 ## TODO: Ball chain (find ball → walk → set stance → mount → balance)
 
-Hierarchical: Approach policy → `(vx, vy, ωz)` → frozen Locomotion policy; separate Mount+Balance policy; switcher on distance to ball. One branch per phase; placeholders in `docs/`.
+Hierarchical: Approach policy → `(vx, vy, ωz)` → frozen Locomotion policy; separate Mount and Balance policies with a switch on the single-leg stance; switcher on distance to ball for walk → mount. One branch per phase; docs in `docs/`.
 
-- [ ] 0. `feat/mount-feasibility` — can the robot get from standing onto the ball in sim? Yes (flat-sole variant trained from scratch; plain variant mount+balance in progress). ([docs](docs/mount_feasibility/mount_feasibility.md))
+- [x] 0. `feat/mount-feasibility` — spike. Its "mounting is feasible" result was a tiptoe exploit of the lift test; see the correction in the doc. ([docs](docs/mount_feasibility/mount_feasibility.md))
 - [ ] 1. `feat/locomotion-s2r` — Locomotion-Arms v2: proprio-only actor + history, noise, DR, ball obstacle, yaw-rate penalty. ([docs](docs/locomotion_s2r/locomotion_s2r.md))
 - [ ] 2. `feat/ball-perception` — noisy ball position in base frame (noise, dropout, latency, FOV). ([docs](docs/ball_perception/ball_perception.md))
 - [ ] 3. `feat/ball-approach` — high-level policy driving the frozen locomotion policy to the stand-off pose. ([docs](docs/ball_approach/ball_approach.md))
-- [ ] 4. `feat/ball-mount-balance` — one Mount+Balance policy on a domain-randomized ball, 50/50 mount/drop spawn mix (ratio sweep with -Mix30/-Mix70). Run `mountbalance-mix50-v1` in progress. ([docs](docs/ball_mount/ball_mount.md))
-- [ ] 5. `feat/ball-chain` — `Mjlab-Piplus-Ball-Chain` eval task with switcher. ([docs](docs/ball_chain/ball_chain.md))
+- [x] 4a. `feat/ball-mount-balance`, `feat/ball-mount-curriculum` — one Mount+Balance policy, then a mount curriculum: no mount (0% success), drop balance 97%. ([docs](docs/ball_mount/ball_mount.md), [docs](docs/ball_mount_curriculum/ball_mount_curriculum.md))
+- [x] 4b. `feat/ball-mount-rewards` — pruned mount rewards with the lift measured at the sole: first real mount (`MountMin-Clip`, on the ball in 0.5 s; does not hold the stance alone). ([docs](docs/ball_mount_rewards/ball_mount_rewards.md))
+- [x] 4c. `feat/balance-from-mount` — balance policy trained from the mount policy's hand-off states: 70% mount → balance success. ([docs](docs/balance_from_mount/balance_from_mount.md))
+- [ ] 4d. `feat/balance-smooth` — actions a real actuator can follow (audit thresholds). Round 1: 83% hand-off, actions 6x smaller, not within the thresholds yet; the mount policy needs the same. ([docs](docs/balance_smooth/balance_smooth.md))
+- [ ] 5. `feat/ball-chain` — `Mjlab-Piplus-Ball-Chain`: mount → balance playable (`scripts/play_chain.py`); approach and locomotion not connected. ([docs](docs/ball_chain/ball_chain.md))
 - [ ] 6. `docs/ball-chain` — final docs, task table, README.
 
 Other points:

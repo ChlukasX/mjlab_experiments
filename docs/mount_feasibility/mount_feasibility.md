@@ -1,6 +1,8 @@
 # Ball Mount Feasibility (phase 0)
 
-Branch: `feat/mount-feasibility` — **in progress**
+Branch: `feat/mount-feasibility` — **done; the main finding below was wrong**
+
+> **Correction (Oct 10 2026).** The policies recorded here as mounting the ball did not mount it. They stand on the toes of the left foot on the floor with the right foot resting on the ball (centre of mass 0.30 m from the ball). The stance test measured the height of the ankle link, which tiptoe raises by 4.5 cm, enough to pass the 3 cm test. "Mounting is feasible in sim" and the 99.7% figures below are therefore not established by these runs. The measurement, the corrected test (free sole's lowest corner) and the first real mount are in [ball_mount_rewards](../ball_mount_rewards/ball_mount_rewards.md).
 
 Spike to answer one question before building the rest of the ball chain: **can the Pi Plus step from standing on the floor onto a 22 cm football and hold single-leg stance, in sim?**
 
