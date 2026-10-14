@@ -41,12 +41,26 @@ parser.add_argument("--free-foot-clearance", type=float, default=FREE_FOOT_LIFT,
                     help="m the free foot must clear the floor in the success test")
 parser.add_argument("--probe", action="store_true",
                     help="also print the posture and actuator saturation over the last 3 s")
+parser.add_argument("--torsional", type=float, default=None,
+                    help="feet get condim 6 with this torsional friction coefficient (m), a check of the spin")
+parser.add_argument("--cone", choices=["pyramidal", "elliptic"], default=None, help="override the friction cone")
 args = parser.parse_args()
 
 dev = "cuda:0"
 cfg = load_env_cfg(args.task, play=True)
 cfg.scene.num_envs = args.num_envs
 cfg.episode_length_s = 20.0  # one finite episode per env
+if args.cone:
+    cfg.sim.mujoco.cone = args.cone
+if args.torsional is not None:
+    from dataclasses import replace
+
+    foot = r".*_ankle_roll_link_collision[0-9]$"
+    robot_cfg = cfg.scene.entities["robot"]
+    robot_cfg.collisions = tuple(
+        replace(c, condim={foot: 6, ".*": c.condim}, friction={foot: (0.6, args.torsional, 0.0001), ".*": c.friction or (0.6,)})
+        for c in robot_cfg.collisions
+    )
 env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev))
 u = env.unwrapped
 runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
@@ -74,7 +88,7 @@ mj = u.sim.mj_model
 force_max = torch.tensor(
     [mj.actuator(f"robot/{n}").forcerange[1] for n in robot.actuator_names], device=dev
 )
-probe = {k: torch.zeros(u.num_envs, device=dev) for k in ("com", "base", "free_z", "sole", "on_floor", "on_ball")}
+probe = {k: torch.zeros(u.num_envs, device=dev) for k in ("com", "base", "free_z", "sole", "on_floor", "on_ball", "yaw", "ball_yaw")}
 saturated = torch.zeros(u.num_envs, len(robot.actuator_names), device=dev)
 
 for step in range(n_steps):
@@ -96,6 +110,8 @@ for step in range(n_steps):
         probe["sole"] += sole
         probe["on_floor"] += (sole < 0.01).float()
         probe["on_ball"] += _support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1).float()
+        probe["yaw"] += robot.data.root_link_vel_w[:, 5]  # rad/s about the world vertical
+        probe["ball_yaw"] += u.scene["ball"].data.root_link_vel_w[:, 5]
         saturated += (robot.data.actuator_force.abs() > 0.95 * force_max).float()
 
 success = ~failed & (hold / last >= args.hold_frac)
@@ -128,6 +144,10 @@ if args.probe:
             f"{label:<6} {int(m.sum()):>5} {v['com']:>11.3f} {v['base']:>11.3f} {v['free_z']:>12.3f} {v['sole']:>12.3f}"
             f" {v['on_floor']:>9.0%} {v['on_ball']:>8.0%}"
         )
+        yaw = probe["yaw"][m] / last
+        print(f"  base yaw rate: mean {yaw.mean().item():+.2f} rad/s, median |.| {yaw.abs().median().item():.2f}, "
+              f"envs turning clockwise (<0) {(yaw < 0).float().mean().item():.0%}; ball yaw rate mean "
+              f"{(probe['ball_yaw'][m] / last).mean().item():+.2f} rad/s")
         h = hold[m] / last
         print(f"  stance held: mean {h.mean().item():.0%} of the last 3 s; envs above 50%: {(h > 0.5).float().mean().item():.0%}")
         sat = (saturated[m] / last).mean(dim=0)

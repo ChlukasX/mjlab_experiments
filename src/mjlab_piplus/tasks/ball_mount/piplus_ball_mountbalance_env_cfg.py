@@ -79,6 +79,55 @@ def action_excess(env) -> torch.Tensor:
     return ((lo - target).clamp(min=0.0) + (target - hi).clamp(min=0.0)).sum(dim=-1)
 
 
+def base_yaw_rate_l2(env) -> torch.Tensor:
+    """[B] squared base angular velocity about the world vertical. The mount policy spins
+    on the ball at ~6 rad/s and needs the spin to balance (stopping it mid-episode, 40% of
+    the envs fall and the rest spin up again within 2 s); no term penalised it."""
+    return env.scene["robot"].data.root_link_vel_w[:, 5].square()
+
+
+TORQUE_SATURATION_START = 0.8  # share of the actuator's force limit where the penalty starts
+
+
+def torque_saturation(env) -> torch.Tensor:
+    """[B] sum over the actuators of how far the applied force goes past
+    TORQUE_SATURATION_START of the force limit (0 to 0.2 each, in units of the limit).
+    The leg actuators sat at their limit 11 to 17% of the time in every smoothed policy."""
+    robot = env.scene["robot"]
+    if not hasattr(env, "_force_limit"):
+        mj = env.sim.mj_model
+        env._force_limit = torch.tensor(
+            [mj.actuator(f"robot/{n}").forcerange[1] for n in robot.actuator_names], device=env.device
+        )
+    load = robot.data.actuator_force.abs() / env._force_limit
+    return (load - TORQUE_SATURATION_START).clamp(min=0.0).sum(dim=-1)
+
+
+def torque_demand(env) -> torch.Tensor:
+    """[B] sum over the joints of how far the PD torque the policy asks for exceeds the
+    actuator's force limit (in units of the limit). `torque_saturation` sees the applied
+    force, which stops at the limit, so it has no gradient once an actuator saturates
+    (ms1-sat: saturation share 17% -> 16%). Uses each env's own (randomized) PD gains."""
+    robot, term = env.scene["robot"], env.action_manager.get_term("joint_pos")
+    if not hasattr(env, "_demand_idx"):
+        mj = env.sim.mj_model
+        names = term.target_names
+        jids = [int(robot.indexing.joint_ids[robot.joint_names.index(n)]) for n in names]
+        act_of_joint = {int(mj.actuator_trnid[i, 0]): i for i in range(mj.nu)}
+        aids = [act_of_joint[j] for j in jids]
+        env._demand_idx = (
+            torch.tensor(aids, device=env.device),
+            torch.tensor([robot.joint_names.index(n) for n in names], device=env.device),
+            torch.tensor([mj.actuator_forcerange[a, 1] for a in aids], device=env.device),
+        )
+    aids, q_idx, fmax = env._demand_idx
+    kp = env.sim.model.actuator_gainprm[:, aids, 0]
+    kv = -env.sim.model.actuator_biasprm[:, aids, 2]
+    q, dq = robot.data.joint_pos[:, q_idx], robot.data.joint_vel[:, q_idx]
+    tau = kp * (term._processed_actions - q) - kv * dq
+    return (tau.abs() / fmax - 1.0).clamp(min=0.0).sum(dim=-1)
+
+
 def ball_privileged_obs(env, ball_cfg: SceneEntityCfg) -> torch.Tensor:
     """[B, 4] exact ball radius, mass, ball friction and ground friction (critic only)."""
     model = env.sim.model
@@ -208,8 +257,11 @@ def piplus_ball_mountbalance_env_cfg(
         weight=0.0,
         params={**ball_params, "flat": flat_sole, "com_max": COM_OVER_BALL},
     )
-    # Off by default; the smoothing runs enable it (about -0.2).
+    # Off by default; the smoothing runs enable them (action_excess about -0.2 to -4).
     cfg.rewards["action_excess"] = RewardTermCfg(func=action_excess, weight=0.0)
+    cfg.rewards["base_yaw_rate"] = RewardTermCfg(func=base_yaw_rate_l2, weight=0.0)
+    cfg.rewards["torque_saturation"] = RewardTermCfg(func=torque_saturation, weight=0.0)
+    cfg.rewards["torque_demand"] = RewardTermCfg(func=torque_demand, weight=0.0)
     # Centering on the env origin works against moving over the ball.
     cfg.rewards["xy_centering"].weight = 0.0
 
