@@ -47,8 +47,6 @@ parser.add_argument("--mode", choices=["handoff", "mount_only", "balance_only"],
 parser.add_argument("--num-envs", type=int, default=1024)
 parser.add_argument("--hold", type=float, default=1.0, help="seconds in the straddle before the switch")
 parser.add_argument("--hold-frac", type=float, default=0.9)
-parser.add_argument("--fit-head", action="store_true",
-                    help="head collision box resized to the head mesh (not what the policies trained on)")
 parser.add_argument("--balance-bounded", action="store_true",
                     help="the balance policy was trained with clipped joint targets: keep the clip")
 parser.add_argument("--switch-clearance", type=float, default=None,
@@ -58,12 +56,6 @@ args = parser.parse_args()
 dev = "cuda:0"
 cfg = load_env_cfg(ENV_TASK, play=True)
 cfg.scene.num_envs = args.num_envs
-if args.fit_head:
-    from functools import partial
-
-    from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
-
-    cfg.scene.entities["robot"].spec_fn = partial(get_spec_with_arms, fit_head=True)
 cfg.episode_length_s = 20.0
 env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev))
 u = env.unwrapped

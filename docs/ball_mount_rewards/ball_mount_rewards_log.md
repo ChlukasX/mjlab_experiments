@@ -100,3 +100,68 @@ The mount now exists: from standing, the robot is on the ball in 0.5 s with the 
 1. Train the balance policy from the mount policy's end states (spawn from `mm3` rollouts instead of the drop), then repeat the hand-off test.
 2. Find out what the tap is for (a periodic balance correction, or one foot placement per ball roll) before adding a reward against it; it survived a doubled stance reward.
 3. Small balls (radius < 0.083 m) separately: they have almost no strict success at any stage.
+
+## Stage 4 (`mm4-*`): new robot and contact model, smoothing
+
+From Oct 13 2026 the randomized-ball tasks have the head collision box fitted to the head mesh and a randomized contact time constant (0.01 to 0.03 s) on the ball and the feet ([collision_check](../collision_check/collision_check.md)), and an `action_excess` term (weight 0 by default; rad of commanded joint target outside the joint ranges, [balance_smooth](../balance_smooth/balance_smooth.md)). Audit of `mm3-c10-s16` before: mean |action| 7.9, 57% of the targets outside the joint limits, action change 0.98 per step.
+
+Resume `mm3-c10-s16` `model_11997`, 3000 iterations, 2048 envs, cl06, same weights (clearance 0.10, `single_leg_stance` 16, `com_over_ball` 0). Launched Oct 13 2026 on the working tree of `feat/balance-smooth` (on top of `dbd8667`).
+
+| Run | wandb | `action_excess` | Question | Outcome |
+|-----|-------|-----------------|----------|---------|
+| `mm4-dr` | `eahx3412` | 0 | Does the mount adapt to the new head box and contact range? | Reward 171, episode 693, `single_leg_stance` 7.04 of 16, `action_rate` −4.28. Eval: **62% success at 10 cm**. |
+| `mm4-dr-exc` | `3ufjn5na` | −0.2 | Can the mount policy's commands be brought inside the joint limits at the same time? | Reward 178, episode 705, `single_leg_stance` 8.15, `action_rate` −2.44. Eval: **56% success**, actions half the size. |
+
+Both finished (`model_14996`). Eval on the new model: `scripts/eval_mountbalance.py --probe` (1024 envs, 20 s, success = stance with the free sole 10 cm clear for 90% of the last 3 s) and `scripts/audit_policy.py`.
+
+| Run | Success at 10 cm | Held at 10 cm / 6 cm | Survive | CoM to ball | Base above top | Free sole above floor | Free sole on floor | mean \|action\| | Targets outside limits | Action change per step | Leg torque saturated |
+|-----|------|------|------|------|------|------|------|------|------|------|------|
+| `mm3-c10-s16` (start, old model) | 5% | 74% / 81% | 97% | 0.030 m | 0.269 m | 0.092 m | 12% | 7.9 | 57% | 0.98 | 18% |
+| `mm4-dr` | **62%** | 89% / 93% | 96% | 0.018 m | 0.285 m | 0.103 m | 3% | 8.3 | 60% | 1.13 | 17% |
+| `mm4-dr-exc` | 56% | 88% / 92% | 96% | 0.019 m | 0.285 m | 0.106 m | 3% | **3.9** | 47% | **0.67** | 16% |
+
+**Findings**
+- **The mount policy now holds the stance by itself:** 56 to 62% strict success at 10 cm (target 50%, before 5%). The tap is nearly gone (free sole on the floor 3% of the time, was 12%), the centre of mass is 1.8 cm from the ball centre and the base 1.6 cm higher. What changed is 3000 more iterations on the model with the fitted head box and the randomized contact stiffness; which of the three did it is not separated.
+- **`action_excess` halves the mount policy's actions at a small cost** (56% against 62%). Still far outside the audit limits.
+
+Next: `mm5-exc-ar2` (wandb `baiq45bn`, cl06): resume `mm4-dr-exc`, 3000 iterations, `action_excess` −0.2, `action_rate` −0.02.
+
+`mm5-exc-ar2` finished (`model_17995`): reward 199, episode 715, `single_leg_stance` 9.14 of 16.
+
+| Run | Success at 10 cm (by ball size 1-2 / 3 / 4-5) | Held at 10 cm | Survive | CoM to ball | Base above top | Free sole on floor | mean \|action\| | Targets outside limits | Action change per step | Leg torque saturated |
+|-----|------|------|------|------|------|------|------|------|------|------|
+| `mm4-dr-exc` (start) | 56% | 88% | 96% | 0.019 m | 0.285 m | 3% | 3.9 | 47% | 0.67 | 16% |
+| `mm5-exc-ar2` | **65%** (51 / 73 / 71%) | 91% | 97% | 0.016 m | 0.289 m | 3% | 3.2 | 41% | 0.52 | 16% |
+
+Smoother and better at the same time: a doubled `action_rate` on top of `action_excess` did not hurt the mount. Still far from the audit limits.
+
+Next (`mm6-*`, cl06, resume `mm5-exc-ar2`, 3000 iterations): `mm6-exc50-ar2` (wandb `ebo2pjrr`: `action_excess` −1.0, `action_rate` −0.02) and `mm6-exc25-ar3` (`f91wfcza`: −0.5, −0.03).
+
+`mm6-*` finished (`model_20994`).
+
+| Run | Success at 10 cm (by ball size 1-2 / 3 / 4-5) | Held at 10 cm | Survive | CoM to ball | Base above top | Free sole on floor | mean \|action\| | Targets outside limits | Action change per step | Leg torque saturated | Hand-off with `bs3-exc25-ar2` |
+|-----|------|------|------|------|------|------|------|------|------|------|------|
+| `mm5-exc-ar2` (start) | 65% (51 / 73 / 71%) | 91% | 97% | 0.016 m | 0.289 m | 3% | 3.2 | 41% | 0.52 | 16% | 95% |
+| `mm6-exc50-ar2` | 77% (61 / 82 / 86%) | 94% | 96% | 0.014 m | 0.299 m | 2% | **1.84** | **25%** | **0.41** | 17% | 96% |
+| `mm6-exc25-ar3` | **78%** (60 / 87 / 89%) | 94% | 96% | 0.015 m | 0.296 m | 2% | 2.37 | 29% | 0.43 | 17% | 96% |
+
+Again smoother and better together: 77 to 78% of the mounts hold the 10 cm stance without any balance policy, standing at the target height (base 0.30 m above the ball top). A quarter of the commanded targets are still outside the joint limits and the leg torque saturation has not moved (17%).
+
+Next (`mm7-*`, cl06, resume `mm6-exc50-ar2`, 3000 iterations): `mm7-exc200-ar2` (wandb `579sgsy6`: `action_excess` −4.0, `action_rate` −0.02) and `mm7-exc100-ar3` (`5h0ai077`: −2.0, −0.03).
+
+`mm7-*` finished (`model_23993`). Hand-off with balance policy `bs4-exc100-ar2`.
+
+| Run | Success at 10 cm (by ball size 1-2 / 3 / 4-5) | Held at 10 cm | Survive | CoM to ball | Base above top | Free sole on floor | mean \|action\| (limit 1.0) | Targets outside limits (limit 2%) | Action change per step (limit 0.30) | Leg torque saturated | Hand-off |
+|-----|------|------|------|------|------|------|------|------|------|------|------|
+| `mm6-exc50-ar2` (start) | 77% (61 / 82 / 86%) | 94% | 96% | 0.014 m | 0.299 m | 2% | 1.84 | 25% | 0.41 | 17% | 94% |
+| `mm7-exc200-ar2` | **87%** (74 / 94 / 94%) | 94% | 99% | 0.014 m | 0.312 m | 2% | **1.24** | **3.8%** | **0.26** | 17% | 91% (83 / 96 / 94%) |
+| `mm7-exc100-ar3` | 83% (71 / 89 / 89%) | 94% | 99% | 0.014 m | 0.304 m | 2% | 1.54 | 14.5% | 0.28 | 17% | 94% (88 / 97 / 97%) |
+
+**Findings**
+- **The mount policy alone now reaches 87%** (stance with the free sole 10 cm clear held for 90% of the last 3 s, from the standing start), survives 99% of the 20 s episodes and is close to the audit limits (targets outside the joint limits 3.8%, action change 0.26). Over four resumes (`mm4` to `mm7`) on the corrected model every step of `action_excess` and `action_rate` made it both smoother and more successful: 5% -> 62 / 56% -> 65% -> 77% -> 87%.
+- **The balance policy adds little now:** 91% with the hand-off against 87% without (94% against 83% for `mm7-exc100-ar3`), and its hand-off states were recorded from the mount policy four stages ago. The difference left is on the small balls (83 to 88% against 71 to 74%).
+- Leg torque saturation is unchanged at 17% through all stages: none of the terms acts on it.
+
+## Status (Oct 14 2026)
+
+`piplus_ball_mountmin_clip/*_mm7-exc200-ar2/model_23993.pt` is one policy that mounts the ball and holds the stance in 87% of the episodes. Open: the small balls (74%), the torque saturation, and whether a separate balance policy is still worth keeping (if so: record the hand-off states again from this policy and resume `bs4-exc100-ar2`).

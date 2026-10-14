@@ -70,6 +70,34 @@ def ground_friction(
     ) * (hi - lo)
 
 
+@requires_model_fields("geom_solref")
+def contact_stiffness(
+    env,
+    env_ids: torch.Tensor | None,
+    timeconst_range: tuple[float, float],
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ball_cfg: SceneEntityCfg = SceneEntityCfg("ball"),
+) -> None:
+    """Startup: per-env contact time constant (`solref[0]`) of the ball and of both feet.
+
+    All geoms had MuJoCo's default 0.02 s, which lets the foot sink ~3 mm into the ball
+    and the ball ~3 mm into the floor at rest (up to 2 cm when the policy pushes;
+    docs/collision_check). How much a real ball gives is not measured, so one value per
+    env is drawn from the range. The feet have contact priority 1, so their value governs
+    foot-ball and foot-floor contact; ball-floor mixes the ball's value with the floor's.
+    The lower limit is 2 x the simulation step (0.01 s at 5 ms).
+    """
+    env_ids = _all_envs(env, env_ids)
+    lo, hi = timeconst_range
+    tc = lo + torch.rand(len(env_ids), device=env.device) * (hi - lo)
+    robot, ball = env.scene[robot_cfg.name], env.scene[ball_cfg.name]
+    geom_ids = [ball.indexing.geom_ids[ball.geom_names.index("ball_geom")]] + [
+        robot.indexing.geom_ids[i] for i, n in enumerate(robot.geom_names) if "ankle_roll_link_collision" in n
+    ]
+    for g in geom_ids:
+        env.sim.model.geom_solref[env_ids, g, 0] = tc
+
+
 @requires_model_fields("geom_friction")
 def ball_rolling_resistance(
     env,
@@ -200,7 +228,33 @@ def reset_from_mount_states(
     robot = env.scene[robot_cfg.name]
     robot.write_root_state_to_sim(s[:, 1:14] + origin, env_ids=env_ids)
     robot.write_joint_state_to_sim(s[:, 14 : 14 + nj], s[:, 14 + nj : 14 + 2 * nj], env_ids=env_ids)
-    env.scene[ball_cfg.name].write_root_state_to_sim(s[:, 14 + 2 * nj :] + origin, env_ids=env_ids)
+    env.scene[ball_cfg.name].write_root_state_to_sim(s[:, 14 + 2 * nj : 27 + 2 * nj] + origin, env_ids=env_ids)
+    if s.shape[1] > 27 + 2 * nj:
+        # The mount policy's last action, for `last_action_restored` (the action manager is
+        # reset after the events, so it cannot be written here).
+        if not hasattr(env, "_spawn_action"):
+            env._spawn_action = torch.zeros(env.num_envs, s.shape[1] - 27 - 2 * nj, device=env.device)
+            env._spawn_action_pending = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        env._spawn_action[env_ids] = s[:, 27 + 2 * nj :]
+        env._spawn_action_pending[env_ids] = True
+
+
+def last_action_restored(env) -> torch.Tensor:
+    """The "last action" observation, with the mount policy's last action restored after a
+    spawn from a recorded hand-off state.
+
+    At the real hand-off the balance policy's first observation holds the mount policy's
+    last action, and the action-rate penalty is measured from it. A spawn would start with
+    zeros instead; the smoother the balance policy got, the more that difference cost
+    (bs2-exc50: 91% from recorded states, 16% in the real hand-off).
+    """
+    pending = getattr(env, "_spawn_action_pending", None)
+    if pending is not None and pending.any():
+        am = env.action_manager
+        am._action[pending] = env._spawn_action[pending]
+        am._prev_action[pending] = env._spawn_action[pending]
+        pending[:] = False
+    return env.action_manager.action
 
 
 _SPAWN_MODES = {"Random mix": "random", "Mount": "mount", "Drop": "drop"}

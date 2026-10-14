@@ -33,9 +33,9 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
 
 TASK = "Mjlab-Piplus-Ball-Chain"
 MOUNT_TASK = "Mjlab-Piplus-Ball-MountMin-Clip"  # for the agent configs only
-BALANCE_TASK = "Mjlab-Piplus-Ball-BalanceFromMount"
-MOUNT_CKPT = "logs/rsl_rl/piplus_ball_mountmin_clip/*_mm3-c10-s16/model_11997.pt"
-BALANCE_CKPT = "logs/rsl_rl/piplus_ball_balancefrommount/*_bfm1-warm/model_12998.pt"
+BALANCE_TASK = "Mjlab-Piplus-Ball-BalanceFromMount-Clip"
+MOUNT_CKPT = "logs/rsl_rl/piplus_ball_mountmin_clip/*_mm7-exc200-ar2/model_23993.pt"
+BALANCE_CKPT = "logs/rsl_rl/piplus_ball_balancefrommount_clip/*_bs4-exc100-ar2/model_28994.pt"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mount-ckpt", default=MOUNT_CKPT)
@@ -44,10 +44,8 @@ parser.add_argument("--num-envs", type=int, default=1)
 parser.add_argument("--hold", type=float, default=0.2, help="seconds in the stance before the switch")
 parser.add_argument("--switch-clearance", type=float, default=0.06)
 parser.add_argument("--balance-task", default=BALANCE_TASK, help="task of the balance checkpoint (agent config)")
-parser.add_argument("--fit-head", action="store_true",
-                    help="head collision box resized to the head mesh (not what the policies trained on)")
-parser.add_argument("--balance-bounded", action="store_true",
-                    help="the balance policy was trained with clipped joint targets: keep the clip")
+parser.add_argument("--balance-unbounded", action="store_true",
+                    help="the balance policy was trained without the joint-target clip (bfm1): lift it at the switch")
 parser.add_argument("--viewer", choices=["viser", "native"], default="viser")
 parser.add_argument("--steps", type=int, default=0, help="headless check: run this many steps, no viewer")
 parser.add_argument("--dump", default=None,
@@ -58,12 +56,6 @@ args = parser.parse_args()
 dev = "cuda:0"
 cfg = load_env_cfg(TASK, play=True)
 cfg.scene.num_envs = args.num_envs
-if args.fit_head:
-    from functools import partial
-
-    from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
-
-    cfg.scene.entities["robot"].spec_fn = partial(get_spec_with_arms, fit_head=True)
 env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev))
 u = env.unwrapped
 
@@ -80,9 +72,10 @@ def load_policy(task: str, pattern: str):
 class ChainPolicy:
     """Mount policy until the stance has been held, then the balance policy, per env.
 
-    The mount policy was trained with joint targets clipped to the joint limits, the
-    balance policy without, so the clip is lifted for an env at its switch and restored
-    when it resets (inside the action term: the "last action" observation stays raw).
+    Both policies are trained with joint targets clipped to the joint limits. For an
+    older balance policy trained without the clip (`--balance-unbounded`) it is lifted for
+    an env at its switch and restored when it resets (inside the action term: the "last
+    action" observation stays raw).
     """
 
     def __init__(self):
@@ -119,7 +112,7 @@ class ChainPolicy:
         new = (self.counter >= self.hold_steps) & ~self.handed
         if new.any():
             self.handed |= new
-            if not args.balance_bounded:
+            if args.balance_unbounded:
                 self.term._clip[new] = torch.tensor([-float("inf"), float("inf")], device=dev)
             self.switches += int(new.sum())
             if new[0]:

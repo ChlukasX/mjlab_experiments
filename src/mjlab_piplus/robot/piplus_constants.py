@@ -26,12 +26,12 @@ def get_spec() -> mujoco.MjSpec:
   return spec
 
 
-def get_spec_with_arms(fit_head: bool = False) -> mujoco.MjSpec:
+def get_spec_with_arms(fit_head: bool = True) -> mujoco.MjSpec:
   """Like get_spec() but with arm joints and actuators uncommented.
 
   `fit_head` also resizes the head collision box to the head mesh (see
-  `_fit_head_collision`); off by default because the existing policies were trained
-  without it."""
+  `_fit_head_collision`). Policies trained before Oct 13 2026 saw the small exported box;
+  pass False to reproduce their model."""
   xml = PIPLUS_XML.read_text()
   # Uncomment single-line arm joint entries: <!--<joint ... pi_joint_arm ... />-->
   xml = re.sub(r'<!--(<joint[^>]+pi_joint_arm[^>]+/>)-->', r'\1', xml)

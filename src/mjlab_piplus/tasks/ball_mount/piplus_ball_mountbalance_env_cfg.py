@@ -26,6 +26,7 @@ from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
 from mjlab_piplus.tasks.ball_mount.events import (
     SpawnModeCommandCfg,
     ball_mass_from_size,
+    contact_stiffness,
     ground_friction,
     reset_mount_or_drop,
 )
@@ -51,6 +52,7 @@ from mjlab_piplus.tasks.ball_small.piplus_ball_small_env_cfg import (
 RADIUS_RANGE = (BALL_SIZES[1][0], BALL_SIZES[5][0])  # 0.07-0.11 m
 MASS_RANGE = (BALL_SIZES[1][1], BALL_SIZES[5][1])  # 0.14-0.43 kg
 FRICTION_RANGE = (0.3, 1.2)
+CONTACT_TIMECONST_RANGE = (0.01, 0.03)  # s; MuJoCo default 0.02 (see events.contact_stiffness)
 
 
 def _joint_limit_clip() -> dict[str, tuple[float, float]]:
@@ -61,6 +63,20 @@ def _joint_limit_clip() -> dict[str, tuple[float, float]]:
         for j in spec.joints
         if j.type == mujoco.mjtJoint.mjJNT_HINGE
     }
+
+
+def action_excess(env) -> torch.Tensor:
+    """[B] rad by which the commanded joint targets lie outside the joint ranges, summed
+    over the joints (before any clipping). The ball policies command targets tens of
+    rad beyond the limits (bang-bang through the torque limit); this is 0 for any target
+    inside the range, so it does not pull a well-behaved policy toward the home pose."""
+    term = env.action_manager.get_term("joint_pos")
+    if not hasattr(env, "_joint_range"):
+        limits = _joint_limit_clip()
+        env._joint_range = torch.tensor([limits[n] for n in term.target_names], device=env.device)
+    lo, hi = env._joint_range[:, 0], env._joint_range[:, 1]
+    target = env.action_manager.action * term._scale + term._offset
+    return ((lo - target).clamp(min=0.0) + (target - hi).clamp(min=0.0)).sum(dim=-1)
 
 
 def ball_privileged_obs(env, ball_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -134,6 +150,11 @@ def piplus_ball_mountbalance_env_cfg(
         mode="startup",
         params={"friction_range": FRICTION_RANGE},
     )
+    cfg.events["contact_stiffness"] = EventTermCfg(
+        func=contact_stiffness,
+        mode="startup",
+        params={"timeconst_range": CONTACT_TIMECONST_RANGE},
+    )
     # Must come after reset_scene_to_default (first in the dict).
     cfg.events["spawn_mode"] = EventTermCfg(
         func=reset_mount_or_drop,
@@ -187,6 +208,8 @@ def piplus_ball_mountbalance_env_cfg(
         weight=0.0,
         params={**ball_params, "flat": flat_sole, "com_max": COM_OVER_BALL},
     )
+    # Off by default; the smoothing runs enable it (about -0.2).
+    cfg.rewards["action_excess"] = RewardTermCfg(func=action_excess, weight=0.0)
     # Centering on the env origin works against moving over the ball.
     cfg.rewards["xy_centering"].weight = 0.0
 

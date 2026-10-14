@@ -1,6 +1,6 @@
 # Collision check of the robot model
 
-Branch: `feat/collision-check` (off `feat/balance-smooth`) — **findings in, fixes proposed**
+Branch: `feat/collision-check` (off `feat/balance-smooth`) — **findings in; head box and contact randomization applied**
 
 Question: in the viewer the feet are inside the ball and the arms inside the head. The ball tasks use all 20 leg and arm joints, so is the collision model complete, and is the simulation enforcing it?
 
@@ -39,7 +39,14 @@ The policies do not depend on the gap: they keep working with it closed.
 
 Bodies without a collision primitive: both shoulder pitch and shoulder roll links, both hip pitch and hip roll links, the camera.
 
-## Proposed changes (not applied to training yet)
+## Applied (Oct 13 2026, on `feat/balance-smooth`)
+
+- **Head box fitted by default** (`get_spec_with_arms(fit_head=True)`; `False` reproduces the old model). The `--fit-head` flags are gone.
+- **Contact stiffness randomized** in all randomized-ball tasks (`contact_stiffness` startup event in `piplus_ball_mountbalance_env_cfg`): one `solref` time constant per env from 0.01 to 0.03 s on the ball and both feet.
+- The best pair so far (`mm3-c10-s16` + `bs1-clip-exc`) evaluated on the new model without retraining: hand-off 77% (58 / 84 / 87% by ball size), against 83% on the model it was trained on.
+- The recorded hand-off states were taken on the old model (hand inside the new head box in most of them), so the order is: resume the mount policy on the new model, record its hand-off states again, then resume the balance policy on those. Runs: `mm4-*` in [ball_mount_rewards_log](../ball_mount_rewards/ball_mount_rewards_log.md), then [balance_smooth_log](../balance_smooth/balance_smooth_log.md).
+
+## Proposed changes (as of the check)
 
 1. **Make the fitted head box the default** for the arm tasks. Measured cost for the chain: none. Not measured for Ball-Small and Locomotion-Arms.
 2. **Ball contact stiffness:** randomize `solref` on the ball and foot contacts (for example time constant 0.01 to 0.03 s; 0.01 is the lower limit at the 5 ms step) instead of one default, and measure the real ball's give under the robot's weight. This changes the dynamics, so the mount and balance policies need a resume on it.

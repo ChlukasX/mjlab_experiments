@@ -82,6 +82,7 @@ for _ in range(int(args.seconds / u.step_dt)):
                     robot.data.joint_pos[m],
                     robot.data.joint_vel[m],
                     torch.cat([ball.data.root_link_pose_w[m], ball.data.root_link_vel_w[m]], -1) - origin,
+                    u.action_manager.action[m],  # the mount policy's last (raw) action
                 ],
                 dim=-1,
             ).cpu()
@@ -90,6 +91,13 @@ for _ in range(int(args.seconds / u.step_dt)):
 states = torch.cat(rows)
 states = states[states[:, 0].argsort()]  # sorted by ball radius for the lookup at reset
 Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-# Columns: radius 1, robot root 13, joint pos nj, joint vel nj, ball root 13.
-torch.save({"states": states, "num_joints": robot.data.joint_pos.shape[1]}, args.out)
+# Columns: radius 1, robot root 13, joint pos nj, joint vel nj, ball root 13, last action na.
+torch.save(
+    {
+        "states": states,
+        "num_joints": robot.data.joint_pos.shape[1],
+        "num_actions": u.action_manager.action.shape[1],
+    },
+    args.out,
+)
 print(f"saved {len(states)} states to {args.out}; radius {states[0, 0]:.3f} to {states[-1, 0]:.3f} m")

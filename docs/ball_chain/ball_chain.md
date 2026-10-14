@@ -26,6 +26,8 @@ uv run python scripts/play_chain.py --steps 1000 --num-envs 512   # no viewer: c
 - `uv run play Mjlab-Piplus-Ball-Chain` would run a single policy; use the script.
 - Measured success of this pair: 70% (`scripts/eval_handoff.py`, see [balance_from_mount](../balance_from_mount/balance_from_mount_log.md)). Headless check, 512 envs, 20 s with resets after falls: 834 switches, 324 falls after a switch.
 
+Update Oct 14 2026: the defaults are now mount `mm7-exc200-ar2` and balance `bs4-exc100-ar2` (both with clipped joint targets, fitted head box, randomized contact stiffness): 91% hand-off success; the mount policy alone reaches 87% (`uv run play Mjlab-Piplus-Ball-MountMin-Clip --checkpoint-file <mm7-exc200-ar2 model>` shows it without the switch). `--balance-unbounded` is for the older balance policies trained without the clip (`bfm1-*`).
+
 Approach and locomotion are not part of it yet: the robot is spawned at the stand-off pose.
 
 ## Intent
