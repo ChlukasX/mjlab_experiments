@@ -1,6 +1,6 @@
 # Balance policy for the real robot
 
-Branch: `feat/balance-deploy` — **in progress**
+Branch: `feat/balance-deploy` — **audit done; superseded**: the bounded-action retraining of plan item 1 was done in [balance_smooth](../balance_smooth/balance_smooth.md) and [mount_single](../mount_single/mount_single.md) (the audit tool is in that line of branches). Plan item 2 (export and checklist) is open and now belongs to the deployment of the single policy (see the deployment check in mount_single).
 
 Goal: put a balance policy on the real Pi Plus, mounting the ball by hand. Runs and audit results: [balance_deploy_log.md](balance_deploy_log.md).
 

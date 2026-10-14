@@ -14,7 +14,7 @@ Changes made after this run (commit `a69a457` and the working tree of the runs b
 
 Caveat on the drop height: the old drop was not a 0.5 m free fall. The base started 0.5 m above the ball top, which puts the sole about 0.16 m above its contact height (impact ~1.8 m/s). `balance-size1-flat-v1` learned that drop on a fixed ball. So the failed drops in `mix50-v1` come from the harder combination (randomized size and mass, size not observed, mixed spawns), and the lower drop is an easier curriculum choice, not a proven fix.
 
-### `mb2-*`: reward shaping comparison (in progress)
+### `mb2-*`: reward shaping comparison (finished)
 
 Four runs launched in parallel on the local GPU, 4096 envs, 8000 it, from scratch, same code (`a69a457`), task `Mjlab-Piplus-Ball-MountBalance`, 50/50 mix. Started Oct 6 2026, ~2.2 s per iteration with four jobs.
 
@@ -51,7 +51,7 @@ Eval detail (all four alike): mount spawns survive 99 to 100% but never reach th
 
 ### Next: centre-of-mass rewards (`mb3-*`)
 
-Changes to `Mjlab-Piplus-Ball-MountBalance` (not yet trained):
+Changes to `Mjlab-Piplus-Ball-MountBalance` (trained in `mb3-*` below):
 
 | Term | Weight | What |
 |------|--------|------|
@@ -109,7 +109,7 @@ Eval (1024 envs, 20 s, same success definition as `mb3`). Overall success tracks
 - **From scratch the mounts stall in the straddle** (`mb4-w4`): foot on the ball and weight over it, left foot on the floor, never one leg (one eval env reached the stance at 10.5 s).
 - **Mount-ratio sweep:** no information about the best ratio, since no run mounts.
 
-### `mb5-*`: termination penalty and straddle penalty (in progress)
+### `mb5-*`: termination penalty and straddle penalty (finished)
 
 Tests the two ideas from the `mb4` findings. New reward terms in `Mjlab-Piplus-Ball-MountBalance` (both weight 0 by default, enabled per run): `termination_penalty` (mjlab `is_terminated`, excludes time-outs; −200 gives about −4 per failure because rewards are scaled by dt = 0.02) and `straddle_penalty` (indicator: foot on the ball, CoM within 0.12 m of it, other foot on the floor; −4 roughly cancels the straddle's rewards). All use the rebalanced weights from `mb4` (`support_on_ball` 2.0, `single_leg_stance` 8.0, `free_foot_lift` 3.0). Launched Oct 7 2026 on uncommitted code (working tree after `f23e003`); the local GPU had an unrelated process, so two runs went to cl06.
 
@@ -147,7 +147,7 @@ Results (all four finished; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20
 
 So these balance policies behave close to bang-bang at the joint limits with a large noise level, which is consistent with the jerky `action_rate`, the "stomp" mount and the instant collapse on unseen starts. Candidate fixes: clip actions (runner `clip_actions` and/or the action term `clip` to the joint ranges), lower `entropy_coef` (0.01) or use a log-std parametrisation. Not tried yet.
 
-### Bounded actions and lower entropy (`-Clip` tasks, implemented, not yet trained)
+### Bounded actions and lower entropy (`-Clip` tasks; trained in `mb6-*` below)
 
 Motivated by the `mb5` probe (unbounded actions, noise std grown to 2.4 to 3.9). New task variants `Mjlab-Piplus-Ball-MountBalance-Clip`, `-Mix100-Clip` and `-Mix0-Clip` (log dirs `piplus_ball_mountbalance[_mix100|_mix0]_clip`):
 - **Action clipping:** the joint position targets (0.5 × action + default pose) are clipped to each joint's range from the robot spec (`JointPositionActionCfg.clip`), e.g. hip pitch ±2.84 rad, hip roll −1.0 to +0.15 rad (right) / −0.15 to +1.0 (left). A raw action of +12 now gives targets of 0.15 to 2.84 rad instead of 5 to 7 rad.
@@ -155,7 +155,7 @@ Motivated by the `mb5` probe (unbounded actions, noise std grown to 2.4 to 3.9).
 - **Smoke test** (`-Mix100-Clip`, 1024 envs, ~170 it, wandb off): mean noise std 1.00 → 0.93 → 0.90 → 0.86 at it 0/50/100/150, whereas the unclipped `mb3-mix0` was at 1.19 by it 400 and ended at 3.95. Standing by it ~200 (reward 13.6, episode length 545).
 - Clipping is to the hard joint limits; the `joint_pos_limits` penalty still uses the soft limits.
 
-### `mb6-*`: bounded actions and lower entropy, ablation (in progress)
+### `mb6-*`: bounded actions and lower entropy, ablation (finished)
 
 Launched Oct 8 2026 at commit `1d3c0bd`/`5e70e4d`. From scratch, 8000 it, 4096 envs, rebalanced weights as `mb4-w4` (`--env.rewards.support_on_ball.weight 2.0 --env.rewards.single_leg_stance.weight 8.0 --env.rewards.free_foot_lift.weight 3.0`), no termination or straddle penalty. The saved `env.yaml` of each run confirms the clip setting (bounded: joint ranges from the spec; none for `ent-only`) and `agent.yaml` the entropy value.
 
@@ -185,7 +185,7 @@ Results (all finished 8000 it; training = last iteration; eval = `scripts/eval_m
 - **50/50 from scratch with clip + low entropy loses the drops again** (0% survive), as every earlier 50/50 run did.
 
 
-### `mb7-*`: finish the mount, and drops with bounded actions (in progress)
+### `mb7-*`: finish the mount, and drops with bounded actions (finished)
 
 Launched Oct 8 2026 (commit `5e70e4d`, docs `2a40d4e`), local GPU, 4096 envs. Motivated by the `mb6-clip-ent` training curve, which was still improving at the end (reward 227 → 249 over its last 3000 it; `free_foot_lift` 0.17 → 0.61; `stand_tall` 0.69 → 0.84) but never reached the single-leg stance.
 
@@ -208,7 +208,7 @@ Results (both finished; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s):
 
 
 
-- Which mount / drop ratio works best (`-Mix30`, `-Mix70` are registered, not run).
+- Which mount / drop ratio works best: `-Mix30` and `-Mix70` ran only as warm starts (`mb4-w5`, `mb4-w6`), where no mount was learned, so the ratio question is open.
 - Whether the 5× smoothness result changes when applied by resuming a mounted policy.
 ### Hand-off test: balance policy takes over from the straddle (Oct 9 2026)
 

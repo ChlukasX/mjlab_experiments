@@ -1,6 +1,6 @@
 # Balance from the mount policy's end states
 
-Branch: `feat/balance-from-mount` (off `feat/ball-mount-rewards`) — **in progress**
+Branch: `feat/balance-from-mount` (off `feat/ball-mount-rewards`) — **done**: 70% hand-off; smoothed and improved to 96% in [balance_smooth](../balance_smooth/balance_smooth.md).
 
 Goal: a balance policy that can take over from the mount policy, so the chain is mount policy -> switch -> balance policy. Runs: [balance_from_mount_log.md](balance_from_mount_log.md).
 

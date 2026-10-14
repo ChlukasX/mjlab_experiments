@@ -49,7 +49,7 @@ The mount tasks use their own size-aware test (Ball-Small's assumes the size-5 b
 Plain variant: `mount-balance-v1` (resumed from `model_2400` of the earlier plain run, 5400 iterations): reward ~55, episode length ~430/500, `foot_on_ball` 3.3, `single_leg_stance` 3.2, `action_rate` −3.3.
 Flat from scratch under the Flat task: `mount-flat-v1` reproduces `v2-scratch` (reward ~100, episode length ~488, `foot_on_ball` 3.74, `single_leg_stance` 3.62, `sole_flat` 1.89).
 
-Size 1 ball: `mount-size1-v1` and `mount-size1-flat-v1` in progress, from scratch.
+Size 1 ball: `mount-size1-v1` and `mount-size1-flat-v1` finished, see [ball_size1](../ball_size1/ball_size1.md); the same tiptoe correction applies to them.
 
 ## Open
 

@@ -1,6 +1,6 @@
 # Smoothing the balance policy
 
-Branch: `feat/balance-smooth` (off `feat/ball-chain`, plus the audit tool from `feat/balance-deploy`) — **in progress**
+Branch: `feat/balance-smooth` (off `feat/ball-chain`, plus the audit tool from `feat/balance-deploy`) — **done, parked**: balance `bs4-exc100-ar2` at the audit limits with 96% hand-off. On Oct 14 2026 the project switched to one policy ([mount_single](../mount_single/mount_single.md)); this two-policy state is tagged `two-policy-chain`.
 
 Goal: a balance policy for the chain (mount policy -> switch -> balance policy) whose actions a real actuator can follow, without losing the hand-off. Runs: [balance_smooth_log.md](balance_smooth_log.md).
 

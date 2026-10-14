@@ -1,6 +1,6 @@
 # Ball Mount + Balance (phase 4)
 
-Branch: `feat/ball-mount-balance` — **in progress**
+Branch: `feat/ball-mount-balance` — **done**: drop balance on a randomized ball learned (97%, `mb3-mix0`), no mount in any run (the stance test of the first run was passed on tiptoe, see [ball_mount_rewards](../ball_mount_rewards/ball_mount_rewards.md)). Continued in [ball_mount_curriculum](../ball_mount_curriculum/ball_mount_curriculum.md).
 
 Task IDs: `Mjlab-Piplus-Ball-MountBalance` (50/50 mix), `-Mix30`, `-Mix70`
 
@@ -21,11 +21,11 @@ The **share of mount spawns is `mount_fraction`**. The baseline is **50/50**. Di
 
 | Task | Mount share | Log dir | Run |
 |------|-------------|---------|-----|
-| `Mjlab-Piplus-Ball-MountBalance-Mix0` | 0% (drops only, diagnostic) | `piplus_ball_mountbalance_mix0` | not run |
-| `Mjlab-Piplus-Ball-MountBalance-Mix100` | 100% (mounts only, diagnostic) | `piplus_ball_mountbalance_mix100` | not run |
+| `Mjlab-Piplus-Ball-MountBalance-Mix0` | 0% (drops only, diagnostic) | `piplus_ball_mountbalance_mix0` | `mb3-mix0` (97% drops) |
+| `Mjlab-Piplus-Ball-MountBalance-Mix100` | 100% (mounts only, diagnostic) | `piplus_ball_mountbalance_mix100` | `mb3-mix100`, `mb4-w4`, `mb5-c/d` (0%) |
 | `Mjlab-Piplus-Ball-MountBalance` | 50% | `piplus_ball_mountbalance` | `mountbalance-mix50-v1` |
-| `Mjlab-Piplus-Ball-MountBalance-Mix30` | 30% | `piplus_ball_mountbalance_mix30` | not run |
-| `Mjlab-Piplus-Ball-MountBalance-Mix70` | 70% | `piplus_ball_mountbalance_mix70` | not run |
+| `Mjlab-Piplus-Ball-MountBalance-Mix30` | 30% | `piplus_ball_mountbalance_mix30` | `mb4-w5` (drops 93-100%, mounts 0%) |
+| `Mjlab-Piplus-Ball-MountBalance-Mix70` | 70% | `piplus_ball_mountbalance_mix70` | `mb4-w6` (drops 97-100%, mounts 0%) |
 
 More weight on drops trains balancing more (the harder skill in earlier runs); more weight on mounts trains the step-up and the hand-off. Find the best ratio by comparing the evaluation below across these runs.
 
@@ -80,7 +80,7 @@ bash scripts/train.sh Mjlab-Piplus-Ball-MountBalance --name mountbalance-mix50-v
 
 ## Evaluation
 
-First run `mountbalance-mix50-v1` (8000 iterations, before the changes above), by `scripts/eval_mountbalance.py` with the old 3 cm test: mount spawns 100% success on every ball size; drop spawns 0% (dead within ~2 s). New run with the changes: _TBD_. Planned: success rate (single-leg stance with the sole flat, held over the last 3 s) by ball radius {0.07, 0.09, 0.11} and spawn mode, per ratio, against the single-size baselines (size 5 flat: on the ball 99.7% of the time).
+First run `mountbalance-mix50-v1` (8000 iterations, before the changes above), by `scripts/eval_mountbalance.py` with the old 3 cm test: mount spawns 100% success on every ball size; drop spawns 0% (dead within ~2 s). Later runs (`mb2` to `mb7`): see [ball_mount_log.md](ball_mount_log.md). Planned: success rate (single-leg stance with the sole flat, held over the last 3 s) by ball radius {0.07, 0.09, 0.11} and spawn mode, per ratio, against the single-size baselines (size 5 flat: on the ball 99.7% of the time).
 
 ## Open
 

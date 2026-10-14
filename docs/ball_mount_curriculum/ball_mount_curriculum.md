@@ -1,6 +1,6 @@
 # Ball mount curriculum
 
-Branch: `feat/ball-mount-curriculum` — **in progress**
+Branch: `feat/ball-mount-curriculum` — **done, negative**: neither the ball lock, the potential reward nor the CEM search produced a mount. The cause (lift measured at the ankle) was found next, in [ball_mount_rewards](../ball_mount_rewards/ball_mount_rewards.md).
 
 Goal: a mount policy that takes the robot from standing beside the ball to a single-leg stance on top of it, on a randomized ball (radius 0.07 to 0.11 m). It is followed by a balance policy (see [ball_mount](../ball_mount/ball_mount.md)), so the mount only has to reach a state the balance policy can hold. Runs and results: [ball_mount_curriculum_log.md](ball_mount_curriculum_log.md).
 

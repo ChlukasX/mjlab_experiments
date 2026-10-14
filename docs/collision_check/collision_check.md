@@ -1,6 +1,6 @@
 # Collision check of the robot model
 
-Branch: `feat/collision-check` (off `feat/balance-smooth`) — **findings in; head box and contact randomization applied**
+Branch: `feat/collision-check` (off `feat/balance-smooth`) — **done**: head box fitted and contact stiffness randomized (applied from Oct 13 2026); elbow range still to check on the robot.
 
 Question: in the viewer the feet are inside the ball and the arms inside the head. The ball tasks use all 20 leg and arm joints, so is the collision model complete, and is the simulation enforcing it?
 

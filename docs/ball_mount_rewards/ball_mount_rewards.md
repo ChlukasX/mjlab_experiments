@@ -1,6 +1,6 @@
 # Ball mount: pruned rewards, staged stance target
 
-Branch: `feat/ball-mount-rewards` (off `feat/ball-mount-curriculum`) — **in progress**
+Branch: `feat/ball-mount-rewards` (off `feat/ball-mount-curriculum`) — **done**: first real mount; the policy line continues as `mm4` to `mm7` (log below) and then in [mount_single](../mount_single/mount_single.md).
 
 Goal: the mount (standing beside the ball to a single-leg stance on top of it) with a smaller reward set. Review of all earlier mount results, what was wrong with the rewards, and the tasks that test the fix. Runs: [ball_mount_rewards_log.md](ball_mount_rewards_log.md). Earlier rounds: [mount_feasibility](../mount_feasibility/mount_feasibility.md), [ball_mount](../ball_mount/ball_mount_log.md), [ball_mount_curriculum](../ball_mount_curriculum/ball_mount_curriculum_log.md).
 
