@@ -44,12 +44,30 @@ parser.add_argument("--probe", action="store_true",
 parser.add_argument("--torsional", type=float, default=None,
                     help="feet get condim 6 with this torsional friction coefficient (m), a check of the spin")
 parser.add_argument("--cone", choices=["pyramidal", "elliptic"], default=None, help="override the friction cone")
+parser.add_argument("--ball-obs-freeze", type=float, default=None,
+                    help="from this time (s) on, the actor's ball position stops updating (held at its last value; "
+                    "a camera that loses the ball under the foot)")
+parser.add_argument("--ball-obs-zero", action="store_true", help="with --ball-obs-freeze: zeros instead of holding")
 args = parser.parse_args()
 
 dev = "cuda:0"
 cfg = load_env_cfg(args.task, play=True)
 cfg.scene.num_envs = args.num_envs
 cfg.episode_length_s = 20.0  # one finite episode per env
+if args.ball_obs_freeze is not None:
+    term = cfg.observations["actor"].terms["ball_pos"]
+    live = term.func
+
+    def frozen_ball_pos(env, **kw):
+        val = live(env, **kw)
+        t = env.episode_length_buf * env.step_dt
+        if not hasattr(env, "_held_ball"):
+            env._held_ball = val.clone()
+        keep = t < args.ball_obs_freeze
+        env._held_ball[keep] = val[keep]
+        return torch.zeros_like(val) if args.ball_obs_zero and not keep.all() else env._held_ball.clone()
+
+    term.func = frozen_ball_pos
 if args.cone:
     cfg.sim.mujoco.cone = args.cone
 if args.torsional is not None:

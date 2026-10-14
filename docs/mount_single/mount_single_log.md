@@ -57,3 +57,31 @@ All three finished (`model_29991`). Same evaluation as round 1.
 Best single policy: `piplus_ball_mountmin_clip/*_ms2-yaw10-demand/model_29991.pt`. From standing beside a randomized ball (size 1 to 5): mounts in 0.5 s and holds the single-leg stance with the free sole 10 cm clear in 95% of the episodes (90% on the smallest balls), no systematic spin, 90% under a different friction model, and at or within the proposed audit limits on two of three measures (mean |action| 1.01 against 1.0, targets outside the limits 2.8% against 2%), leg torque at the limit 9% of the time.
 
 Weights of this policy (all on `Mjlab-Piplus-Ball-MountMin-Clip`): `single_leg_stance` 16 at 10 cm sole clearance, `com_over_ball` 0, `action_excess` −4.0, `action_rate` −0.02, `torque_saturation` −2.0, `torque_demand` −0.5, `base_yaw_rate` −0.1.
+
+## Round 3 (`ms3-*`): hollow-shell ball
+
+The ball's inertia is now that of a thin hollow shell, 2/3 m r^2 (`ball_mass_from_size`, `inertia_factor`), instead of a solid sphere's 0.4 m r^2: a football resists rolling and spinning about 1.7 times more than the simulated ball did. `ms2-yaw10-demand` evaluated on it without retraining: 94% (88 / 98 / 97%), spin +0.3 rad/s, against 95% on the solid ball.
+
+Resume `ms2-yaw10-demand` `model_29991`, 3000 iterations, 2048 envs, all its weights (`single_leg_stance` 16 at 10 cm, `com_over_ball` 0, `action_excess` −4.0, `action_rate` −0.02, `torque_saturation` −2.0, `torque_demand` −0.5, `base_yaw_rate` −0.1), cl06. Launched Oct 14 2026 on the working tree of `feat/mount-single` (on top of `951d5ca`).
+
+| Run | wandb | Seed | Outcome |
+|-----|-------|------|---------|
+| `ms3-shell` | `59vdjpnr` | 42 | **Best.** Reward 252, episode 715. 98%, leg saturation 5%. |
+| `ms3-shell-s2` | `0k2528u2` | 2 | Reward 240, episode 690. 98%; the only one within the outside-limits threshold (1.6%). |
+
+Both finished (`model_32990`). Same evaluation as before, on the hollow-shell ball.
+
+| Run | Success (by ball size 1-2 / 3 / 4-5) | Survive | Spin, base mean (median \|.\|, share clockwise) | Success, friction changed | mean \|action\| (limit 1.0) | Targets outside limits (2%) | Action change per step (0.30) | Leg torque saturated |
+|-----|------|------|------|------|------|------|------|------|
+| `ms2-yaw10-demand` (start, zero-shot on the shell ball) | 94% (88 / 98 / 97%) | 98% | +0.3 rad/s (0.45, 35%) | | 1.01 | 2.8% | 0.27 | 9% |
+| `ms3-shell` | **98%** (93 / 99 / 100%) | 100% | +0.3 (0.46, 29%) | **93%** | **1.04** | 2.2% | 0.24 | **5%** |
+| `ms3-shell-s2` | **98%** (94 / 100 / 99%) | 99% | +0.6 (0.53, 8%) | 92% | 1.16 | **1.6%** | **0.23** | **5%** |
+
+**Findings**
+- **98% success with both seeds,** 93 to 94% on the smallest balls, 92 to 93% under the changed friction model. The two seeds agree within a point on success and on every audit measure except mean |action|.
+- **The resume on the shell ball did more than adapt:** leg torque at the limit 9% -> 5%, action change 0.27 -> 0.23, targets outside the limits 2.8% -> 1.6 to 2.2%. The audit limits are met or missed by a hair (mean |action| 1.04 against 1.0, outside 2.2% against 2% for seed 42); seed 2 meets the outside-limits threshold.
+- Spin stays small (0.3 to 0.6 rad/s); seed 2 keeps a slight preferred direction (8% clockwise).
+
+## Status (Oct 14 2026)
+
+Best single policy: `piplus_ball_mountmin_clip/*_ms3-shell/model_32990.pt` (seed 42), with `ms3-shell-s2` as an equal alternative. Hollow-shell ball, fitted head box, randomized contact stiffness; weights as listed for round 3.

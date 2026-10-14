@@ -34,11 +34,13 @@ def ball_mass_from_size(
     radius_range: tuple[float, float],
     mass_range: tuple[float, float],
     jitter: tuple[float, float],
+    inertia_factor: float = 2.0 / 3.0,
 ) -> None:
     """Startup: ball mass follows radius (linear between the two sizes) times a jitter.
 
-    Inertia is set to a solid sphere's 0.4 m r^2, matching the compiled model.
-    Run after the ball_size (geom_size) event.
+    Inertia is `inertia_factor` m r^2: 2/3 for a thin hollow shell, which a football is
+    (runs before Oct 14 2026 used a solid sphere's 0.4, as in the compiled model, so the
+    ball rolled and spun too easily). Run after the ball_size (geom_size) event.
     """
     env_ids = _all_envs(env, env_ids)
     radius = _ball_radius(env, ball_cfg, None)[env_ids]
@@ -48,7 +50,7 @@ def ball_mass_from_size(
     ball = env.scene[ball_cfg.name]
     body_id = ball.indexing.body_ids[ball.body_names.index("ball_body")]
     env.sim.model.body_mass[env_ids, body_id] = mass
-    env.sim.model.body_inertia[env_ids, body_id] = (0.4 * mass * radius**2).unsqueeze(-1)
+    env.sim.model.body_inertia[env_ids, body_id] = (inertia_factor * mass * radius**2).unsqueeze(-1)
 
 
 @requires_model_fields("geom_friction")
