@@ -56,6 +56,20 @@ Mismatches to settle before deployment:
 - **Head joints:** the real robot has two head joints driven by a separate head behaviour; in this model they do not exist (commented out in the MJCF: the head is rigid).
 - **Gains:** the deployment config sets kp/kd per policy; it must carry this repo's values (legs 50 / 1.1, arms 6 / 0.6) and joint order and signs must match this MJCF.
 
+## Blind on the ball (Oct 14 2026)
+
+Requirements from the robot side: the head camera cannot see a ball in front of the feet or under them; the ball is stationary (unless the robot pushes it); once on the ball the robot balances on proprioception only; "on the ball" is decided from the base (IMU) height while upright.
+
+Task `Mjlab-Piplus-Ball-MountMin-BlindOnBall` (`blind_on_ball=True`, log dir `piplus_ball_mountmin_blindonball`): the actor's ball-position input is `ball_pos_until_on_ball`:
+- **Before the latch:** ball position in the base frame plus a perception error that is constant over the episode (uniform ±3 cm in x and y, ±1 cm in z: the filtered estimate of a stationary ball seen earlier), plus the per-step noise of ±2 cm.
+- **The latch:** base height above 0.42 m with the torso tilted less than 20° (0.35 rad); once set it stays for the episode. Measured on `ms3-shell` (512 envs): with both soles on the floor the base never exceeds 0.379 m; standing on the ball, 5th percentile 0.439 m on size 1-2, 0.477 m on size 3, 0.503 m on size 4-5; every env crosses 0.42 m at about 0.43 s (at most 0.48 s), and the upright condition delays none of them.
+- **After the latch:** zeros (plus the per-step noise). A real value always has z about −0.3 m, so zero cannot be mistaken for a ball position; the observation size is unchanged, so earlier checkpoints can be resumed.
+- The critic still sees the true ball state.
+
+`ms3-shell` on this task without retraining: 0% (it used the ball position to balance).
+
+On the robot the same input is: the ball filter's estimate transformed into the base (IMU) frame until the latch, then zeros. The ball diameter in `soccer_ipm` must be set to the ball used.
+
 ## Open questions
 
 - The acceptable torque level and saturation share of the real actuators are not known; 80% is a placeholder.

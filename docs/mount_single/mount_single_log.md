@@ -85,3 +85,14 @@ Both finished (`model_32990`). Same evaluation as before, on the hollow-shell ba
 ## Status (Oct 14 2026)
 
 Best single policy: `piplus_ball_mountmin_clip/*_ms3-shell/model_32990.pt` (seed 42), with `ms3-shell-s2` as an equal alternative. Hollow-shell ball, fitted head box, randomized contact stiffness; weights as listed for round 3.
+
+## Round 4 (`bob1-*`): blind on the ball
+
+Task `MountMin-BlindOnBall` (see the design doc). Resume `ms3-shell` `model_32990` (copied to `piplus_ball_mountmin_blindonball/2026-10-14_00-00-00_init-from-ms3-shell`), 4000 iterations, 2048 envs, all `ms3` weights, cl06. Launched Oct 14 2026 on the working tree of `feat/mount-single` (on top of `0e517f7`). Episode length at the start of the resume: 41 to 47 steps (the policy falls once its ball input goes blank, as expected).
+
+| Run | wandb | Seed | Outcome |
+|-----|-------|------|---------|
+| `bob1` | `ntpnn4k3` | 42 | |
+| `bob1-s2` | `edxjs5mc` | 2 | |
+
+A third run with a larger perception error (±5 cm) did not start: tuple parameters cannot be overridden from the command line. That case is tested at evaluation instead.

@@ -8,6 +8,7 @@ base frame (privileged for now; real perception comes in a later phase).
 See docs/mount_feasibility/mount_feasibility.md.
 """
 
+import math
 from functools import partial
 
 import torch
@@ -109,6 +110,44 @@ def ball_pos_base_obs(env, asset_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) 
     ball = env.scene[ball_cfg.name]
     rel = ball.data.root_link_pos_w - robot.data.root_link_pos_w
     return quat_apply_inverse(robot.data.root_link_quat_w, rel)
+
+
+def ball_pos_until_on_ball(
+    env,
+    asset_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    height_threshold: float,
+    bias: tuple[float, float, float],
+    max_tilt: float = 0.35,
+) -> torch.Tensor:
+    """Ball position in the base frame [B, 3] as the robot's camera pipeline would give it,
+    until the robot is on the ball; zeros from then on (never a real value: the ball is
+    always below the base).
+
+    On the robot the head camera cannot see a ball in front of the feet, and the ball is
+    stationary, so before the mount the position comes from the ball filter's estimate of
+    earlier sightings: true position plus a perception error that is constant over an
+    episode (`bias`, uniform +- per axis, m; per-step noise comes from the term's noise
+    config). "On the ball" is decided as on the robot: base (IMU) height above
+    `height_threshold` while the torso is upright (tilt below `max_tilt`, rad), so a
+    robot falling sideways does not count; latched for the rest of the episode.
+    """
+    true = ball_pos_base_obs(env, asset_cfg, ball_cfg)
+    fresh = env.episode_length_buf == 0
+    if not hasattr(env, "_ball_obs_bias"):
+        env._ball_obs_bias = torch.zeros(env.num_envs, 3, device=env.device)
+        env._on_ball_latch = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+        fresh = torch.ones_like(fresh)
+    if fresh.any():
+        b = torch.tensor(bias, device=env.device)
+        env._ball_obs_bias[fresh] = (torch.rand(int(fresh.sum()), 3, device=env.device) * 2 - 1) * b
+        env._on_ball_latch[fresh] = False
+    robot = env.scene[asset_cfg.name]
+    upright = -robot.data.projected_gravity_b[:, 2] > math.cos(max_tilt)
+    env._on_ball_latch |= (robot.data.root_link_pos_w[:, 2] > height_threshold) & upright
+    out = true + env._ball_obs_bias
+    out[env._on_ball_latch] = 0.0
+    return out
 
 
 def foot_to_ball_top(

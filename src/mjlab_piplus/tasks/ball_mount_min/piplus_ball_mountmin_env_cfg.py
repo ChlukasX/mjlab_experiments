@@ -12,6 +12,7 @@ from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
 
 from mjlab_piplus.tasks.ball_mount.events import ball_rolling_resistance
+from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import ball_pos_until_on_ball
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
     piplus_ball_mountbalance_env_cfg,
     piplus_ball_mountbalance_ppo_runner_cfg,
@@ -28,6 +29,11 @@ _REMOVED = (
     "straddle_penalty", "termination_penalty", "xy_centering",
 )
 COM_LINEAR_RANGE = 0.30  # m: com_over_ball falls linearly to 0 at the mount spawn distance
+# Blind on the ball: base height above which the robot counts as on the ball (standing on
+# the floor 0.39 m, up to ~0.43 on tiptoe; on a size 1 ball from ~0.42 crouched, 0.46 tall).
+ON_BALL_BASE_HEIGHT = 0.42
+ON_BALL_MAX_TILT = 0.35  # rad (20 deg): only an upright robot counts as on the ball
+BALL_OBS_BIAS = (0.03, 0.03, 0.01)  # m, per-episode error of the ball filter's estimate
 
 
 def piplus_ball_mountmin_env_cfg(
@@ -35,10 +41,13 @@ def piplus_ball_mountmin_env_cfg(
     bounded_actions: bool = False,
     lifted_clearance: float = 0.03,
     locked: bool = False,
+    blind_on_ball: bool = False,
 ) -> ManagerBasedRlEnvCfg:
     """`lifted_clearance`: m the free sole must clear the floor for the stance reward
     (stage 1: 0.03, final: 0.10). `locked`: ball held by rolling resistance all training
-    (feasibility probe; play and eval use a free ball)."""
+    (feasibility probe; play and eval use a free ball). `blind_on_ball`: the actor sees
+    the ball position only until it is on the ball (base height), with a per-episode
+    perception error, and balances on proprioception from then on (as on the robot)."""
     cfg = piplus_ball_mountbalance_env_cfg(
         play, mount_fraction=1.0, flat_sole=True, bounded_actions=bounded_actions
     )
@@ -51,6 +60,14 @@ def piplus_ball_mountmin_env_cfg(
     r["single_leg_stance"].params["sole_clearance"] = lifted_clearance
     r["free_foot_lift"].weight = 3.0
     r["free_foot_lift"].params["sole"] = True
+
+    if blind_on_ball:
+        term = cfg.observations["actor"].terms["ball_pos"]
+        term.func = ball_pos_until_on_ball
+        term.params = {**term.params, "height_threshold": ON_BALL_BASE_HEIGHT,
+            "bias": BALL_OBS_BIAS, "max_tilt": ON_BALL_MAX_TILT}
+        # ponytail: the per-step noise (term.noise, +-2 cm) also hits the zeros once on the
+        # ball; harmless as a "no ball" code, since a real value has z ~ -0.3 m.
 
     if locked and not play:
         cfg.events["ball_lock"] = EventTermCfg(
