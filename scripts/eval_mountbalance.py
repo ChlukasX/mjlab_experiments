@@ -48,6 +48,8 @@ parser.add_argument("--ball-obs-freeze", type=float, default=None,
                     help="from this time (s) on, the actor's ball position stops updating (held at its last value; "
                     "a camera that loses the ball under the foot)")
 parser.add_argument("--ball-obs-zero", action="store_true", help="with --ball-obs-freeze: zeros instead of holding")
+parser.add_argument("--ball-obs-bias", type=float, nargs=3, default=None,
+                    help="BlindOnBall tasks: per-episode ball-position error, uniform +- per axis (m)")
 args = parser.parse_args()
 
 dev = "cuda:0"
@@ -68,6 +70,8 @@ if args.ball_obs_freeze is not None:
         return torch.zeros_like(val) if args.ball_obs_zero and not keep.all() else env._held_ball.clone()
 
     term.func = frozen_ball_pos
+if args.ball_obs_bias is not None:
+    cfg.observations["actor"].terms["ball_pos"].params["bias"] = tuple(args.ball_obs_bias)
 if args.cone:
     cfg.sim.mujoco.cone = args.cone
 if args.torsional is not None:

@@ -92,7 +92,25 @@ Task `MountMin-BlindOnBall` (see the design doc). Resume `ms3-shell` `model_3299
 
 | Run | wandb | Seed | Outcome |
 |-----|-------|------|---------|
-| `bob1` | `ntpnn4k3` | 42 | |
-| `bob1-s2` | `edxjs5mc` | 2 | |
+| `bob1` | `ntpnn4k3` | 42 | **Best.** Reward 203, episode 641/1000. 95% with the ball input blank on the ball. |
+| `bob1-s2` | `edxjs5mc` | 2 | Reward 177, episode 625. 93%. |
 
 A third run with a larger perception error (±5 cm) did not start: tuple parameters cannot be overridden from the command line. That case is tested at evaluation instead.
+
+Both finished (`model_36989`). After the switch to the blind input the episodes first collapsed (`bob1`: 47 -> 13 steps at about 280 iterations) and then recovered over the 4000 iterations. Eval on `MountMin-BlindOnBall` (the play config keeps the masking and the per-episode ball error; 1024 envs, 20 s); "ball error" = per-episode error of the ball estimate (`--ball-obs-bias`, training used ±3 / ±3 / ±1 cm).
+
+| Run | Success (by ball size 1-2 / 3 / 4-5) | Survive | Spin, base mean (share clockwise) | Ball error ±5 cm | Ball error ±8 cm | Friction changed | mean \|action\| (1.0) | Targets outside limits (2%) | Action change (0.30) | Leg torque saturated |
+|-----|------|------|------|------|------|------|------|------|------|------|
+| `ms3-shell` (start, sees the ball throughout) | 0% on this task | 0% | | | | | | | | |
+| `bob1` | **95%** (87 / 99 / 100%) | 98% | +0.16 rad/s (33%) | 90% | 66% | 83% | 1.35 | 2.5% | 0.26 | **4%** |
+| `bob1-s2` | 93% (88 / 96 / 97%) | 97% | −0.01 (49%) | 90% | 67% | 89% | 1.31 | 2.1% | 0.28 | 6% |
+
+**Findings**
+- **The policy mounts and balances with the ball input blank from the moment it is on the ball:** 93 to 95%, 100% on size 4-5 for `bob1`. The stance is as before (CoM 0.6 cm from the ball centre, base 0.32 m above the top, free sole 13 cm up, never on the floor).
+- **Ball-estimate error:** unchanged up to the trained ±3 cm, 90% at ±5 cm, 66% at ±8 cm. The robot's estimate of a stationary ball before the step must be within about 5 cm.
+- No systematic spin; leg torque at the limit 4 to 6%; audit as before (action change inside, outside-limits 2.1 to 2.5%, mean |action| 1.3).
+- Smallest balls (radius below 0.083 m) are the weakest bin (87 to 88%). The RoboCup ball the Bit-Bots perception is configured for (diameter 0.153 m, radius 0.077 m) falls in that bin.
+
+## Status (Oct 15 2026)
+
+Deployment candidate: `piplus_ball_mountmin_blindonball/*_bob1/model_36989.pt`. Best on a size 4 to 5 ball (radius 0.10 to 0.11 m).

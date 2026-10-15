@@ -68,6 +68,8 @@ Task `Mjlab-Piplus-Ball-MountMin-BlindOnBall` (`blind_on_ball=True`, log dir `pi
 
 `ms3-shell` on this task without retraining: 0% (it used the ball position to balance).
 
+Result: `bob1` (resume of `ms3-shell` on this task) reaches 95% (87 / 99 / 100% by ball size), 90% with a ±5 cm ball-estimate error; see the log.
+
 On the robot the same input is: the ball filter's estimate transformed into the base (IMU) frame until the latch, then zeros. The ball diameter in `soccer_ipm` must be set to the ball used.
 
 ## Open questions
