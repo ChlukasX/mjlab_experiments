@@ -110,7 +110,7 @@ mj = u.sim.mj_model
 force_max = torch.tensor(
     [mj.actuator(f"robot/{n}").forcerange[1] for n in robot.actuator_names], device=dev
 )
-probe = {k: torch.zeros(u.num_envs, device=dev) for k in ("com", "base", "free_z", "sole", "on_floor", "on_ball", "yaw", "ball_yaw")}
+probe = {k: torch.zeros(u.num_envs, device=dev) for k in ("com", "base", "free_z", "sole", "on_floor", "on_ball", "yaw", "ball_yaw", "tilt")}
 saturated = torch.zeros(u.num_envs, len(robot.actuator_names), device=dev)
 
 for step in range(n_steps):
@@ -134,6 +134,7 @@ for step in range(n_steps):
         probe["on_ball"] += _support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1).float()
         probe["yaw"] += robot.data.root_link_vel_w[:, 5]  # rad/s about the world vertical
         probe["ball_yaw"] += u.scene["ball"].data.root_link_vel_w[:, 5]
+        probe["tilt"] += torch.acos((-robot.data.projected_gravity_b[:, 2]).clamp(-1, 1)).rad2deg()
         saturated += (robot.data.actuator_force.abs() > 0.95 * force_max).float()
 
 success = ~failed & (hold / last >= args.hold_frac)
@@ -169,7 +170,7 @@ if args.probe:
         yaw = probe["yaw"][m] / last
         print(f"  base yaw rate: mean {yaw.mean().item():+.2f} rad/s, median |.| {yaw.abs().median().item():.2f}, "
               f"envs turning clockwise (<0) {(yaw < 0).float().mean().item():.0%}; ball yaw rate mean "
-              f"{(probe['ball_yaw'][m] / last).mean().item():+.2f} rad/s")
+              f"{(probe['ball_yaw'][m] / last).mean().item():+.2f} rad/s; base tilt mean {(probe['tilt'][m] / last).mean().item():.1f} deg")
         h = hold[m] / last
         print(f"  stance held: mean {h.mean().item():.0%} of the last 3 s; envs above 50%: {(h > 0.5).float().mean().item():.0%}")
         sat = (saturated[m] / last).mean(dim=0)

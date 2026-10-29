@@ -114,3 +114,24 @@ Both finished (`model_36989`). After the switch to the blind input the episodes 
 ## Status (Oct 15 2026)
 
 Deployment candidate: `piplus_ball_mountmin_blindonball/*_bob1/model_36989.pt`. Best on a size 4 to 5 ball (radius 0.10 to 0.11 m).
+
+## Round 5 (`bob2-*`): wider upright reward
+
+`upright` (torso orientation) paid 0.01 on the ball: its kernel (std 0.22) is flat at the 28° lean the policy stands with. Resume `bob1` `model_36989`, 3000 iterations, all `bob1` weights, `upright` std 0.22 -> 0.5, cl06 (shared with another user's training, 4.6 s per iteration). Launched Oct 15 2026.
+
+| Run | wandb | `upright` weight | Outcome |
+|-----|-------|------------------|---------|
+| `bob2-up05` | `je24u82p` | 2 | Reward term 0.47 of 2 at the end (was 0.02). 97%. |
+| `bob2-up05-w4` | `tdy6v4a1` | 4 | 0.89 of 4. 96%. |
+
+Eval (Oct 21 2026; same procedure as round 4, `bob1` re-run alongside):
+
+| Run | Success | Survive | Base tilt on the ball | Spin, mean (share clockwise) | Ball error ±5 cm | Friction changed | mean \|action\| | Targets outside limits | Action change | Leg torque saturated |
+|-----|------|------|------|------|------|------|------|------|------|------|
+| `bob1` | 93% | 98% | 28.1° | +0.15 rad/s (36%) | 91% | 83% | 1.36 | 2.5% | 0.26 | 4% |
+| `bob2-up05` | **97%** | 99% | 27.7° | +0.43 (15%) | **93%** | **91%** | 1.36 | **1.7%** | 0.26 | 4% |
+| `bob2-up05-w4` | 96% | 99% | 27.3° | +0.24 (28%) | 92% | 85% | 1.30 | 2.5% | 0.28 | 5% |
+
+**Findings**
+- **The lean did not change** (27 to 28° in all three): the wider kernel now pays and has a gradient, but the policy keeps the posture. The lean seems to be part of how it stands on one leg over the ball, not a missing incentive.
+- **`bob2-up05` is better on everything else:** 97% (re-run of `bob1`: 93%; earlier 95%, so about ±2 points of evaluation spread), more robust to the friction model (91% against 83%) and to a ±5 cm ball error (93%), and within the outside-limits threshold (1.7%). Likely the 3000 extra iterations more than the upright term. Its remaining spin has a slight preferred direction (+0.43 rad/s, 15% clockwise).

@@ -22,12 +22,12 @@ One directory per experiment: `docs/<experiment>/<experiment>.md` is the design 
 | balance_smooth | `Mjlab-Piplus-Ball-BalanceFromMount-Clip` | [spec](balance_smooth/balance_smooth.md), [log](balance_smooth/balance_smooth_log.md) |
 | collision_check | (robot model; `scripts/check_collisions.py`) | [findings](collision_check/collision_check.md) |
 | mount_single | `Mjlab-Piplus-Ball-MountMin-Clip` (one policy) | [spec](mount_single/mount_single.md), [log](mount_single/mount_single_log.md) |
+| deploy_mount | export of the ball-mount policy for the Bit-Bots stack | [plan](deploy_mount/deploy_mount.md) |
 | locomotion_s2r, ball_perception, ball_approach, ball_chain | placeholders for the ball chain | [locomotion_s2r](locomotion_s2r/locomotion_s2r.md), [ball_perception](ball_perception/ball_perception.md), [ball_approach](ball_approach/ball_approach.md), [ball_chain](ball_chain/ball_chain.md) |
 
 ## Conventions (shared by all experiments)
 
 - **Launch:** `bash scripts/train.sh <task> --name <run-name> [overrides]` (wandb project = task id, default 4096 envs). Parallel runs: stagger launches by ~20 s.
-- **Where:** `local` = the 4090 on this machine, `cl06` = the 5090 (shared home, so same code and logs).
 - **Logs / checkpoints:** `logs/rsl_rl/<experiment>/<timestamp>_<run-name>/model_N.pt`. The experiment dir comes from the task (see the task table in `AGENTS.md`).
 - **Config actually used:** `logs/rsl_rl/<experiment>/<run>/params/env.yaml` (reward weights, events) and `agent.yaml`.
 - **Resume:** `--agent.resume True --agent.load-run <run dir name> --agent.load-checkpoint model_N.pt --agent.max-iterations <additional>`. The iteration counter continues from N.
