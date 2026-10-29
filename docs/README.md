@@ -22,7 +22,8 @@ One directory per experiment: `docs/<experiment>/<experiment>.md` is the design 
 | balance_smooth | `Mjlab-Piplus-Ball-BalanceFromMount-Clip` | [spec](balance_smooth/balance_smooth.md), [log](balance_smooth/balance_smooth_log.md) |
 | collision_check | (robot model; `scripts/check_collisions.py`) | [findings](collision_check/collision_check.md) |
 | mount_single | `Mjlab-Piplus-Ball-MountMin-Clip` (one policy) | [spec](mount_single/mount_single.md), [log](mount_single/mount_single_log.md) |
-| deploy_mount | export of the ball-mount policy for the Bit-Bots stack | [plan](deploy_mount/deploy_mount.md) |
+| mount_latency | `Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency[-Big]` | [spec](mount_latency/mount_latency.md), [log](mount_latency/mount_latency_log.md) |
+| deploy_mount | export of the ball-mount policy for the Bit-Bots stack, robustness sweep | [plan](deploy_mount/deploy_mount.md), [log](deploy_mount/deploy_mount_log.md) |
 | locomotion_s2r, ball_perception, ball_approach, ball_chain | placeholders for the ball chain | [locomotion_s2r](locomotion_s2r/locomotion_s2r.md), [ball_perception](ball_perception/ball_perception.md), [ball_approach](ball_approach/ball_approach.md), [ball_chain](ball_chain/ball_chain.md) |
 
 ## Conventions (shared by all experiments)

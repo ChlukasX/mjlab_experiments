@@ -135,3 +135,5 @@ Eval (Oct 21 2026; same procedure as round 4, `bob1` re-run alongside):
 **Findings**
 - **The lean did not change** (27 to 28° in all three): the wider kernel now pays and has a gradient, but the policy keeps the posture. The lean seems to be part of how it stands on one leg over the ball, not a missing incentive.
 - **`bob2-up05` is better on everything else:** 97% (re-run of `bob1`: 93%; earlier 95%, so about ±2 points of evaluation spread), more robust to the friction model (91% against 83%) and to a ±5 cm ball error (93%), and within the outside-limits threshold (1.7%). Likely the 3000 extra iterations more than the upright term. Its remaining spin has a slight preferred direction (+0.43 rad/s, 15% clockwise).
+
+**Note (Oct 29 2026):** all evaluations in this log ran with the observation noise off (play config) and a random env seed (about ±2 points between runs of the same checkpoint). With the training noise and encoder bias on, `bob2-up05` reaches 87% instead of 96%, and it fails above 15 ms of latency; see the robustness sweep in the [deploy_mount log](../deploy_mount/deploy_mount_log.md).

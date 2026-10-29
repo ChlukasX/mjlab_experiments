@@ -1,20 +1,20 @@
 # Deploying the ball-mount policy on the Bit-Bots stack
 
-Branch: `feat/deploy-mount` (off `feat/mount-single`) — **this repo's side ready for a first harnessed test**
+Branch: `feat/deploy-mount` (off `feat/mount-single`) — **export and sim2sim done; the policy is not robust to latency above 15 ms (see the [log](deploy_mount_log.md)), retraining before the robot side continues**
 
-Policy: `piplus_ball_mountmin_blindonball/*_bob1/model_36989.pt` (task `Mjlab-Piplus-Ball-MountMin-BlindOnBall`, 95% in simulation, best on size 4-5 balls). The robot-side node is written in `bitbots_main` (`bitbots_rl_motion`); this repo provides the model, the parameters and a reference of the observation code.
+Policy: `piplus_ball_mountmin_blindonball/*_bob2-up05/model_39988.pt` (task `Mjlab-Piplus-Ball-MountMin-BlindOnBall`, 97% in simulation, best on size 3-5 balls; exported Oct 29 2026, replacing `bob1` `model_36989`, see [mount_single log](../mount_single/mount_single_log.md) round 5). The `bob1` export is kept as `deploy/bitbots/mount_ball_bob1.{onnx,yaml}`; the parameter files are identical. The robot-side node goes into `bitbots_main` (`bitbots_rl_motion`; a skeleton on `feature/balance_ball_rl`, not working yet); this repo provides the model, the parameters and a reference of the observation code.
 
 ## Files
 
 | File | What |
 |---|---|
-| `deploy/bitbots/mount_ball.onnx` | policy with the observation normalizer; input `obs` [1, 345] float32, output [1, 20]. Checked against PyTorch: max difference 3.7e-6. |
+| `deploy/bitbots/mount_ball.onnx` | policy with the observation normalizer; input `obs` [1, 345] float32, output [1, 20]. Checked against PyTorch: max difference 6.9e-6. |
 | `deploy/bitbots/mount_ball.yaml` | `bitbots_rl_motion`-style parameters: joint order, home pose, kp/kd, action scale, joint limits, on-ball latch, 50 Hz |
 | `deploy/bitbots/mount_obs.py` | reference observation and action code without ROS (what the node has to reproduce) |
 | `scripts/export_mount.py` | regenerates the two files above from a checkpoint (`uv run --with onnxruntime python scripts/export_mount.py --checkpoint <model.pt>`) |
 | `scripts/sim2sim_onnx.py` | runs the ONNX model in the simulation with `mount_obs.py` built from raw signals (encoder angles, IMU quaternion and gyro, ball in the IMU frame, base height) |
 
-Sim check (`sim2sim_onnx.py`, 128 envs, 20 s): **93% success, 97% survive** with the ONNX model, batch-1 inference and the robot-side observation; the target computed by `mount_obs.py` equals the env's exactly. That run fed encoder angles with the ±0.015 rad encoder bias of the randomization, which the training observation never contained (mjlab's `joint_pos_rel` reads unbiased angles): the policy tolerates that offset (93% against 95%).
+Sim check (`sim2sim_onnx.py`, 20 s): `bob2-up05` **96% success, 97% survive** (512 envs; Oct 29 2026); `bob1` 93% / 97% (128 envs). Both with the ONNX model, batch-1 inference and the robot-side observation; the target computed by `mount_obs.py` equals the env's exactly. Both runs fed encoder angles with the ±0.015 rad encoder bias of the randomization, which the training observation never contained (mjlab's `joint_pos_rel` reads unbiased angles): the policy tolerates that offset (`bob1` 93% against 95%, `bob2-up05` 96% against 97%).
 
 ## Interface
 
@@ -33,7 +33,7 @@ Observation, 345 values: six terms, each a 5-step history **oldest first**, term
 
 Action: target = home + 0.5 × output, **clipped to the joint limits in the YAML** (the existing `JointHandler` does not clip). Gains: legs kp 50 / kd 1.1, arms 6 / 0.6. Home pose: hip pitch ±0.5, calf ±1.0, ankle pitch ±0.5 (right +, left −), all else 0; this differs from the mjlab walk policy's walk-ready pose (±0.25 / ±0.65 / ±0.4).
 
-On-ball latch: base (IMU) height above the floor > 0.42 m while the tilt is below 20° (−gravity_z > cos 0.35); from then on `ball_pos` is zeros until the policy is deactivated. In simulation the base is at most 0.379 m with both feet on the floor and at least ~0.44 m on the smallest balls (5th percentile), so the height estimate needs an error well below 2 cm.
+On-ball latch: base (IMU) height above the floor > 0.42 m while the tilt is below 20° (−gravity_z > cos 0.35); from then on `ball_pos` is zeros until the policy is deactivated. In simulation the base is at most 0.379 m with both feet on the floor and at least ~0.44 m on the smallest balls (5th percentile), so the height estimate needs an error well below 2 cm. The robustness sweep ([log](deploy_mount_log.md)) shows the error only matters in one direction: reading low (latching late) costs nothing up to −4 cm, reading 4 cm high fails everything. On the robot use a threshold of ~0.44 m for margin.
 
 ## Plan for the robot side
 
@@ -47,6 +47,6 @@ On-ball latch: base (IMU) height above the floor > 0.42 m while the tilt is belo
 
 ## Open on this side
 
-- Latency: training models a 0-15 ms actuator delay; the real sensor-to-motor latency is not measured.
+- **Latency (blocker):** training models a 0-15 ms actuator delay; success is 62% at 20 ms, 0% from 30 ms, and a 20 ms delay of the joint or gyro signals alone fails (see the [log](deploy_mount_log.md)). The real sensor-to-motor latency is not measured; it sets the range for the retraining.
+- With the training observation noise and encoder bias on, success is 87% (71% on size 1-2 balls); evaluate with `--obs-noise` from now on.
 - Real motor torque limits and the real ball's mass and give are not measured (the policy's leg actuators sit at the model limit ~4% of the time).
-- An upright-reward variant is still training (`bob2-*`); if it is better, re-export (`scripts/export_mount.py`).

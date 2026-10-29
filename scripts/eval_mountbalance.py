@@ -36,6 +36,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", required=True)
 parser.add_argument("--task", default="Mjlab-Piplus-Ball-MountBalance")
 parser.add_argument("--num-envs", type=int, default=1024)
+parser.add_argument("--seed", type=int, default=0, help="env seed (same DR draws across runs; the default was random)")
 parser.add_argument("--hold-frac", type=float, default=0.9)
 parser.add_argument("--free-foot-clearance", type=float, default=FREE_FOOT_LIFT,
                     help="m the free foot must clear the floor in the success test")
@@ -50,11 +51,25 @@ parser.add_argument("--ball-obs-freeze", type=float, default=None,
 parser.add_argument("--ball-obs-zero", action="store_true", help="with --ball-obs-freeze: zeros instead of holding")
 parser.add_argument("--ball-obs-bias", type=float, nargs=3, default=None,
                     help="BlindOnBall tasks: per-episode ball-position error, uniform +- per axis (m)")
+# Robustness sweep (deployment gaps); see docs/deploy_mount/deploy_mount.md.
+parser.add_argument("--obs-noise", action="store_true", help="keep the training observation noise (play turns it off)")
+parser.add_argument("--obs-delay", type=int, default=0, help="actor observations this many control steps old (20 ms each)")
+parser.add_argument("--obs-delay-terms", nargs="+", default=None, help="with --obs-delay: only these actor terms")
+parser.add_argument("--act-lag", type=int, nargs=2, default=None, help="actuator lag range in physics steps (5 ms; trained 0 3)")
+parser.add_argument("--encoder-bias", type=float, default=None,
+                    help="per-joint encoder bias +- this (rad), and the actor reads the biased angles as on the robot")
+parser.add_argument("--latch-height-bias", type=float, default=0.0,
+                    help="BlindOnBall: base-height estimate reads this much too high (m; > 0 latches early, < 0 late)")
+parser.add_argument("--kp-range", type=float, nargs=2, default=None, help="kp and kd scale range (trained 0.8 1.2)")
+parser.add_argument("--ball-radius", type=float, default=None, help="fixed ball radius (m) instead of the size 1-5 range")
+parser.add_argument("--ball-mass", type=float, default=None, help="fixed ball mass (kg), no jitter")
+parser.add_argument("--ball-solid", action="store_true", help="solid-sphere ball inertia (0.4 m r^2) instead of a shell")
 args = parser.parse_args()
 
 dev = "cuda:0"
 cfg = load_env_cfg(args.task, play=True)
 cfg.scene.num_envs = args.num_envs
+cfg.seed = args.seed
 cfg.episode_length_s = 20.0  # one finite episode per env
 if args.ball_obs_freeze is not None:
     term = cfg.observations["actor"].terms["ball_pos"]
@@ -83,6 +98,32 @@ if args.torsional is not None:
         replace(c, condim={foot: 6, ".*": c.condim}, friction={foot: (0.6, args.torsional, 0.0001), ".*": c.friction or (0.6,)})
         for c in robot_cfg.collisions
     )
+actor = cfg.observations["actor"]
+actor.enable_corruption = args.obs_noise
+for name, t in actor.terms.items():
+    if name != "actions" and (args.obs_delay_terms is None or name in args.obs_delay_terms):  # the node knows its own previous action without delay
+        t.delay_min_lag = t.delay_max_lag = args.obs_delay
+if args.act_lag is not None:
+    from dataclasses import replace
+
+    robot_cfg = cfg.scene.entities["robot"]
+    robot_cfg.articulation = replace(robot_cfg.articulation, actuators=tuple(
+        replace(a, delay_min_lag=args.act_lag[0], delay_max_lag=args.act_lag[1]) for a in robot_cfg.articulation.actuators))
+if args.encoder_bias is not None:
+    cfg.events["encoder_bias"].params["bias_range"] = (-args.encoder_bias, args.encoder_bias)
+    actor.terms["joint_pos"].params["biased"] = True
+if args.latch_height_bias:
+    actor.terms["ball_pos"].params["height_threshold"] -= args.latch_height_bias
+if args.kp_range is not None:
+    cfg.events["pd_gains"].params["kp_range"] = cfg.events["pd_gains"].params["kd_range"] = tuple(args.kp_range)
+if args.ball_radius is not None:
+    from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import RADIUS_RANGE
+
+    cfg.events["ball_size"].params["ranges"] = (args.ball_radius / RADIUS_RANGE[1],) * 2
+if args.ball_mass is not None:
+    cfg.events["ball_mass_from_size"].params.update(mass_range=(args.ball_mass,) * 2, jitter=(1.0, 1.0))
+if args.ball_solid:
+    cfg.events["ball_mass_from_size"].params["inertia_factor"] = 0.4
 env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev))
 u = env.unwrapped
 runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
