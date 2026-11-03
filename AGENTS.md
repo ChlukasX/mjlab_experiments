@@ -7,6 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 - **New features and policies always go on a new branch** (e.g. `feat/ball-approach`), never directly on `main`. The repo is public; `main` must stay clean and working.
 - Branch before the first edit, not after. Keep the working tree clean: no stray debug files, no half-finished changes left on `main`.
 - Commit/push only on explicit user request; merge to `main` only when the user says so.
+- **Observation or network size changes make a new experiment:** a change that alters an actor or critic input (or the network) goes into a new task variant with its own experiment name, never into an existing task, so old checkpoints keep loading and playing. A warm start into it loads the actor where its inputs are unchanged; for new critic inputs, pad the old critic with zero-weight columns (`logs/probes/make_padded_init.py`) rather than starting it fresh: a fresh critic wrecked the warm-started actor within ~40 iterations (`bl3` first try, see docs/mount_latency). Note this in the run log.
+- **Play sessions time out after 15 minutes:** start every play/viewer run (`uv run play`, `mjx play`, play wrappers) under `timeout 15m`, e.g. `timeout 15m uv run play ...`, so no viewer is left running on the GPU.
 - **Docs are one directory per experiment** (`docs/<experiment>/<experiment>.md` for the design, `docs/<experiment>/<experiment>_log.md` for its run log). Never mix several experiments in one log; see `docs/README.md` for the index and conventions.
 
 ## Skills
@@ -79,7 +81,7 @@ uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/
 | `Mjlab-Piplus-Ball-MountMin[-Clip/-Locked]` | Mount only, pruned reward set, free-foot lift measured at the sole, staged stance target (unbounded / bounded actions / locked ball) |
 | `Mjlab-Piplus-Ball-BalanceFromMount[-Mix50/-Clip]` | Balance on the randomized ball starting from recorded hand-off states of the mount policy (-Mix50: half drops; -Clip: joint targets clipped, for smoothing) |
 | `Mjlab-Piplus-Ball-Chain` | Mount scene played by two policies with a switch (mount, then balance): `uv run python scripts/play_chain.py` |
-| `Mjlab-Piplus-Ball-MountMin-BlindOnBall[-Latency[-Big]]` | Mount and stance with the ball input only until on the ball (deployment candidate); -Latency: 10-40 ms loop latency curriculum, encoder bias seen by the actor; -Big: size 3-5 balls only |
+| `Mjlab-Piplus-Ball-MountMin-BlindOnBall[-Latency[-Big[-OneFoot[-Level[-NoiseRamp[-Latch45-Hold[-Deadline]]]]]]]` | Mount and stance with the ball input only until on the ball (deployment candidate); -Latency: 10-40 ms loop latency curriculum, encoder bias seen by the actor; -Big: size 3-5 balls only; -OneFoot: stance rewards only while the free foot does not touch the ball; -Level: support sole near horizontal (foot on the ball top), ankle roll kept off its stop; -NoiseRamp: actor noise ramped in from 0.25×; -Latch45-Hold: on-ball latch at 45° base tilt (the 20° latch never fired), 1 s home-pose hold after reset; -Deadline: episode ends if not on the ball 3 s after start |
 | `Mjlab-Piplus-Ball-MountBalance[-Mix30/-Mix70]` | One policy for mount + balance on a randomized ball (size 1-5, mass, friction); 50/50 mount/drop spawn mix, -Mix30/-Mix70 change the ratio |
 
 ## Architecture

@@ -3,7 +3,9 @@
 Runs one 20 s episode per env (pushes on, observation noise off). An env counts
 as a success if it never terminated early and had single-leg stance (sole flat
 on the ball, the other sole's lowest corner `--free-foot-clearance` off the floor,
-centre of mass over the ball) for at least `--hold-frac` of the last 3 s.
+centre of mass over the ball) for at least `--hold-frac` of the last 3 s. Strict
+success also requires that the free foot does not touch the ball; level success also that
+the support sole is near horizontal (foot near the ball top, not on its flank).
 Envs are binned by their own randomized ball radius and by spawn mode.
 
     uv run python scripts/eval_mountbalance.py \
@@ -23,12 +25,15 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     COM_OVER_BALL,
+    FOOT_BALL_SENSORS,
     FREE_FOOT_LIFT,
     STAND_FOOT_Z,
+    _ball_contact,
     _ball_radius,
     _com_to_ball,
     _sole_clearance,
     _support_foot,
+    ball_contact_sensors,
     single_leg_stance_lifted,
 )
 
@@ -53,6 +58,10 @@ parser.add_argument("--ball-obs-bias", type=float, nargs=3, default=None,
                     help="BlindOnBall tasks: per-episode ball-position error, uniform +- per axis (m)")
 # Robustness sweep (deployment gaps); see docs/deploy_mount/deploy_mount.md.
 parser.add_argument("--obs-noise", action="store_true", help="keep the training observation noise (play turns it off)")
+parser.add_argument("--ball-noise-clean-zeros", action="store_true",
+                    help="with --obs-noise: the ball input's per-step noise only before the on-ball latch "
+                    "(the robot sends exact zeros after it; the term's noise config also hits the zeros)")
+parser.add_argument("--noise-terms", nargs="*", default=None, help="with --obs-noise: only these actor terms keep their noise")
 parser.add_argument("--obs-delay", type=int, default=0, help="actor observations this many control steps old (20 ms each)")
 parser.add_argument("--obs-delay-terms", nargs="+", default=None, help="with --obs-delay: only these actor terms")
 parser.add_argument("--act-lag", type=int, nargs=2, default=None, help="actuator lag range in physics steps (5 ms; trained 0 3)")
@@ -64,6 +73,8 @@ parser.add_argument("--kp-range", type=float, nargs=2, default=None, help="kp an
 parser.add_argument("--ball-radius", type=float, default=None, help="fixed ball radius (m) instead of the size 1-5 range")
 parser.add_argument("--ball-mass", type=float, default=None, help="fixed ball mass (kg), no jitter")
 parser.add_argument("--ball-solid", action="store_true", help="solid-sphere ball inertia (0.4 m r^2) instead of a shell")
+parser.add_argument("--floor-history", action="store_true",
+                    help="floor-contact termination checks all physics steps of a control step, not only the last")
 args = parser.parse_args()
 
 dev = "cuda:0"
@@ -100,6 +111,13 @@ if args.torsional is not None:
     )
 actor = cfg.observations["actor"]
 actor.enable_corruption = args.obs_noise
+if args.obs_noise and args.ball_noise_clean_zeros:
+    term = actor.terms["ball_pos"]
+    term.params["step_noise"], term.noise = term.noise.n_max, None
+if args.noise_terms is not None:
+    for name, t in actor.terms.items():
+        if name not in args.noise_terms:
+            t.noise = None
 for name, t in actor.terms.items():
     if name != "actions" and (args.obs_delay_terms is None or name in args.obs_delay_terms):  # the node knows its own previous action without delay
         t.delay_min_lag = t.delay_max_lag = args.obs_delay
@@ -124,7 +142,17 @@ if args.ball_mass is not None:
     cfg.events["ball_mass_from_size"].params.update(mass_range=(args.ball_mass,) * 2, jitter=(1.0, 1.0))
 if args.ball_solid:
     cfg.events["ball_mass_from_size"].params["inertia_factor"] = 0.4
-env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev))
+if args.floor_history:
+    from dataclasses import replace
+
+    cfg.scene.sensors = tuple(replace(s, fields=("found", "force"), history_length=cfg.decimation)
+                              if s.name == "body_floor_contact" else s for s in cfg.scene.sensors)
+# Strict test: the free foot must also not touch the ball in any physics step. The stance
+# reward without free_off_ball calls a foot free when it is not flat on the ball, which a foot
+# resting tilted on the ball passes (two-foot stance; see docs/mount_latency/mount_latency_log.md).
+if not any(s.name in FOOT_BALL_SENSORS for s in cfg.scene.sensors):
+    cfg.scene.sensors += ball_contact_sensors(cfg.decimation)
+env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev), clip_actions=load_rl_cfg(args.task).clip_actions)
 u = env.unwrapped
 runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
 runner = runner_cls(env, asdict(load_rl_cfg(args.task)), device=dev)
@@ -143,6 +171,10 @@ n_steps = int(20.0 / (u.step_dt)) - 1  # stop before the time-out reset
 last = int(3.0 / u.step_dt)
 failed = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
 hold = torch.zeros(u.num_envs, device=dev)
+hold_strict = torch.zeros(u.num_envs, device=dev)
+hold_level = torch.zeros(u.num_envs, device=dev)
+roll_ids = [j for j, n in enumerate(u.scene["robot"].joint_names) if n.endswith("ankle_roll_joint")]
+roll_max = []  # largest |ankle roll| per stance step, rad
 first_stance = torch.full((u.num_envs,), float("nan"), device=dev)
 
 # Probe: sums over the last 3 s. Free foot = the one not on the ball (the lower one).
@@ -164,6 +196,12 @@ for step in range(n_steps):
     first_stance[new] = step * u.step_dt
     if step >= n_steps - last:
         hold += stance.float()
+        free = ~_support_foot(u, foot_cfg, ball_cfg, None, True)  # [B, 2]; with stance, exactly one
+        free_clear = ~(free & _ball_contact(u)).any(dim=-1)  # contact only: a foot may hover beside the ball
+        hold_strict += (stance & free_clear).float()
+        level = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, "level", STAND_FOOT_Z, COM_OVER_BALL, args.free_foot_clearance) > 0
+        hold_level += (level & free_clear).float()
+        roll_max.append(u.scene["robot"].data.joint_pos[:, roll_ids].abs().amax(dim=-1)[stance & ~failed])
         free_z = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 2].min(dim=-1).values
         top_z = u.scene["ball"].data.root_link_pos_w[:, 2] + radius
         probe["com"] += _com_to_ball(u, foot_cfg, ball_cfg).norm(dim=-1)
@@ -179,10 +217,12 @@ for step in range(n_steps):
         saturated += (robot.data.actuator_force.abs() > 0.95 * force_max).float()
 
 success = ~failed & (hold / last >= args.hold_frac)
+strict = ~failed & (hold_strict / last >= args.hold_frac)
+level = ~failed & (hold_level / last >= args.hold_frac)
 edges = [0.0, 0.083, 0.097, 1.0]
 names = ["size 1-2 (<0.083 m)", "size 3 (0.083-0.097)", "size 4-5 (>0.097)"]
 print(f"\n{args.task}  {args.checkpoint}  ({u.num_envs} envs)")
-print(f"{'spawn':<6} {'ball radius':<22} {'envs':>5} {'success':>8} {'survived':>9} {'t to stance':>12}")
+print(f"{'spawn':<6} {'ball radius':<22} {'envs':>5} {'success':>8} {'strict':>7} {'level':>6} {'survived':>9} {'t to stance':>12}")
 for is_mount, label in ((True, "mount"), (False, "drop")):
     for lo, hi, name in zip(edges[:-1], edges[1:], names):
         m = (mount == is_mount) & (radius >= lo) & (radius < hi)
@@ -191,10 +231,13 @@ for is_mount, label in ((True, "mount"), (False, "drop")):
         t = first_stance[m]
         t_str = f"{t[~t.isnan()].mean().item():.1f}s" if (~t.isnan()).any() else "-"
         print(
-            f"{label:<6} {name:<22} {int(m.sum()):>5} {success[m].float().mean().item():>8.0%}"
+            f"{label:<6} {name:<22} {int(m.sum()):>5} {success[m].float().mean().item():>8.0%} {strict[m].float().mean().item():>7.0%} {level[m].float().mean().item():>6.0%}"
             f" {(~failed[m]).float().mean().item():>9.0%} {t_str:>12}"
         )
-print(f"overall success {success.float().mean().item():.0%}, survived {(~failed).float().mean().item():.0%}")
+print(f"overall success {success.float().mean().item():.0%}, survived {(~failed).float().mean().item():.0%}, "
+      f"strict success (free foot off the ball) {strict.float().mean().item():.0%}, level success {level.float().mean().item():.0%}")
+roll = torch.cat(roll_max)
+print(f"ankle roll in the stance: median max |q| {roll.median().item():.2f} rad, at the stop (> 0.62) {(roll > 0.62).float().mean().item():.0%}")
 
 if args.probe:
     print("\nProbe, mean over the last 3 s, envs that survived:")

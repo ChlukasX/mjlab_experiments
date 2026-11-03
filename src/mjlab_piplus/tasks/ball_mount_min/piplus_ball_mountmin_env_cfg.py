@@ -6,17 +6,27 @@ height is passed on tiptoe), and the stance reward starts at a small clearance t
 raised in later stages. See docs/ball_mount_rewards/ball_mount_rewards.md.
 """
 
-from dataclasses import replace
+from dataclasses import dataclass, fields, replace
 
 import torch
+from mjlab.utils.noise import UniformNoiseCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
+from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.envs.mdp.actions.actions import JointPositionAction
 from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.observation_manager import ObservationTermCfg
+from mjlab.managers.termination_manager import TerminationTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
 
 from mjlab_piplus.tasks.ball_mount.events import ball_rolling_resistance
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import BALL_SIZES, ball_pos_until_on_ball
+from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
+    BALL_SIZES,
+    ball_contact_sensors,
+    ball_pos_until_on_ball,
+)
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
     piplus_ball_mountbalance_env_cfg,
     piplus_ball_mountbalance_ppo_runner_cfg,
@@ -47,6 +57,97 @@ LAG_HOLD_PROB = 0.9  # per physics step: correlated lag that jumps now and then 
 ENCODER_BIAS = 0.03  # rad; the actor reads the biased angles, as on the robot
 # Big balls only (deployment ball size 4-5): size 3-5, the eval's size bins from 0.083 m on.
 BIG_BALL_MIN_RADIUS = 0.083
+# Raw policy output clamp (bounded tasks). action_rate squares the raw output, so an unbounded
+# output made it explode (of1: -577k per episode, policy collapsed). 7 > the largest target
+# offset that the joint clip lets through (hip pitch 6.7 at scale 0.5), so no target is lost.
+RAW_ACTION_CLIP = 7.0
+# Level: support ankle roll above this costs linearly (stop 0.648 rad; of2-clip sat at 0.60,
+# where joint_pos_limits' soft limit 0.583 cost almost nothing).
+ANKLE_ROLL_SOFT = 0.45  # rad
+
+
+# Noise curriculum: the actor's observation noise is scaled from NOISE_START to 1 over
+# NOISE_RAMP_STEPS (lv1: 85% without noise, 58% with the full noise).
+NOISE_START = 0.25
+NOISE_RAMP_STEPS = 1500 * 64
+
+
+def noise_curriculum(env, env_ids, start, ramp_steps, t0):
+    """Scale every uniform actor noise range from `start` to 1 over `ramp_steps`, counted from
+    step `t0` (a resume restores the step counter: pass the checkpoint's)."""
+    f = start + (1.0 - start) * min(max(env.common_step_counter - t0, 0) / ramp_steps, 1.0)
+    for term in env.observation_manager._group_obs_term_cfgs["actor"]:
+        n = term.noise
+        if isinstance(n, UniformNoiseCfg):
+            if not hasattr(n, "full_range"):
+                n.full_range = (n.n_min, n.n_max)
+            n.n_min, n.n_max = n.full_range[0] * f, n.full_range[1] * f
+            n._tensor_cache.clear()  # apply() caches the range as tensors
+    return {"noise_scale": torch.tensor(f)}
+
+
+# Latch: "on the ball" (ball input zeroed) needs the base tilt below this. ON_BALL_MAX_TILT
+# (0.35 rad) never latched: every policy balances with the base 28-32 deg over (0% of envs
+# latched, bob2-up05 to nr1-up6), so all of them saw the ball through the whole balance.
+LATCH_MAX_TILT = 0.79  # rad (45 deg); a robot falling sideways still does not count
+# Blindness curriculum (latch_fix, training): share of episodes blind on the ball, ramped
+# 0 -> 1 over BLIND_RAMP_STEPS from step t0. bl2 (blind from the start) stopped mounting.
+BLIND_RAMP_STEPS = 2000 * 64
+
+
+def blind_curriculum(env, env_ids, ramp_steps, t0):
+    env.blind_prob = min(max(env.common_step_counter - t0, 0) / ramp_steps, 1.0)
+    return {"blind_prob": torch.tensor(env.blind_prob)}
+
+
+# Mount deadline: an episode not latched "on the ball" this long after its start ends
+# (bl2, bl3: parked on the floor once blind on the ball meant falling).
+MOUNT_DEADLINE_S = 3.0  # 1 s start hold + 2 s; the policies are on the ball ~0.6 s after starting
+
+
+def mount_deadline(env, deadline_s: float) -> torch.Tensor:
+    latched = getattr(env, "_on_ball_latch", None)
+    late = env.episode_length_buf >= round(deadline_s / env.step_dt)
+    return late if latched is None else late & ~latched
+
+
+# Start hold: after each reset the robot holds the home pose (action 0, also as the policy's
+# last-action input) for this long, then the policy takes over; the robot node does the same
+# after activation.
+START_HOLD_S = 1.0
+
+
+def _hold_steps(env) -> int:
+    return round(START_HOLD_S / env.step_dt)
+
+
+def start_hold_remaining(env) -> torch.Tensor:
+    """Critic: seconds left in the start hold [B, 1]."""
+    return ((_hold_steps(env) - env.episode_length_buf).clamp_min(0) * env.step_dt).float().unsqueeze(-1)
+
+
+class HoldJointPositionAction(JointPositionAction):
+    """Joint position action that holds the home pose (raw action 0) during the start hold.
+    Zeroes the action manager's copy too, so the policy's last-action input reads 0 there."""
+
+    def process_actions(self, actions: torch.Tensor):
+        hold = self._env.episode_length_buf < _hold_steps(self._env)
+        if hold.any():
+            actions = torch.where(hold.unsqueeze(-1), torch.zeros_like(actions), actions)
+            self._env.action_manager._action[hold] = 0.0  # single action term: whole row
+        super().process_actions(actions)
+
+
+@dataclass(kw_only=True)
+class HoldJointPositionActionCfg(JointPositionActionCfg):
+    def build(self, env) -> HoldJointPositionAction:
+        return HoldJointPositionAction(self, env)
+
+
+def ankle_roll_excess(env, asset_cfg: SceneEntityCfg, limit: float) -> torch.Tensor:
+    """Sum over the ankle roll joints of |q| beyond `limit` (rad)."""
+    q = env.scene[asset_cfg.name].data.joint_pos[:, asset_cfg.joint_ids]
+    return (q.abs() - limit).clamp_min(0.0).sum(dim=-1)
 
 
 def latency_curriculum(
@@ -71,6 +172,12 @@ def piplus_ball_mountmin_env_cfg(
     blind_on_ball: bool = False,
     latency: bool = False,
     big_ball: bool = False,
+    one_foot: bool = False,
+    level: bool = False,
+    noise_ramp: bool = False,
+    latch_fix: bool = False,
+    start_hold: bool = False,
+    deadline: bool = False,
 ) -> ManagerBasedRlEnvCfg:
     """`lifted_clearance`: m the free sole must clear the floor for the stance reward
     (stage 1: 0.03, final: 0.10). `locked`: ball held by rolling resistance all training
@@ -79,7 +186,15 @@ def piplus_ball_mountmin_env_cfg(
     perception error, and balances on proprioception from then on (as on the robot).
     `latency`: 10-40 ms sensor-to-motor delay (ramped in from 0-15 ms during training) and
     the encoder bias widened and visible to the actor. `big_ball`: ball radius from
-    BIG_BALL_MIN_RADIUS (size 3-5); mass and inertia keep following the radius."""
+    BIG_BALL_MIN_RADIUS (size 3-5); mass and inertia keep following the radius.
+    `one_foot`: the stance rewards count the free foot only while it does not touch the
+    ball (contact sensors), against the two-foot stance with a tilted foot on the ball. `level`: the support sole must
+    also be near horizontal (foot near the ball top, not on its flank), and the ankle roll
+    pays beyond ANKLE_ROLL_SOFT. `noise_ramp`: the actor noise ramps in (noise_curriculum;
+    set its `t0` to the resumed checkpoint's step counter). `latch_fix`: on-ball latch at
+    LATCH_MAX_TILT, so the robot really goes blind on the ball. `start_hold`: home pose for
+    START_HOLD_S after each reset before the policy acts. `deadline`: the episode ends if the
+    robot is not latched on the ball MOUNT_DEADLINE_S after its start (training only)."""
     cfg = piplus_ball_mountbalance_env_cfg(
         play, mount_fraction=1.0, flat_sole=True, bounded_actions=bounded_actions
     )
@@ -118,6 +233,36 @@ def piplus_ball_mountmin_env_cfg(
         cfg.events["encoder_bias"].params["bias_range"] = (-ENCODER_BIAS, ENCODER_BIAS)
         cfg.observations["actor"].terms["joint_pos"].params["biased"] = True
 
+    if one_foot:
+        cfg.scene.sensors += ball_contact_sensors(cfg.decimation)
+        r["single_leg_stance"].params["free_off_ball"] = True
+        r["free_foot_lift"].params["free_off_ball"] = True
+
+    if level:
+        for term in r.values():
+            if term.params.get("flat") is True:
+                term.params["flat"] = "level"
+        r["sole_flat"].params = {**r["sole_flat"].params, "level": True}  # dict shared with foot_lift
+        r["ankle_roll_excess"] = RewardTermCfg(func=ankle_roll_excess, weight=-20.0, params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=(".*_ankle_roll_joint",)), "limit": ANKLE_ROLL_SOFT})
+
+    if noise_ramp and not play:
+        cfg.curriculum["noise"] = CurriculumTermCfg(func=noise_curriculum,
+            params={"start": NOISE_START, "ramp_steps": NOISE_RAMP_STEPS, "t0": 0})
+
+    if latch_fix:
+        cfg.observations["actor"].terms["ball_pos"].params["max_tilt"] = LATCH_MAX_TILT
+        if not play:
+            cfg.curriculum["blind"] = CurriculumTermCfg(func=blind_curriculum, params={"ramp_steps": BLIND_RAMP_STEPS, "t0": 0})
+
+    if start_hold:
+        a = cfg.actions["joint_pos"]
+        cfg.actions["joint_pos"] = HoldJointPositionActionCfg(**{f.name: getattr(a, f.name) for f in fields(a) if f.init})
+        cfg.observations["critic"].terms["start_hold"] = ObservationTermCfg(func=start_hold_remaining)
+
+    if deadline and not play:
+        cfg.terminations["mount_deadline"] = TerminationTermCfg(func=mount_deadline, params={"deadline_s": MOUNT_DEADLINE_S})
+
     if big_ball:
         hi = cfg.events["ball_size"].params["ranges"][1]
         cfg.events["ball_size"].params["ranges"] = (BIG_BALL_MIN_RADIUS / BALL_SIZES[5][0], hi)
@@ -142,9 +287,10 @@ def piplus_ball_mountmin_ppo_runner_cfg(
 ) -> RslRlOnPolicyRunnerCfg:
     """Unbounded: the runner of the earlier mount runs (entropy 0.01, 24 steps), the only
     setting that learned to balance on the ball. Bounded: the mount curriculum's runner
-    (entropy 0.003, 64 steps, gamma 0.995)."""
+    (entropy 0.003, 64 steps, gamma 0.995), raw outputs clamped to RAW_ACTION_CLIP."""
     if bounded_actions:
         cfg = piplus_ball_mountcurr_ppo_runner_cfg("")
+        cfg.clip_actions = RAW_ACTION_CLIP
     else:
         cfg = piplus_ball_mountbalance_ppo_runner_cfg(100)
     cfg.experiment_name = "piplus_ball_mountmin" + suffix

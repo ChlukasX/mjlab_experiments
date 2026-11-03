@@ -17,7 +17,13 @@ The robustness sweep of the deployment candidate `bob2-up05` ([deploy_mount log]
 
 **Result `lat1` ([log](mount_latency_log.md)):** with noise and ±0.03 rad bias, 77 / 75 / 65 / 27% at 10 / 20 / 30 / 40 ms (`bob2-up05`: 81 / 6 / 0 / 0%); size 3-5 balls 88-95% at 10-20 ms, size 1-2 at most ~50%. Observation noise is the largest remaining cost.
 
-**Caveat (see the [log](mount_latency_log.md)):** all success rates count a two-foot stance: the free foot rests tilted on the ball (~40% of the load) and passes the single-leg test because only a flat sole counts as on the ball.
+**Caveat (see the [log](mount_latency_log.md)):** the `lat1` and `lat2-big` success rates count a two-foot stance: the free foot rests tilted on the ball (~40% of the load) and passes the single-leg test because only a flat sole counts as on the ball. Strict success (free foot never touching the ball): 0% for both.
+
+**Result `of2-clip` ([log](mount_latency_log.md)):** `-OneFoot` (free foot must not touch the ball) with the raw output clamped to ±7. Strict success, size 4-5, noise and bias: 88 / 93 / 85 / 41% at 10 / 20 / 30 / 40 ms. Stands on the flank of the ball with the ankle roll at its stop (level success 0%).
+
+**Result `lv1` ([log](mount_latency_log.md)):** `-Level` (support sole near horizontal, ankle roll penalty). Posture fixed (foot near the top, ankle off its stop), but level success with noise and bias only 63 / 58 / 35 / 6% at 10 / 20 / 30 / 40 ms (size 4-5 at 20 ms: 70-75%; 85% without noise).
+
+**Result `nr1-up6` ([log](mount_latency_log.md)):** noise curriculum (0.25× → 1×) and `upright` ×3 from `lv1`. Level success 65 / 66 / 40 / 7% at 10 / 20 / 30 / 40 ms (size 4-5 at 20 ms: 75-83%; 88% without noise); lean 32° → 28.5°. Small gains; the noise remains the limit.
 
 **Result `lat2-big` ([log](mount_latency_log.md)):** size 3-5 only, from `lat1`. Size 4-5 with noise and bias: 94 / 94 / 89 / 56% at 10 / 20 / 30 / 40 ms (`lat1` on the same balls: 92 / 92 / 85 / 45%). Target met at 10-20 ms, just under at 30 ms; export candidate if the real latency is ≤30 ms.
 

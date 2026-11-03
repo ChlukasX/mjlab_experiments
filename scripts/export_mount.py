@@ -24,6 +24,7 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import _joint_limit_clip
+from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import START_HOLD_S, HoldJointPositionAction
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", required=True)
@@ -76,6 +77,8 @@ params = {
         "upper_limits": [limits[n][1] for n in names],
     },
     "on_ball": {"height": float(ball_term["height_threshold"]), "max_tilt": float(ball_term["max_tilt"])},
+    # Home pose (action 0, last-action input 0) this long after activation, then the policy.
+    "start_hold_s": START_HOLD_S if isinstance(term, HoldJointPositionAction) else 0.0,
     "phase": {"use_phase": False, "control_dt": float(u.step_dt), "gait_frequency": 0.0},
     "providers": ["CPUExecutionProvider"],
 }
