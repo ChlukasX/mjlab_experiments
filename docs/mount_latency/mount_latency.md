@@ -213,6 +213,8 @@ The action covers all 20 joints: target = home + 0.5 × action, clipped to the j
 
 **Result `kb1` ([log](mount_latency_log.md)):** on the ball the actor gets the ball centre from the support foot's pose (kinematics, task `-KinBall`) instead of zeros (estimate error median 1.5 cm; the robot computes it without the camera). First blind balance: 93% survive 20 s latched at 10-20 ms with noise (zeros: 0%), single-leg stance 77% of the time, lean 20.7° (from 28.5°). Level success only 8% (31% without noise): the held-stance test (≥90% of the last 3 s) drops out on the level sole and the 10 cm clearance.
 
+**Result `fl1` ([log](mount_latency_log.md)):** `-FreeLeg` (free leg out of `posture`, paid to clear the ball, support hip and knee velocity penalty). Steadier: survival 97% at 20 ms (`kb1` 93%), lean 14.5° (20.7°), level foot 96% of the steps; but level success 2% (8%): the free foot dips below the 10 cm test line more often. The free leg moved out only a little, the ankle share 32 → 35%.
+
 ## Open
 
 - The real loop latency: measure on the robot (joint step command → encoder response, or IMU stamp → motor command + bus time) and narrow or widen the range.

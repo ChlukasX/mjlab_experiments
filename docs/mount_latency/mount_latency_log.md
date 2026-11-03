@@ -366,3 +366,51 @@ Latch probe (20 ms, noise): latched among alive 100%, alive 97% at 10 s, 93% at 
 - Training plateaued by ~57000 of 59946.
 
 **Next (open):** (a) a looser success test to compare with deployment (e.g. on the ball, single leg, ≥70% of the last 3 s), or reward terms for the steps that drop out (level sole, clearance); (b) the node: ankle poses from tf, start hold, latch tilt 0.79, `kin_ball_radius` of the real ball; (c) the real noise levels (rosbag), still the largest cost.
+
+## Round 8 (`fl1`): free leg as a counterweight, ankle balance
+
+From a play session of `kb1`: the free foot seems to keep reaching for the ball and the balance is inconsistent. Probe `logs/probes/free_leg_probe.py` (`kb1`, 20 ms, noise, 1024 envs, latched single-support steps after 5 s):
+- the free foot touches the ball in 2% of the steps, but hovers over its edge: free ankle 0.99 r horizontally from the centre (88% within 1.5 r), 3.2 cm out from the support foot (p90 9 cm), sole 13.4 cm above the floor; it moves a lot (calf 2.8, thigh 2.4 rad/s), tucked in;
+- the support leg balances with all its joints: share of mean |q̇| hip pitch 22%, thigh 17%, calf 17%, ankle pitch 19%, hip roll 13%, ankle roll 13% (ankle 32%).
+- What pins the free leg: `posture`'s hip roll std 0.10 rad, the narrowest of all joints.
+
+Task `...-KinBall-FreeLeg` (`free_leg=True`, rewards only, so the inputs and network are those of `-KinBall`):
+- **`posture` without the free leg** (`posture_free_leg`): in single support (one level sole on the ball, `_support_foot(flat="level")`) the mean runs over the support leg and the arms only; both legs otherwise. Weight 0.3 as before.
+- **`free_foot_ball_clear`, +2.0:** in single support, the free ankle origin's distance to the ball surface, 0 at 3 cm and 1 from 10 cm (`FREE_CLEAR_NEAR/FAR`); `kb1` ~2.5 cm.
+- **`support_hip_vel`, −0.01:** in single support, Σ q̇² of the support leg's hip roll, hip pitch, thigh and calf (ankle exempt), on top of `joint_vel` (−0.005 over all 20).
+- Check `logs/probes/test_free_leg.py` (`kb1`, 256 envs, 8 s): the posture mask removes the leg away from the support foot, hip joints ordered right then left, both terms 0 outside single support; `kb1` collects 0.36 of `free_foot_ball_clear` and hip q̇² 39 (rad/s)² per single-support step.
+
+Resume `kb1` `model_59946` (actor and critic, unchanged inputs; copied to `piplus_ball_mountmin_blindonball_latency_big_onefoot_level_noiseramp_latch45_hold_kinball_freeleg/2026-11-03_00-00-00_init-from-kb1`), 3000 iterations, 2048 envs, seed 42, the round 5 overrides, full noise (no ramp: `t0` 0). Local 4090. Launched Nov 3 2026 in tmux `mjlab-fl1` (`logs/probes/run_fl1.sh`; window `sweep` runs `after_fl1.sh`: the round 5 sweep and the side, latch, kin-ball and free-leg probes into `logs/probes/sweep_fl1.txt`).
+
+| Run | wandb | Outcome |
+|-----|-------|---------|
+| `fl1` | `fp5ae5ov` | Finished Nov 3 2026 (`model_62945`). Back at `kb1`'s level within 30 iterations, then flat for the whole run: episode length 520-630, stance reward per episode 3.4-4.1 (`kb1` 3.1-3.6), `free_foot_ball_clear` 0.29 → 0.35-0.39, `support_hip_vel` −0.13 to −0.16, falls 1.8-2.5 per log interval. |
+
+**Eval `fl1` `model_62945`** (as `kb1`; `logs/probes/sweep_fl1.txt`). Level success overall and survival, `kb1` in brackets.
+
+| Condition | level success | survive |
+|---|---|---|
+| latency 10 ms | 3% (8%) | **96%** (93%) |
+| latency 20 ms | 2% (8%) | **97%** (93%) |
+| latency 30 ms | 0% (4%) | **92%** (86%) |
+| latency 40 ms | 0% (0%) | **65%** (59%) |
+| latency 10-40 ms, jitter | 1% (2%) | **88%** (81%) |
+| 20 ms sensor delay + 10 ms | 0% (3%) | **91%** (86%) |
+| 20 ms, r 0.10 / 0.11 | 1 / 2% (9 / 14%) | 97 / 97% (95 / 93%) |
+| 20 ms, kp/kd ×0.5-0.8 | 0% (1%) | **61%** (55%) |
+| 20 ms, noise off | 8% (31%) | 98% (96%) |
+
+Probes (20 ms, noise; `kb1` in brackets):
+- Latch: alive at 19 s 97% (93%), all latched. Kin-ball estimate error median 1.4 cm (1.45).
+- Foot: base tilt **14.5°** (20.7°), sole 6.8° from horizontal (8.7°), foot 8.1° from the top (9.9°), ankle roll +0.37 rad (+0.32), at the stop 0%.
+- Free leg (single-support latched steps): touches the ball 1% (2%); free ankle 1.10 r from the ball centre horizontally (0.99 r), within 1.5 r 77% (88%); out from the support foot median 2.4 cm (3.2), p90 15.9 cm (9.0); sole 12.8 cm above the floor (13.4).
+- Support leg share of mean |q̇|: ankle pitch 22% + ankle roll 13% = 35% (32%); hip pitch 20% (22%), thigh 13% (17%).
+- Stance (`logs/probes/stance_why_probe.py`, latched, alive, after 5 s): one level foot on the ball **96%** (90%), free sole ≥10 cm **74%** (85%), CoM within 12 cm 99% (median 3.9 cm, 2.7), full stance test 71% (77%).
+
+**Findings**
+- **Steadier on the ball, but the held-stance success fell:** survival up 3-7 points in every condition, the lean 20.7° → 14.5°, the support sole more level and nearer the top (level foot 90 → 96%). Success 8 → 2% at 20 ms because the free foot dips below the 10 cm clearance more often (85 → 74% of steps): out of `posture`, the free leg swings lower, and `free_foot_lift` stops paying at 10 cm, so there is no margin above the test.
+- **The free leg moved out only a little:** median 2.4 cm out, though the p90 grew 9 → 16 cm; it swings out at times rather than holding out. `free_foot_ball_clear` paid 0.29 → 0.39 per episode, weak against the stance terms.
+- **Ankle share up only 32 → 35%:** `support_hip_vel` at −0.01 costs ~0.15 per episode, too small to change the strategy.
+- Training flat from the first ~100 iterations: the warm start went straight to a nearby optimum.
+
+**Next (open):** (a) a clearance margin: `free_foot_lift` up to 15 cm (and/or the test at 10 cm kept), so the free foot stays clear of the 10 cm line; (b) stronger `free_foot_ball_clear` / `support_hip_vel` if the posture change is wanted; (c) whether the 90%-of-3 s test is the right deployment criterion: survival on the ball (97%) is what the robot needs, and the test counts every dip of the free foot below 10 cm as a failure.

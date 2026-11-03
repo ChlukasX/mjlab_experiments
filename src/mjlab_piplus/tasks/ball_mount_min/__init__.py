@@ -26,6 +26,7 @@ for suffix, kw in (
   ("-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp", _RAMP),
   ("-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold", dict(_RAMP, latch_fix=True, start_hold=True)),
   ("-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall", dict(_RAMP, latch_fix=True, start_hold=True, kin_ball=True)),
+  ("-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall-FreeLeg", dict(_RAMP, latch_fix=True, start_hold=True, kin_ball=True, free_leg=True)),
   ("-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-Deadline", dict(_RAMP, latch_fix=True, start_hold=True, deadline=True)),
 ):
   env_cfg = partial(piplus_ball_mountmin_env_cfg, **kw)
