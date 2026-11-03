@@ -211,6 +211,8 @@ The action covers all 20 joints: target = home + 0.5 × action, clipped to the j
 - **Why / history:** added because `torque_saturation` has no gradient once an actuator is at its limit. In `ms2-yaw10-demand` leg saturation 16% → 9%, smaller and calmer actions, 95%; continued on the hollow-shell ball (`ms3-shell`) 9% → 5% ([mount_single log](../mount_single/mount_single_log.md)).
 - **Note (latency tasks):** τ uses the current target, while the actuator applies a target 10-40 ms old, so the term penalizes the demand of the command, not the torque being applied at that moment.
 
+**Result `kb1` ([log](mount_latency_log.md)):** on the ball the actor gets the ball centre from the support foot's pose (kinematics, task `-KinBall`) instead of zeros (estimate error median 1.5 cm; the robot computes it without the camera). First blind balance: 93% survive 20 s latched at 10-20 ms with noise (zeros: 0%), single-leg stance 77% of the time, lean 20.7° (from 28.5°). Level success only 8% (31% without noise): the held-stance test (≥90% of the last 3 s) drops out on the level sole and the 10 cm clearance.
+
 ## Open
 
 - The real loop latency: measure on the robot (joint step command → encoder response, or IMU stamp → motor command + bus time) and narrow or widen the range.

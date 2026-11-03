@@ -95,6 +95,11 @@ LATCH_MAX_TILT = 0.79  # rad (45 deg); a robot falling sideways still does not c
 BLIND_RAMP_STEPS = 2000 * 64
 
 
+# Kinematic ball estimate (kin_ball): once latched, the actor gets the ball centre from the
+# support foot's pose (kinematic_ball_pos) instead of zeros; bl2-bl4 never balanced blind.
+KIN_BALL_BIAS = 0.015  # m per axis, per episode: encoder bias 0.03 rad over the ~0.5 m leg
+
+
 def blind_curriculum(env, env_ids, ramp_steps, t0):
     env.blind_prob = min(max(env.common_step_counter - t0, 0) / ramp_steps, 1.0)
     return {"blind_prob": torch.tensor(env.blind_prob)}
@@ -176,6 +181,7 @@ def piplus_ball_mountmin_env_cfg(
     level: bool = False,
     noise_ramp: bool = False,
     latch_fix: bool = False,
+    kin_ball: bool = False,
     start_hold: bool = False,
     deadline: bool = False,
 ) -> ManagerBasedRlEnvCfg:
@@ -194,7 +200,9 @@ def piplus_ball_mountmin_env_cfg(
     set its `t0` to the resumed checkpoint's step counter). `latch_fix`: on-ball latch at
     LATCH_MAX_TILT, so the robot really goes blind on the ball. `start_hold`: home pose for
     START_HOLD_S after each reset before the policy acts. `deadline`: the episode ends if the
-    robot is not latched on the ball MOUNT_DEADLINE_S after its start (training only)."""
+    robot is not latched on the ball MOUNT_DEADLINE_S after its start (training only).
+    `kin_ball`: once latched, the kinematic ball estimate instead of zeros (no blindness
+    curriculum: the input never goes away)."""
     cfg = piplus_ball_mountbalance_env_cfg(
         play, mount_fraction=1.0, flat_sole=True, bounded_actions=bounded_actions
     )
@@ -252,7 +260,10 @@ def piplus_ball_mountmin_env_cfg(
 
     if latch_fix:
         cfg.observations["actor"].terms["ball_pos"].params["max_tilt"] = LATCH_MAX_TILT
-        if not play:
+        if kin_ball:
+            cfg.observations["actor"].terms["ball_pos"].params.update(kin_bias=KIN_BALL_BIAS,
+                kinematic=SceneEntityCfg("robot", body_names=("r_ankle_roll_link", "l_ankle_roll_link")))
+        elif not play:
             cfg.curriculum["blind"] = CurriculumTermCfg(func=blind_curriculum, params={"ramp_steps": BLIND_RAMP_STEPS, "t0": 0})
 
     if start_hold:

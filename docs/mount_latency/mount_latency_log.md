@@ -322,3 +322,47 @@ Eval when finished: the round 5 sweep (task `-Latch45-Hold`), the foot probe and
 **Node (open):** `deploy/bitbots/mount_obs.py` and the bitbots_main node: latch tilt from the YAML (`on_ball.max_tilt`, 0.79 for this task; the class default is still 0.35), and the 1 s hold (`start_hold_s`): send the home pose and a last-action input of 0 for 1 s after activation.
 
 **Round 6 conclusion (Nov 3 2026):** blind balance on the ball was never learned, by any policy. `bl2` (blind at once), `bl3` (blindness curriculum) and `bl4` (curriculum + mount deadline) all keep the stance only while the ball input is there; once blind they fall, and then avoid the ball. The earlier "blind on the ball" results never tested it (the latch never fired). Open: is blind balance feasible with this actor input (5 frames = 0.1 s of proprioceptive history)? Next options: drop spawns (start on the ball, blind from step 1) to train and test blind balance without the mount risk; a longer history (input size change: new variant, actor padded); or a deployment-realistic ball input on the ball (the ball filter's estimate frozen at the latch instead of zeros).
+
+## Round 7 (`kb1`): kinematic ball estimate on the ball
+
+From the round 6 conclusion. Every policy depends on the ball input in the stance, and the zeros after the latch carry nothing. Standing on the ball, though, the robot knows where the ball is without the camera: the centre lies below the support sole, along the sole normal, by the ankle's height above the contact (0.045 m, `ON_BALL_Z_CENTER`) plus the ball radius (known: the ball in use). Task `...-Latch45-Hold-KinBall` (`kin_ball=True`), on top of `-Latch45-Hold`:
+- **Ball input after the latch** (`kinematic_ball_pos`, in `ball_pos_until_on_ball(kinematic=...)`): that estimate in the base frame instead of zeros, plus a per-episode error ±1.5 cm per axis (`KIN_BALL_BIAS`: encoder bias 0.03 rad over the ~0.5 m leg) and the term's ±2 cm per-step noise (pessimistic for forward kinematics). Same input size and meaning as before the latch, so the `nr1-up6` actor warm-starts on it unchanged; a new variant because an actor input's content changes (AGENTS.md).
+- **Support foot:** the higher ankle (gravity frame). Probe on `nr1-up6`'s stance steps: right 99.4%; nearest under the base 96%, under the CoM 81%; the lower ankle (first try) is the free foot, error 25 cm.
+- No blindness curriculum: the input never goes away.
+- ponytail: the sim uses the true ankle pose, not forward kinematics of the biased encoders; the encoder error is the per-episode bias above.
+
+Probe `logs/probes/kin_ball_probe.py` (`nr1-up6` `model_55947` zero-shot, 20 ms, noise on, 1024 envs): estimate error in stance steps (without the bias and noise) median 2.1 cm, p95 4.3 cm, mean (+0.7, −0.1, +0.2) cm. Alive at 4 s 13% (with zeros: 0-4%), 27k stance steps (zeros: ~1k).
+
+**Node:** `deploy/bitbots/mount_obs.py` computes the same estimate (`kinematic_ball`) from the ankle roll links' poses in the IMU frame (forward kinematics / tf) when `kin_ball_radius` is set; `scripts/export_mount.py` writes `on_ball.kin_ball_radius` (size 5 by default: set to the ball in use; null for the zero-input tasks) and `ankle_above_contact`. Sim2sim (`scripts/sim2sim_onnx.py`, export of `nr1-up6` on the task): ball input robot-side against training max diff 6e-7. The other inputs still differ (max 3.9), because the node does not do the 1 s start hold yet (open, round 6).
+
+Start: the padded `nr1-up6` init of `bl3` (copied to `piplus_ball_mountmin_blindonball_latency_big_onefoot_level_noiseramp_latch45_hold_kinball/2026-11-03_00-00-00_init-padded-from-nr1-up6`), 4000 iterations, 2048 envs, seed 42, the round 5 overrides (`upright` 6), noise ramp from 0.25× (`t0` 1 021 760), as `bl3`.
+
+| Run | wandb | Outcome |
+|-----|-------|---------|
+| `kb1` | `9gf1yy24` | Finished Nov 3 2026 (`model_59946`). Episode length 62 → ~500 by iteration ~57000, then flat (500-600) to the end; stance reward per episode 0.05 → 3.3-3.6 (`nr1-up6` with the ball visible: 7.2-7.7); falls 11 → 2.5 per log interval. |
+
+**Eval `kb1` `model_59946`** (task `-KinBall`, noise on, bias ±0.03, 2048 envs, seed 0; `logs/probes/sweep_kb1.txt`). Success (old test / strict / level) by size 3 / 4-5, then overall level success and survival.
+
+| Condition | size 3 | size 4-5 | overall level, survive |
+|---|---|---|---|
+| latency 10 ms | 6 / 5 / 5% | 16 / 13 / 12% | **8%**, 93% |
+| latency 20 ms | 9 / 8 / 6% | 12 / 11 / 10% | **8%**, 93% |
+| latency 30 ms | 3 / 3 / 2% | 6 / 5 / 5% | **4%**, 86% |
+| latency 40 ms | 0% | 1 / 1 / 0% | **0%**, 59% |
+| latency 10-40 ms, jitter | 1% | 5 / 4 / 3% | **2%**, 81% |
+| 20 ms sensor delay + 10 ms | 3 / 3 / 2% | 7 / 6 / 5% | **3%**, 86% |
+| 20 ms, r 0.10 | | 11 / 9 / 9% | **9%**, 95% |
+| 20 ms, r 0.11 | | 16 / 15 / 14% | **14%**, 93% |
+| 20 ms, kp/kd ×0.5-0.8 | 0% | 2 / 2 / 1% | **1%**, 55% |
+| 20 ms, noise off | 28 / 28 / 27% | 36 / 36 / 36% | **31%**, 96% |
+
+Latch probe (20 ms, noise): latched among alive 100%, alive 97% at 10 s, 93% at 19 s. Kin-ball probe: estimate error in stance median 1.45 cm, p95 3.3 cm; higher-ankle pick right 99.998%. Foot probe: sole 8.7° from horizontal, foot 9.9° from the top, ankle roll +0.32 rad (at the stop 0%), **base tilt 20.7°** (`nr1-up6`: 28.5°). Stance probe (latched, alive, after 5 s, noise on): one level foot on the ball 90% of steps (none 10%), free sole ≥10 cm clear 85% (median 13.4 cm), CoM within 12 cm of the ball centre 99% (median 2.7 cm), full stance test 77%.
+
+**Findings**
+- **First policy that balances on the ball without the camera:** 93% survive 20 s at 10-20 ms, all of them latched (blind). `bl2`-`bl4` and `nr1-up6` with zeros: 0% on the ball.
+- **The success rate undercounts it:** success needs the stance test in ≥90% of the last 3 s; the policy is in it 77% of the time (single leg, CoM 2.7 cm off the centre), dropping out on the level sole (10%) and the 10 cm clearance (15%). Survival is the measure of the blind balance; the success rate is of a clean, held stance.
+- Noise costs most again (20 ms: 31% level success without, 8% with), and 30-40 ms, jitter and soft motors cost survival (59-86%).
+- Lean 28.5° → 20.7°, the first real change in the lean: the kinematic input does not reward leaning on the ball.
+- Training plateaued by ~57000 of 59946.
+
+**Next (open):** (a) a looser success test to compare with deployment (e.g. on the ball, single leg, ≥70% of the last 3 s), or reward terms for the steps that drop out (level sole, clearance); (b) the node: ankle poses from tf, start hold, latch tilt 0.79, `kin_ball_radius` of the real ball; (c) the real noise levels (rosbag), still the largest cost.

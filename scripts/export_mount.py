@@ -24,6 +24,7 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import _joint_limit_clip
+from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import BALL_SIZES, ON_BALL_Z_CENTER
 from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import START_HOLD_S, HoldJointPositionAction
 
 parser = argparse.ArgumentParser()
@@ -76,7 +77,11 @@ params = {
         "lower_limits": [limits[n][0] for n in names],
         "upper_limits": [limits[n][1] for n in names],
     },
-    "on_ball": {"height": float(ball_term["height_threshold"]), "max_tilt": float(ball_term["max_tilt"])},
+    "on_ball": {"height": float(ball_term["height_threshold"]), "max_tilt": float(ball_term["max_tilt"]),
+                # -KinBall: kinematic ball estimate on the ball. Set to the real ball's radius (m);
+                # null = zeros on the ball. Default: size 5.
+                "kin_ball_radius": BALL_SIZES[5][0] if ball_term.get("kinematic") is not None else None,
+                "ankle_above_contact": ON_BALL_Z_CENTER},
     # Home pose (action 0, last-action input 0) this long after activation, then the policy.
     "start_hold_s": START_HOLD_S if isinstance(term, HoldJointPositionAction) else 0.0,
     "phase": {"use_phase": False, "control_dt": float(u.step_dt), "gait_frequency": 0.0},
