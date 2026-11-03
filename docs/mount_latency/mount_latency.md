@@ -217,6 +217,8 @@ The action covers all 20 joints: target = home + 0.5 × action, clipped to the j
 
 ## Open
 
+- The support leg is turned ~120° at the thigh (yaw) joint in every policy since the `mm1` cold start: cold start with the thigh limited, in [mount_straight](../mount_straight/mount_straight.md).
+
 - The real loop latency: measure on the robot (joint step command → encoder response, or IMU stamp → motor command + bus time) and narrow or widen the range.
 - Each episode starts with lag 0 until the first resample (mjlab's delay buffer resets the lag to 0; with hold 0.9 that lasts ~50 ms). Harmless at the start pose.
 - `torque_demand` uses the current target while the actuator applies a delayed one (see the term); harmless as a penalty on the command, but not the torque at that moment.

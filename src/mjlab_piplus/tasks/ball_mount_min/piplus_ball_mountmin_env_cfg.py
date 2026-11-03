@@ -21,11 +21,17 @@ from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
+from mjlab.utils.lab_api.math import quat_apply
+
+from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
 
 from mjlab_piplus.tasks.ball_mount.events import ball_rolling_resistance
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     BALL_SIZES,
+    COM_OVER_BALL,
     _ball_radius,
+    _com_to_ball,
+    _sole_clearance,
     _support_foot,
     ball_contact_sensors,
     ball_pos_until_on_ball,
@@ -160,10 +166,22 @@ _LEG = ("hip_roll", "hip_pitch", "thigh", "calf", "ankle_pitch", "ankle_roll")
 FREE_CLEAR_NEAR, FREE_CLEAR_FAR = 0.03, 0.10  # m, free ankle to ball surface: 0 at NEAR, 1 from FAR
 
 
-def _single_support(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg):
-    """([B] bool single support with a level sole, [B] index of the support foot, 0 = right)."""
+# Gate (gate): st1 parked on the floor with a sole flat on the ball top, which passes the plain
+# single-support test, so the -FreeLeg/-Straight terms paid for parking. Gated, they also need
+# the weight over the ball and the free sole off the floor. docs/mount_straight.
+GATE_FREE_CLEARANCE = 0.03  # m, free sole's lowest corner above the floor (stage 1 stance clearance)
+
+
+def _single_support(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False):
+    """([B] bool single support with a level sole, [B] index of the support foot, 0 = right).
+    `gated`: also CoM within COM_OVER_BALL of the ball centre and the free sole above
+    GATE_FREE_CLEARANCE (a real stance, not a sole resting on the ball from the floor)."""
     sup = _support_foot(env, foot_cfg, ball_cfg, None, "level")
-    return sup.sum(-1) == 1, sup[:, 1].long()
+    single, si = sup.sum(-1) == 1, sup[:, 1].long()
+    if gated:
+        free_clear = _sole_clearance(env, foot_cfg)[torch.arange(env.num_envs, device=env.device), 1 - si]
+        single = single & (_com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < COM_OVER_BALL) & (free_clear > GATE_FREE_CLEARANCE)
+    return single, si
 
 
 class posture_free_leg(envs_mdp.posture):
@@ -176,31 +194,63 @@ class posture_free_leg(envs_mdp.posture):
         leg = lambda side: [n.startswith(side) and any(f"_{j}_joint" in n for j in _LEG) for n in names]
         self.free_mask = torch.tensor([leg("l_"), leg("r_")], device=env.device)  # row = support foot
 
-    def __call__(self, env, std, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg):
+    def __call__(self, env, std, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False):
         robot = env.scene[asset_cfg.name]
         err = ((robot.data.joint_pos[:, asset_cfg.joint_ids] - self.default_joint_pos[:, asset_cfg.joint_ids]) / self.std) ** 2
-        single, si = _single_support(env, foot_cfg, ball_cfg)
+        single, si = _single_support(env, foot_cfg, ball_cfg, gated)
         w = (~(self.free_mask[si] & single.unsqueeze(-1))).float()
         return torch.exp(-(err * w).sum(-1) / w.sum(-1))
 
 
-def free_foot_ball_clear(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
+def free_foot_ball_clear(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False) -> torch.Tensor:
     """Single support: free ankle origin's distance to the ball surface, 0 at FREE_CLEAR_NEAR,
     1 from FREE_CLEAR_FAR (kb1: ~2.5 cm, hovering over the edge)."""
-    single, si = _single_support(env, foot_cfg, ball_cfg)
+    single, si = _single_support(env, foot_cfg, ball_cfg, gated)
     pos = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, :3]
     free = pos[torch.arange(env.num_envs, device=env.device), 1 - si]
     gap = (free - env.scene[ball_cfg.name].data.root_link_pos_w).norm(dim=-1) - _ball_radius(env, ball_cfg, None)
     return ((gap - FREE_CLEAR_NEAR) / (FREE_CLEAR_FAR - FREE_CLEAR_NEAR)).clamp(0, 1) * single
 
 
-def support_hip_vel(env, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
+def support_hip_vel(env, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False) -> torch.Tensor:
     """Single support: squared joint velocity of the support leg's hip roll, hip pitch, thigh and
     calf (ankle exempt), so the balance moves to the ankle. `asset_cfg` joints: right leg's four,
     then the left's."""
-    single, si = _single_support(env, foot_cfg, ball_cfg)
+    single, si = _single_support(env, foot_cfg, ball_cfg, gated)
     qd2 = env.scene[asset_cfg.name].data.joint_vel[:, asset_cfg.joint_ids].square().view(env.num_envs, 2, -1).sum(-1)
     return qd2[torch.arange(env.num_envs, device=env.device), si] * single
+
+
+# Straight (straight): every policy since the mm1 cold start stands on the ball with the support
+# thigh (yaw) joint at -117 to -135 deg, the foot pointing 120-160 deg away from the torso
+# (logs/probes/foot_yaw_probe.py). The joint is narrowed in the model (not only the target clip),
+# so the posture is out of reach; home is 0. docs/mount_straight.
+THIGH_LIMIT = 0.6  # rad
+_THIGHS = ("r_thigh_joint", "l_thigh_joint")
+
+
+def _spec_straight():
+    spec = get_spec_with_arms()
+    for j in spec.joints:
+        if j.name in _THIGHS:
+            j.range = [-THIGH_LIMIT, THIGH_LIMIT]
+    return spec
+
+
+def _yaw(q: torch.Tensor) -> torch.Tensor:
+    """Heading (rad) of the body x axis in the world xy plane."""
+    x = quat_apply(q, torch.tensor([1.0, 0.0, 0.0], device=q.device).expand(q.shape[:-1] + (3,)))
+    return torch.atan2(x[..., 1], x[..., 0])
+
+
+def support_foot_heading(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False) -> torch.Tensor:
+    """Single support: cos of the yaw between the support foot and the torso, clamped to [0, 1]."""
+    single, si = _single_support(env, foot_cfg, ball_cfg, gated)
+    robot = env.scene[foot_cfg.name]
+    feet = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 3:7]
+    foot = feet[torch.arange(env.num_envs, device=env.device), si]
+    torso = robot.data.body_link_pose_w[:, robot.body_names.index("torso_link"), 3:7]
+    return torch.cos(_yaw(foot) - _yaw(torso)).clamp_min(0.0) * single
 
 
 def ankle_roll_excess(env, asset_cfg: SceneEntityCfg, limit: float) -> torch.Tensor:
@@ -237,6 +287,8 @@ def piplus_ball_mountmin_env_cfg(
     latch_fix: bool = False,
     kin_ball: bool = False,
     free_leg: bool = False,
+    straight: bool = False,
+    gate: bool = False,
     start_hold: bool = False,
     deadline: bool = False,
 ) -> ManagerBasedRlEnvCfg:
@@ -259,7 +311,9 @@ def piplus_ball_mountmin_env_cfg(
     `kin_ball`: once latched, the kinematic ball estimate instead of zeros (no blindness
     curriculum: the input never goes away). `free_leg`: in single support the free leg is out of
     `posture` and paid for clearing the ball, and the support leg's hip and knee joints cost
-    velocity (balance with the ankle)."""
+    velocity (balance with the ankle). `straight`: thigh (yaw) joints limited to +-THIGH_LIMIT in
+    the model and the target clip, and the support foot paid for pointing like the torso.
+    `gate`: the -FreeLeg and -Straight terms pay only in a real stance (`_single_support(gated=True)`)."""
     cfg = piplus_ball_mountbalance_env_cfg(
         play, mount_fraction=1.0, flat_sole=True, bounded_actions=bounded_actions
     )
@@ -340,6 +394,20 @@ def piplus_ball_mountmin_env_cfg(
         hips = tuple(f"{side}_{j}_joint" for side in ("r", "l") for j in _LEG[:4])
         r["support_hip_vel"] = RewardTermCfg(func=support_hip_vel, weight=-0.01, params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=hips, preserve_order=True), "foot_cfg": feet, "ball_cfg": ball})
+
+    if straight:
+        robot = cfg.scene.entities["robot"]
+        cfg.scene.entities["robot"] = replace(robot, spec_fn=_spec_straight)
+        clip = cfg.actions["joint_pos"].clip
+        assert clip is not None, "straight needs bounded_actions"
+        cfg.actions["joint_pos"].clip = {**clip, **{n: (-THIGH_LIMIT, THIGH_LIMIT) for n in _THIGHS}}
+        r["support_foot_heading"] = RewardTermCfg(func=support_foot_heading, weight=1.0,
+            params={"foot_cfg": SceneEntityCfg("robot", body_names=_FEET), "ball_cfg": SceneEntityCfg("ball")})
+
+    if gate:
+        for k in ("posture", "free_foot_ball_clear", "support_hip_vel", "support_foot_heading"):
+            if k in r and "foot_cfg" in r[k].params:
+                r[k].params = {**r[k].params, "gated": True}
 
     if big_ball:
         hi = cfg.events["ball_size"].params["ranges"][1]

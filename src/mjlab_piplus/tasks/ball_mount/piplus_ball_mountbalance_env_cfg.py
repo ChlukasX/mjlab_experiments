@@ -71,10 +71,13 @@ def action_excess(env) -> torch.Tensor:
     rad beyond the limits (bang-bang through the torque limit); this is 0 for any target
     inside the range, so it does not pull a well-behaved policy toward the home pose."""
     term = env.action_manager.get_term("joint_pos")
-    if not hasattr(env, "_joint_range"):
-        limits = _joint_limit_clip()
-        env._joint_range = torch.tensor([limits[n] for n in term.target_names], device=env.device)
-    lo, hi = env._joint_range[:, 0], env._joint_range[:, 1]
+    if term.cfg.clip is not None:  # the task's own target clip (it may narrow a joint, -Straight)
+        lo, hi = term._clip[:, :, 0], term._clip[:, :, 1]
+    else:
+        if not hasattr(env, "_joint_range"):
+            limits = _joint_limit_clip()
+            env._joint_range = torch.tensor([limits[n] for n in term.target_names], device=env.device)
+        lo, hi = env._joint_range[:, 0], env._joint_range[:, 1]
     target = env.action_manager.action * term._scale + term._offset
     return ((lo - target).clamp(min=0.0) + (target - hi).clamp(min=0.0)).sum(dim=-1)
 

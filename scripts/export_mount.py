@@ -23,7 +23,6 @@ from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import _joint_limit_clip
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import BALL_SIZES, ON_BALL_Z_CENTER
 from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import START_HOLD_S, HoldJointPositionAction
 
@@ -62,7 +61,7 @@ mj = u.sim.mj_model
 robot = u.scene["robot"]
 act = {mj.actuator(f"robot/{n}").trnid[0]: mj.actuator(f"robot/{n}") for n in robot.actuator_names}
 jid = {n: mj.joint(f"robot/{n}").id for n in names}
-limits = _joint_limit_clip()
+limits = {n: tuple(float(x) for x in mj.joint(f"robot/{n}").range) for n in names}  # the task's model (-Straight narrows the thigh)
 ball_term = cfg.observations["actor"].terms["ball_pos"].params
 params = {
     "model": f"{args.name}.onnx",
