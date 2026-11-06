@@ -43,7 +43,6 @@ from mjlab_piplus.common.balls import (
 )
 from mjlab_piplus.common.rewards import base_height_gauss, xy_centering
 from mjlab_piplus.robot.piplus_constants import (
-    ACTUATOR_5036,
     FULL_COLLISION,
     HOME_KEYFRAME,
     PIPLUS_ARTICULATION,

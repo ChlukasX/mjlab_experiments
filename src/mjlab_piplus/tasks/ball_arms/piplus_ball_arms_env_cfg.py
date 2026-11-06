@@ -39,7 +39,6 @@ from mjlab_piplus.common.rewards import base_height_gauss, xy_centering
 from mjlab_piplus.robot.piplus_constants import (
     FULL_COLLISION,
     HOME_KEYFRAME_WITH_ARMS,
-    get_piplus_robot_with_arms_cfg,
 )
 
 
