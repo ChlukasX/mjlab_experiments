@@ -18,9 +18,11 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
     piplus_ball_mountbalance_ppo_runner_cfg,
 )
 
-# Recorded with scripts/record_mount_states.py from mm4-dr-exc on the fitted-head, randomized-contact
-# model, with the mount policy's last action (not in git: regenerate). Runs up to bs2 used mm3-c10-s16.pt.
-MOUNT_STATES = "logs/mount_states/mm4-dr-exc.pt"
+# Recorded with scripts/make_mount_states.py from mm4-dr-exc on the fitted-head, randomized-contact
+# model, with the mount policy's last action (not in git: make it with the command in that script's
+# docstring). Runs up to bs2 used mm3-c10-s16.pt. Before Nov 6 2026 the path was
+# logs/mount_states/mm4-dr-exc.pt (record_mount_states.py, in the tag two-policy-chain).
+MOUNT_STATES = "data/mount_states/mm4-dr-exc.pt"
 
 
 def piplus_ball_balancefrommount_env_cfg(

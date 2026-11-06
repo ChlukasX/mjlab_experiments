@@ -24,3 +24,7 @@ Earlier results that decide the approach: stronger smoothness penalties from scr
 - **`action_rate`** 5 times larger (−0.05).
 
 Acceptance: the audit within the three thresholds, and at least 50% success in the real hand-off (`scripts/eval_handoff.py ... --balance-task Mjlab-Piplus-Ball-BalanceFromMount-Clip --balance-bounded`; `bfm1-warm`: 70%). `--balance-bounded` (also in `scripts/play_chain.py`) keeps the joint-target clip after the switch.
+
+## Re-run
+
+`BalanceFromMount-Clip` needs the file `data/mount_states/mm4-dr-exc.pt`. Make it, and train and evaluate `bs4-exc100-ar2`, as described under Re-run in [balance_from_mount](../balance_from_mount/balance_from_mount.md). The launch arguments of every round (`bs1` to `bs4`) are in [runs_index.md](../runs_index.md).
