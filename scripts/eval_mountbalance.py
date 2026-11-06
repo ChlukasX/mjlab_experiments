@@ -10,10 +10,15 @@ Envs are binned by their own randomized ball radius and by spawn mode.
 
     uv run python scripts/eval_mountbalance.py \
         --checkpoint logs/rsl_rl/piplus_ball_mountbalance/<run>/model_N.pt
+
+`--probe` (posture, saturation), `--audit` (action size against the clip and the joint limits)
+and `--gait` (free-foot placement, floor taps, stance length, foot heading) add diagnostics.
 """
 
 import argparse
 from dataclasses import asdict
+
+import math
 
 import torch
 
@@ -22,6 +27,7 @@ from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
+from mjlab.utils.lab_api.math import quat_apply
 
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     COM_OVER_BALL,
@@ -47,6 +53,13 @@ parser.add_argument("--free-foot-clearance", type=float, default=FREE_FOOT_LIFT,
                     help="m the free foot must clear the floor in the success test")
 parser.add_argument("--probe", action="store_true",
                     help="also print the posture and actuator saturation over the last 3 s")
+parser.add_argument("--audit", action="store_true",
+                    help="also print the action audit: raw output size against the runner's clip, targets outside "
+                    "the joint limits, action change per step (limits: mean |a| 1.0, outside 2%%, change 0.30)")
+parser.add_argument("--gait", action="store_true",
+                    help="also print how the stance holds on the ball (after 3 s): free foot relative to the support "
+                    "foot and CoM relative to the ball in the torso heading frame, free-sole floor taps, stance "
+                    "segment lengths, support foot heading against the torso")
 parser.add_argument("--torsional", type=float, default=None,
                     help="feet get condim 6 with this torsional friction coefficient (m), a check of the spin")
 parser.add_argument("--cone", choices=["pyramidal", "elliptic"], default=None, help="override the friction cone")
@@ -152,7 +165,8 @@ if args.floor_history:
 # resting tilted on the ball passes (two-foot stance; see docs/mount_latency/mount_latency_log.md).
 if not any(s.name in FOOT_BALL_SENSORS for s in cfg.scene.sensors):
     cfg.scene.sensors += ball_contact_sensors(cfg.decimation)
-env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev), clip_actions=load_rl_cfg(args.task).clip_actions)
+clip = load_rl_cfg(args.task).clip_actions
+env = RslRlVecEnvWrapper(ManagerBasedRlEnv(cfg, device=dev), clip_actions=clip)
 u = env.unwrapped
 runner_cls = load_runner_cls(args.task) or MjlabOnPolicyRunner
 runner = runner_cls(env, asdict(load_rl_cfg(args.task)), device=dev)
@@ -186,11 +200,47 @@ force_max = torch.tensor(
 probe = {k: torch.zeros(u.num_envs, device=dev) for k in ("com", "base", "free_z", "sole", "on_floor", "on_ball", "yaw", "ball_yaw", "tilt")}
 saturated = torch.zeros(u.num_envs, len(robot.actuator_names), device=dev)
 
+# Audit: raw policy output (before the runner's clip) and the joint targets it asks for.
+aterm = u.action_manager.get_term("joint_pos")
+a_names = list(aterm.target_names)
+a_jids = [int(robot.indexing.joint_ids[robot.joint_names.index(n)]) for n in a_names]
+j_lo = torch.tensor([mj.jnt_range[j, 0] for j in a_jids], device=dev)
+j_hi = torch.tensor([mj.jnt_range[j, 1] for j in a_jids], device=dev)
+audit = {"abs": [], "outside": 0.0, "change": 0.0, "n": 0}
+prev_action = None
+
+# Gait: heading frame of the torso (x forward, y left).
+torso_id = robot.body_names.index("torso_link")
+ar = torch.arange(u.num_envs, device=dev)
+gait = {"off": [], "com": [], "yaw": [], "seg": [], "taps": 0.0, "steps": 0.0}
+seg_len = torch.zeros(u.num_envs, device=dev)
+free_down_prev = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
+
+
+def heading(q):
+    x = quat_apply(q, torch.tensor([1.0, 0.0, 0.0], device=q.device).expand(q.shape[:-1] + (3,)))
+    return torch.atan2(x[..., 1], x[..., 0])
+
+
+def to_heading(v, h):  # world xy -> torso heading frame
+    c, s_ = torch.cos(h), torch.sin(h)
+    return torch.stack([c * v[:, 0] + s_ * v[:, 1], -s_ * v[:, 0] + c * v[:, 1]], dim=-1)
+
+
 for step in range(n_steps):
     with torch.no_grad():
         action = policy(obs)
     obs, _, dones, _ = env.step(action)
     failed |= dones.bool()
+    if args.audit and step >= n_steps - last:
+        a = action[~failed]
+        target = a * aterm._scale + aterm._offset[~failed] if torch.is_tensor(aterm._offset) else a * aterm._scale + aterm._offset
+        audit["abs"].append(a.abs().flatten())
+        audit["outside"] += ((target < j_lo) | (target > j_hi)).float().mean().item()
+        if prev_action is not None:
+            audit["change"] += (action - prev_action)[~failed].abs().mean().item()
+        audit["n"] += 1
+    prev_action = action.clone()
     stance = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z, COM_OVER_BALL, args.free_foot_clearance) > 0
     new = stance & first_stance.isnan() & ~failed
     first_stance[new] = step * u.step_dt
@@ -215,6 +265,24 @@ for step in range(n_steps):
         probe["ball_yaw"] += u.scene["ball"].data.root_link_vel_w[:, 5]
         probe["tilt"] += torch.acos((-robot.data.projected_gravity_b[:, 2]).clamp(-1, 1)).rad2deg()
         saturated += (robot.data.actuator_force.abs() > 0.95 * force_max).float()
+    if args.gait and step * u.step_dt > 3.0:
+        on = ~failed & getattr(u, "_on_ball_latch", _support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1))
+        sup = _support_foot(u, foot_cfg, ball_cfg, None, "level")
+        si = sup[:, 1].long(); fi = 1 - si; single = sup.sum(dim=-1) == 1
+        held = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, "level", STAND_FOOT_Z, COM_OVER_BALL, args.free_foot_clearance) > 0
+        pose = robot.data.body_link_pose_w[:, foot_cfg.body_ids]
+        h = heading(robot.data.body_link_pose_w[:, torso_id, 3:7])
+        k = on & single & held
+        gait["off"].append(to_heading(pose[ar, fi, :2] - pose[ar, si, :2], h)[k])
+        gait["com"].append(to_heading(-_com_to_ball(u, foot_cfg, ball_cfg), h)[k])
+        gait["yaw"].append(torch.remainder(heading(pose[ar, si, 3:7]) - h + math.pi, 2 * math.pi)[k] - math.pi)
+        down = _sole_clearance(u, foot_cfg)[ar, fi] < 0.01
+        gait["taps"] += (on & down & ~free_down_prev).sum().item()
+        free_down_prev = down
+        gait["steps"] += on.sum().item()
+        ended = on & ~held & (seg_len > 0)
+        gait["seg"].append(seg_len[ended] * u.step_dt)
+        seg_len = torch.where(on & held, seg_len + 1, torch.zeros_like(seg_len))
 
 success = ~failed & (hold / last >= args.hold_frac)
 strict = ~failed & (hold_strict / last >= args.hold_frac)
@@ -261,3 +329,28 @@ if args.probe:
         print("  share of steps at the force limit (>95%): " + ", ".join(
             f"{n} {x:.0%}" for n, x in zip(robot.actuator_names, sat.tolist()) if x > 0.02
         ) or "  none")
+
+if args.audit:
+    A = torch.cat(audit["abs"])
+    q = A.quantile(0.95).item() if A.numel() < 16_000_000 else float("nan")
+    print(f"\nAction audit, last 3 s, envs alive (limits: mean |a| 1.0, targets outside 2%, change 0.30):")
+    print(f"  raw |a| mean {A.mean().item():.2f}, median {A.median().item():.2f}, p95 {q:.2f}"
+          + (f", past the +-{clip:g} clip {(A > clip).float().mean().item():.0%}" if clip else ""))
+    print(f"  targets outside the joint limits {audit['outside'] / max(audit['n'], 1):.1%}, "
+          f"mean |action change| per step {audit['change'] / max(audit['n'] - 1, 1):.3f}")
+
+if args.gait:
+    off, com, yaw, seg = (torch.cat(gait[k]) for k in ("off", "com", "yaw", "seg"))
+    cm = lambda x, p: x.quantile(p).item() * 100
+    print(f"\nGait on the ball (after 3 s, envs alive and on the ball; heading frame x forward, y left):")
+    if len(off):
+        print(f"  in stance: free foot - support foot x median {cm(off[:, 0], .5):+.1f} cm (p10 {cm(off[:, 0], .1):+.1f}, p90 "
+              f"{cm(off[:, 0], .9):+.1f}), y {cm(off[:, 1], .5):+.1f} cm; behind (< -3 cm) {(off[:, 0] < -0.03).float().mean().item():.0%}, "
+              f"in front (> 3 cm) {(off[:, 0] > 0.03).float().mean().item():.0%}")
+        print(f"  CoM - ball centre x {cm(com[:, 0], .5):+.1f} cm, y {cm(com[:, 1], .5):+.1f} cm; "
+              f"support foot heading - torso median {yaw.median().rad2deg().item():+.0f} deg (p10 {yaw.quantile(.1).rad2deg().item():+.0f}, "
+              f"p90 {yaw.quantile(.9).rad2deg().item():+.0f})")
+    tot = gait["steps"] * u.step_dt
+    print(f"  stance {len(off) / max(gait['steps'], 1):.0%} of the on-ball steps; free-sole floor taps "
+          f"{gait['taps'] / max(tot, 1e-9) * 10:.1f} per 10 s; stance segments "
+          + (f"median {seg.median().item():.2f} s, p90 {seg.quantile(.9).item():.2f} s (n {len(seg)})" if len(seg) else "none"))

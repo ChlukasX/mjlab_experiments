@@ -28,7 +28,7 @@ All terms, sensors and inputs exist from step 0 (built from `piplus_ball_mountmi
 
 **Judgement:** if stage 0 has not advanced by ~3000 iterations, the straight-leg mount is the blocker, not the curriculum: rerun with the full thigh range.
 
-Check `logs/probes/test_curriculum.py`: forcing each stage sets the expected weights, params, ranges, lag, noise and latch in the running managers; the ball is resampled from size 3 up on reset in stage 4; the advance rule moves at share 0.6 after 300 iterations, not before, not at 0.3; thigh range ±0.6.
+Check (a one-off script, not kept): forcing each stage sets the expected weights, params, ranges, lag, noise and latch in the running managers; the ball is resampled from size 3 up on reset in stage 4; the advance rule moves at share 0.6 after 300 iterations, not before, not at 0.3; thigh range ±0.6.
 
 ## Variants (added after the first runs)
 
@@ -52,7 +52,7 @@ Also fixed during the runs: the stage clock starts at the first call with a non-
 
 ## Next steps
 
-1. **Stop the tap:** warm-start from `cur4c` `model_24450` (or `cur4b` `model_21600`) at stage 8 with (a) a penalty on free-sole floor contact while latched on the ball, and (b) a stance-duration bonus that grows with the length of the current stance (so one long stance beats many short ones). Reward-only change: same inputs and network, actor and critic both load. Measure with `logs/probes/free_foot_place_probe.py` (taps per 10 s, stance segment length) and the held-stance success of the sweep.
+1. **Stop the tap:** warm-start from `cur4c` `model_24450` (or `cur4b` `model_21600`) at stage 8 with (a) a penalty on free-sole floor contact while latched on the ball, and (b) a stance-duration bonus that grows with the length of the current stance (so one long stance beats many short ones). Reward-only change: same inputs and network, actor and critic both load. Measure with `scripts/eval_mountbalance.py --gait` (taps per 10 s, stance segment length, free-foot placement) and the held-stance success of the sweep.
 2. **Only if the free foot stays behind:** a placement term for the free foot to the side or front of the support foot. Without the tap incentive the rear placement may change by itself.
 3. **Physical limit check:** if stances stay short with tapping penalized, test whether a still stance on a size 3-5 ball is possible with the 5036 ankle torque (e.g. a drop spawn onto the ball with the same rewards, or a higher ankle torque limit as a probe).
 4. **Real thigh range:** the policy uses +26° (p90 +42°); check this against the Pi Plus thigh joint before deploying.
