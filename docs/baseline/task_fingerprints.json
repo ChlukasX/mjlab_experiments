@@ -1,0 +1,253 @@
+{
+ "mjlab_version": "1.6.0",
+ "tasks": {
+  "Mjlab-Piplus-Ball": {
+   "env": "e3c96d1e65fe4d5adb9498a56bf9549f8679dcbc3bc072bc07ce81b581505e6a",
+   "play": "61031debb4b0d239821c9ce8b1e4d9030ee4f48e620147b5fff221ea6b8cec1f",
+   "rl": "b22d903d74eb671e22d2db98c9bb879de2747df179c22ff9cfdac71d54b107a3"
+  },
+  "Mjlab-Piplus-Ball-Arms": {
+   "env": "73cc3d702a21a23f145ce92137915af802d57fcf92f9cc2833aa85dcf3d0e26e",
+   "play": "aceb250912bc94ebb68fc21a5bd336865f06459c78a4614d2557fefb17b0f151",
+   "rl": "62a108fda3649fd5f1caa39569d0ad9fece38caf42ef6798ed6186cb6381afa0"
+  },
+  "Mjlab-Piplus-Ball-Balance-Size1": {
+   "env": "43bc88c894f7babcf09ebf357b6c0fcbc9b3fbc01f4d403f4411b0772992cdf1",
+   "play": "e1e8331224b248768830b2e15395d3eacb04f3f6b05c8467a4b53777c33736ce",
+   "rl": "aa6201ed1ef795d48efa2bd91933983222f66477e6847714c7f650f4f63226ef"
+  },
+  "Mjlab-Piplus-Ball-BalanceFromMount": {
+   "env": "65fa36fe3d2a185b865d82617f265a426b8e53a2989b7c8af68d42a374da05f8",
+   "play": "0e0fa6b23147b9f07b214aabd32a20d3a8ee1d21351610320ae0b8a21aa4990d",
+   "rl": "705106e90808d6dce1aa897c15fce4402a9cfef7bd407604728ae24c9df80657"
+  },
+  "Mjlab-Piplus-Ball-BalanceFromMount-Clip": {
+   "env": "1f5518dd45b75c899ffd0890b14b56b794e4594e4b68d23c88ffa9ccc26824b1",
+   "play": "a2dbae85557f2d4fbebb78113bab306839ce3da9efd285e8acd7a22082a11b43",
+   "rl": "084afc940ae9c460b9d0a850665c786d2da23f5faa443734454ac0f0e81438e9"
+  },
+  "Mjlab-Piplus-Ball-BalanceFromMount-Mix50": {
+   "env": "c4c7f4a6a0e3ed877d22c3060fa22376c16a1de2118781c6b2e402a1bbd516f7",
+   "play": "4f1deb5b3ef0118cdb3b14f17c2b1c7e38c90673546f0768f587149cd83191cf",
+   "rl": "06ceafbc984f4681bec782279dd344285042bc171bb4d6778744d8922c7ea5a0"
+  },
+  "Mjlab-Piplus-Ball-Chain": {
+   "env": "5ff127e9a07241d8be4fe9da36fdf834056543729aef27ce5fb1d3408d2d3853",
+   "play": "a945fc5ef174a111e21b2e36319b87306b48bc7f5188ec08f0ccb7b6240edfd8",
+   "rl": "cfff6d68b17b47498135b3a6fc5166944c40360d0ee1cd49497f0897258cd059"
+  },
+  "Mjlab-Piplus-Ball-Mount": {
+   "env": "6479015544d5c112b2e8a6cab0d7fa16da5ec7e2b90ec9bf85e7d3df49a9627e",
+   "play": "e38827e500b346466f9f529a001982c3a055653b222edac251c55956dde35cf8",
+   "rl": "516fa54b538a173d0c25c05f70a33c60338ef1101c41501a0c853caf3b057a2a"
+  },
+  "Mjlab-Piplus-Ball-Mount-Flat": {
+   "env": "da0f05210d78d035d02baa2e48f13a46b5aeeff4210c2d1e5ab5d274c2eaf4c1",
+   "play": "0baa1d78537a00fecabcbab6c913b206cc03566a2360a02821dbfd70441ba2ba",
+   "rl": "2b06a7a21e1f77d47535cae6c94254b2d7b6264bd29c52f493afac27ef12caa0"
+  },
+  "Mjlab-Piplus-Ball-Mount-Size1": {
+   "env": "f4dda6892ddfbbb9174adfce8316f1031f2dbc81c932b671090ae7ebd7c7981d",
+   "play": "c86731ac20113326c47e155dce4e96f1a186be7801017a378a99cfbbadcdc797",
+   "rl": "922874b23d3e7abbf467b1881bb3f655585be558ea5afdcfa7bdd9d2d6352699"
+  },
+  "Mjlab-Piplus-Ball-Mount-Size1-Flat": {
+   "env": "07bd4e5fdc0acff418d09610a22e9e8a820f68986571b607cc6f53df6cbf797a",
+   "play": "7192ae546d55979f211ab54637a46e591a277bfd7aada7f2a409268df45c6a01",
+   "rl": "ef014a8d334e0570ad9c0db42e734a4ad9edc0694bf4b7f6c70c8b41abee7479"
+  },
+  "Mjlab-Piplus-Ball-MountBalance": {
+   "env": "0ecf606744600afcbdce6cd442db20a27a55b4cc3dc1795fbc51522cfcafa3de",
+   "play": "f0f7a60d5ac0218f259b61a7c705f17f2acb064d26cfefda2362d6aeadfc0817",
+   "rl": "6a9c64afc0a09d7b60708de0b33ebdd99a6393d70a79b1aa15c93811082ab8af"
+  },
+  "Mjlab-Piplus-Ball-MountBalance-Clip": {
+   "env": "df9d0214d0b2590e3dbed30dd89a24bbb3496b31dc211edea2c293d8b908e4b5",
+   "play": "1fd184d10d19a05c2f78b10148cccc6cb6aee12eea1f0b3f587a444849d4b8f7",
+   "rl": "1ac2e68970c5c44bca2a64e8619b0d8564880424866e9717c5871c4727c47eed"
+  },
+  "Mjlab-Piplus-Ball-MountBalance-Mix0": {
+   "env": "ddad2d47dd98d71e4b8e9974e3806d02bddaedf16ad05dd3d0cd5a48cfc4a679",
+   "play": "5e8eae835ef0296d9119bd074cd837f34e12dfa4110f578b712f68807fcfea60",
+   "rl": "fc837873e2a123bfcaba61ac3b15340eedad16952a39f262882331b7052447dd"
+  },
+  "Mjlab-Piplus-Ball-MountBalance-Mix0-Clip": {
+   "env": "b18f9c4efd25258f1df022779bf1778fac501917f53c19fa73d1adf9648107ff",
+   "play": "ba9fd01e74b9d207dc4d28c708f238d491395eadfe95ab05a8bde7938fe04ebb",
+   "rl": "c5cdd4c97d9687d002e721c12ed099fcc20c6e27131662af28422f527c680215"
+  },
+  "Mjlab-Piplus-Ball-MountBalance-Mix100": {
+   "env": "3a94d31de02ddc01ddbfedfb89201571dd96fcac5da83779ed613a69b840da65",
+   "play": "5e90bd404586665289e553af8e298ec10f1bae8af16aec76196119ebc6c455b1",
+   "rl": "77bf13c0cc35c02c4dfacc7c3163928d42595fdd2ca92e0f04db77d41f01030e"
+  },
+  "Mjlab-Piplus-Ball-MountBalance-Mix100-Clip": {
+   "env": "52d0eaf914c46e0d1bde573540043e960475b9fd78e922e4ccb7c5bd893895e8",
+   "play": "8c408e6a3e55ea62240a6828ebb0321515c331f0d01742c0f080c897eb390809",
+   "rl": "3295b1bf482726d1ea7a62009a2f127613ac624742c5949a1bcfbfac4417226e"
+  },
+  "Mjlab-Piplus-Ball-MountBalance-Mix30": {
+   "env": "314d46b2b5c626bf5faf10d87d61bc3a47f3ea1a1766fc453709003cac2d00f3",
+   "play": "c78166cdc0d0ca30d074f27cebb688904cd7e1da4242fd7571c9b704f61bb406",
+   "rl": "a20a2bf023dfd35410c56ad7ca65c611e757a946cb94c1de6cfe7fca43f218b7"
+  },
+  "Mjlab-Piplus-Ball-MountBalance-Mix70": {
+   "env": "84a48a1e425b1ba32eb72cc478020daff236f9926742538a3957cce1aa70afed",
+   "play": "52de9796ce1e19678174653626b623902801ba95f65b0ab3a3f4bb9e5fcba7bd",
+   "rl": "6c62c7742f54d8c44689caf5a37b3d84e1118865c3135b5e764bcc5b7e9388b2"
+  },
+  "Mjlab-Piplus-Ball-MountCurr-Locked": {
+   "env": "8f49dd348abae23406dcbdf9b527770f1969d9309e8a360961701a9b2367ad39",
+   "play": "7e9e1a058b2237107d62ddc2b8bf97a33b273bdb74896d078ae0b6eab6fe7a57",
+   "rl": "77f16e7395aaecdb4ff4cc4a6911f91830fa848e8de55f3f011f59d8c047a5ce"
+  },
+  "Mjlab-Piplus-Ball-MountCurr-Pot": {
+   "env": "39ffe3819a73230b40c28a3b7ffef1c674843e3f15129cf8d9d3d1c665a382de",
+   "play": "7e9e1a058b2237107d62ddc2b8bf97a33b273bdb74896d078ae0b6eab6fe7a57",
+   "rl": "27fa841af55588f70271e2503d85c5a66ed73f1d49fb4abaf80d3dce7d0112b4"
+  },
+  "Mjlab-Piplus-Ball-MountCurr-Release": {
+   "env": "ddc2121686f9d61ee94a03e5dc3886220ba3acbe9fb2e7942ffcaea113d4a2ad",
+   "play": "6dc1c71e07649d5b72f98827ddbcd683f2188df690fd3a6c911b356865fc2736",
+   "rl": "a05d82d794a7e88764e55243e02b5f869f95af535c8da724c0bf16fbb328f104"
+  },
+  "Mjlab-Piplus-Ball-MountCurr-ReleasePot": {
+   "env": "00e4ff37114a5b10cef71922df90508e68b432886d92971404112119abced87c",
+   "play": "7e9e1a058b2237107d62ddc2b8bf97a33b273bdb74896d078ae0b6eab6fe7a57",
+   "rl": "7080af10a15baed41efd8f9e0f63c160f9820dbb8695d10e0abd44430785fb31"
+  },
+  "Mjlab-Piplus-Ball-MountMin": {
+   "env": "b516f450dff40b207e3999e504865418cbdb3b4dc6bd325a18c38e23cf4443a2",
+   "play": "986a1802a0882550601a25b5a90db7845bd29afb6ddccbe188429f4b88c1362e",
+   "rl": "f156db90874b02e3dc8806d7bc4737a9c8b33435bb583da1b0aa6d1895162f2e"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall": {
+   "env": "860205b76a76ec637f1204312279586750e00d98a2c4d1a46e9e498e0b451f60",
+   "play": "c277fec111a5732f61c2f1cb5c1a02e83871c955f7115583defe36b9b1d94470",
+   "rl": "d8549c0468c1fde699fd76ab7bf3fc83df9311cd060bf77404a949ae1f33ef0b"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency": {
+   "env": "cca2e31504bb3583042b3d97667ab35dce54d7494a5d18dd2d4bc6633e48e715",
+   "play": "a865000cbf713be915704a823b20eb2abe978bd6ef520949e4d25f565304e069",
+   "rl": "e7bd2d25478a79bd72bcb6fb71a6ba0394dc30b11481da34be41b96d8144b874"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big": {
+   "env": "f2c7b2e61f10e5a267336b02e06499b92570568a9992650578cd13d1dc03c251",
+   "play": "c603f37896f1e39f90f88a0680436303c4bff7ecf13a2b658dcdc88c174821b7",
+   "rl": "53888fa77f12dcdb4d6a9b86a93c50ff26061154d28287f71dcecb25bac29d56"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot": {
+   "env": "7774d22e40d878e730cde208ab903543d9476756c1d4ccd12e26acae0f58ab0e",
+   "play": "b5435b2f99c9c2049678db24a634be246168055c96875843cfd2a3f68fef87d5",
+   "rl": "4ee6124a114cf3bf66dbe7b7298ecb22e89305b14c5c4d803f69b9a5b47752db"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level": {
+   "env": "18a73e08f5807c9be0769236d0b2e979d8acc66593264ed3f9261f2dc58a69b8",
+   "play": "b8fb632b48f9b46007ddf6e4c9eb765a6210e500f66e9321ba05b0eb85f847d9",
+   "rl": "2307bf9180a660cbbc369e2643da335e3f6007404eedf002684e53dab97f5894"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp": {
+   "env": "500ec4eb7591def38b04805185eeb8cba009a72313f97773b791b93109c55feb",
+   "play": "b8fb632b48f9b46007ddf6e4c9eb765a6210e500f66e9321ba05b0eb85f847d9",
+   "rl": "4623dbeeffaadf37f5e01154c7a64274d6c0ab77636871c8e076d1bd44d8ceb7"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold": {
+   "env": "a79c4f254483e1691b427248a9c91ac6ea53158180996d73f6a412c2bf621d3b",
+   "play": "ff38bd881e71c135df76a6e00452339b9f1791b026a7085e83c00df583009b6a",
+   "rl": "62b95a61406fb4f4fc65d4205215b4286a7febfd63a9cf9c4f74dee3671723a5"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-Deadline": {
+   "env": "1074c81747e8c60d4eb628cb44cbd589fb918e4e06ab3ecc4b3be8d6e99c354f",
+   "play": "ff38bd881e71c135df76a6e00452339b9f1791b026a7085e83c00df583009b6a",
+   "rl": "ae11fa321480b894ccd392d9155bf983964b4f159b309c3737bacef267527dc5"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall": {
+   "env": "ddf0b4caba70fc12ea34a19d1ac1fe825fc09375f33634fe6049d905fe7490db",
+   "play": "cad0d44b6cbd679abfe98913ef2f7cb89498776d4a54996ade6cb69299949601",
+   "rl": "83660dbff7d118364aa06a2ff039d6022fa67c9b5bc2a99493b13297496e857c"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall-FreeLeg": {
+   "env": "3c8f00193c3601f1c58a319ca5c872232a86f5941ce985d897d90f84489531ff",
+   "play": "59c66feb5dfb34ba62c69a930a8e5aab6f758e3ed88cf00c6fff220ae32b0f9d",
+   "rl": "521f889d1560963426a5648dfe19fcaa979f3f137fc81edaa5d2bdc3a7c9db05"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall-FreeLeg-Straight": {
+   "env": "897fcd4de8ed63d71129ff44f303c5b131b1c176d7d7ff91555e0115bf56ddcb",
+   "play": "6a07cb2b8adefb1abdda46b603b1950aeb169ef39288a72f56420e9af023c3ce",
+   "rl": "53d1fdca9a0c858b1a2452c90729d59fe71061ee4c8ff0037eb9c3c8f4dd8ffb"
+  },
+  "Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall-FreeLeg-Straight-Gate-Deadline": {
+   "env": "71bd73e6627e860de102a16e59faccd4597e49b3611b4795eb154ab04077597f",
+   "play": "19d255259944bd6fb49510876121be007161ee1bfcf551e75dcff101529a92a8",
+   "rl": "83137382b761ea1298ab8bfaf564cf2cc035fa8d5af7e83395298ff4b8aff811"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Clip": {
+   "env": "5ff127e9a07241d8be4fe9da36fdf834056543729aef27ce5fb1d3408d2d3853",
+   "play": "e3afb36928628ea2dfa9bf4e19052e1543c7a1f0c5bdcd2cabeb6edde6322d09",
+   "rl": "cfff6d68b17b47498135b3a6fc5166944c40360d0ee1cd49497f0897258cd059"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum": {
+   "env": "6f25abca064b96a7dcdc8d3dd736baf54e23eefeb39ff936e32bf5ccc48392cf",
+   "play": "e0a9fad7c6f3698a25cf653de6a567cc23e19fbff02ad48acdd5e492d58c6396",
+   "rl": "59fb35e503763b2c6130b8914781072bc74aa7ea35ee8a10d0c7c20d8dc6816f"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh": {
+   "env": "b282127f782213341132d254f63f7f1554c59cd2e355804e0d3e5fde874ddba1",
+   "play": "6c7deffaccbfef9177d7fa7a114693f32facb147ae4aeb44c02edc61dbf5155e",
+   "rl": "6dffb02a53a60da6f89256d8da14165b66e32eb3eccf1fa396ee99d9fb956996"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp": {
+   "env": "0a636e35e2181da7b8af63e1a54a77ee8874b3f4700888a6154c5679af1a89df",
+   "play": "6c7deffaccbfef9177d7fa7a114693f32facb147ae4aeb44c02edc61dbf5155e",
+   "rl": "dd910e798bb6d077a714f0bd71c8e9ad63a5a1306eced6bdee9a307caaa45a95"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess": {
+   "env": "598eb64d0ed7eb3ca4a4f4f317b7f950d5053e2db2df451fce4758363205dde9",
+   "play": "6c7deffaccbfef9177d7fa7a114693f32facb147ae4aeb44c02edc61dbf5155e",
+   "rl": "f536498568bd9582e9e32e42fbacf3d767c43c89288502178490e25355765e58"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Locked": {
+   "env": "2545d234dca1090c0431d318a946b175bee039da4c9a342fd13d6046925d8ac0",
+   "play": "986a1802a0882550601a25b5a90db7845bd29afb6ddccbe188429f4b88c1362e",
+   "rl": "c83b32f00da55b9fb9ef1fca9e291da7f51b5c12b9f68d9797e1ef75836aa957"
+  },
+  "Mjlab-Piplus-Ball-Small": {
+   "env": "7b089e8e9286c6340cdab778c73eb543d50e7f4c0fd2c88f73f32c4afa50616f",
+   "play": "473a4dc07082b96219a341e7c532bf2452d86466b128149b61f687c3fc3f145b",
+   "rl": "87d70fc71ac1c1f40357d8051b506f404831f5b76ea3c118f7f066adfc9efab9"
+  },
+  "Mjlab-Piplus-Ball-Small-Turf": {
+   "env": "2a9335f7dfd64fc6d160a051e8bf5f648e934b54a56ed50ceb570393199f7e75",
+   "play": "66538b630a16a6c235356f9ac5aa471fe41abc5638a315e0a25faa0b7330b7b6",
+   "rl": "87d70fc71ac1c1f40357d8051b506f404831f5b76ea3c118f7f066adfc9efab9"
+  },
+  "Mjlab-Piplus-Locomotion": {
+   "env": "7e736884ba6a5e3d0f2104a3cbcb5be79674c547860f40325929bf7c4cf7a46f",
+   "play": "18df0e549be2e037c9b603a924c7a035c6217de0621ff367cf5743cc23d8bc40",
+   "rl": "124ce730b1a908025853a611df9e76561813879fbbacdf586ff6a5e4eeb80d55"
+  },
+  "Mjlab-Piplus-Locomotion-Arms": {
+   "env": "200c986b62b0bef91089f4a577ceaff1d716456fa408d9a81a1a8371c5fee4a5",
+   "play": "d55ea80e7f64ee9ddc581b0b9afabfb5d916118cf6d33254e6a5591a6a9612f1",
+   "rl": "b2391c016746c3daef4995e64aef9f1f2d7f3f55ae7d9fcec9f59c927c9005cc"
+  },
+  "Mjlab-Piplus-NonInertial": {
+   "env": "0aacb7287b923cbd0622965147a7db4f249c12a5e34292284531b475b40499c7",
+   "play": "c7bc1936fd0d6529662f6d5f65caa735a2345dc655828b7ee8b22134a776680a",
+   "rl": "223c56a885a9b0cafafff6a7e82040ce61ff39fa7a0ccf913eaa19b73945ebe1"
+  },
+  "Mjlab-Piplus-Platform": {
+   "env": "ae0140793c4890a16eac34b3f917ba83d3af05bd8867188122b61a39b622b315",
+   "play": "7ecd2f7bcaef52e11720f7b6563681cf9e44936e221561bbbb75b7ec77c1c784",
+   "rl": "a1d5dfd15ca61a3796bee9d4f2e74b628920f3dbd50e3b00f97a9d700c945a7d"
+  },
+  "Mjlab-Piplus-Upright": {
+   "env": "0ba6bb5ee40f6ff628692049ad8a34468b1a3fe9a18b6cebfa95f7bb91d27e46",
+   "play": "618f4e6075d940f2949c3a4009f70814dfeedb7f4d1610fe558dd803ec2553e6",
+   "rl": "40eb925053e6d63d6ba0afdbed9110707d0d2a5e8062b58316fff24c8f85c874"
+  }
+ },
+ "protected_checkpoints": {
+  "logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess/2026-11-06_10-05-48_cur4c/model_24450.pt": "83ec928cf688e4d64af330dd5b7980f7fec9fa8ce6bb34498e6b9ff5d105fa45"
+ }
+}
