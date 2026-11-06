@@ -21,3 +21,14 @@ mjlab_piplus = "mjlab_piplus.tasks"
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not checkpoints'"
+markers = ["checkpoints: loads every checkpoint under logs/rsl_rl (about 1 minute on the CPU)"]
