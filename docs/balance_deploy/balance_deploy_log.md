@@ -4,7 +4,7 @@ One row per audit or run; add a row at launch and fill in the result when it fin
 
 ## Action audit (Oct 9 2026)
 
-`scripts/audit_policy.py`, 256 envs, 10 s, play config (observation noise off, pushes on), deterministic policy.
+`scripts/audit_policy.py` (removed; now `eval_mountbalance.py --audit`; [git history](../README.md#conventions-shared-by-all-experiments)), 256 envs, 10 s, play config (observation noise off, pushes on), deterministic policy.
 
 | Policy | Checkpoint | Survived 10 s | mean \|action\| | 95th pct | max | targets outside joint limits | PD torque saturated (legs / all) | mean \|action change\| per step |
 |--------|-----------|---------------|----------------|----------|-----|------------------------------|-----------------------------------|-------------------------------|

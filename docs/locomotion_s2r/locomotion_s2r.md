@@ -1,6 +1,6 @@
 # Locomotion S2R (phase 1)
 
-Branch: `feat/locomotion-s2r` — **placeholder, not started**
+Planned branch: `feat/locomotion-s2r` (not created yet) — **placeholder, not started**
 
 Locomotion-Arms v2 with the same sim2real setup as Ball-Small, so it can serve as the frozen low-level skill under the ball approach policy.
 

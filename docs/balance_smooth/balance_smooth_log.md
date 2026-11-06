@@ -13,7 +13,7 @@ Launched Oct 13 2026 on the working tree of `feat/balance-smooth` (on top of `f1
 | `bs1-clip-exc-ar5` | `BalanceFromMount-Clip` | `btz25yy8` | clipped | −0.02 | −0.05 | Does a 5x rate penalty on top smooth it, and at what cost? | **Collapsed:** episode 20 steps, reward 0.1. Hand-off 0%. |
 | `bs1-exc-ar5` | `BalanceFromMount` | `w9yny0st` | unbounded | −0.02 | −0.05 | Is the clip needed when the penalties are there? | **Collapsed:** episode 16 steps. Hand-off 0%. |
 
-All four finished (`model_16997`). Audit: `scripts/audit_policy.py`, 256 envs, 10 s, hand-off-state starts. Hand-off: `scripts/eval_handoff.py`, 1024 envs, 20 s, mount policy `mm3-c10-s16`, `--hold 0.2 --switch-clearance 0.06` (`--balance-bounded` for the clipped ones).
+All four finished (`model_16997`). Audit: `scripts/audit_policy.py` (removed; now `eval_mountbalance.py --audit`; [git history](../README.md#conventions-shared-by-all-experiments)), 256 envs, 10 s, hand-off-state starts. Hand-off: `scripts/eval_handoff.py` (removed; [git history](../README.md#conventions-shared-by-all-experiments)), 1024 envs, 20 s, mount policy `mm3-c10-s16`, `--hold 0.2 --switch-clearance 0.06` (`--balance-bounded` for the clipped ones).
 
 | Policy | mean \|action\| (limit 1.0) | Targets outside limits (limit 2%) | Action change per step (limit 0.30) | Leg torque saturated | Hand-off success | By ball size (1-2 / 3 / 4-5) |
 |---|---|---|---|---|---|---|
@@ -57,7 +57,7 @@ All four finished (`model_20996`), evaluated on the model they were trained on (
 - The termination penalty does not help.
 
 **Changes for round 3**
-- `scripts/record_mount_states.py` also stores the mount policy's last action; `reset_from_mount_states` hands it to the new observation `last_action_restored`, which puts it into the action buffers after the spawn (the "last action" observation and the reference of the action-rate penalty).
+- `scripts/record_mount_states.py` (removed; now `scripts/make_mount_states.py`; [git history](../README.md#conventions-shared-by-all-experiments)) also stores the mount policy's last action; `reset_from_mount_states` hands it to the new observation `last_action_restored`, which puts it into the action buffers after the spawn (the "last action" observation and the reference of the action-rate penalty).
 - New robot and contact model (fitted head box, contact time constant 0.01 to 0.03 s; [collision_check](../collision_check/collision_check.md)). The mount policy is resumed on it first (`mm4-*` in [ball_mount_rewards_log](../ball_mount_rewards/ball_mount_rewards_log.md)); its hand-off states are then recorded again and the balance policy resumed on them.
 
 ## Round 3 (`bs3-*`): new model, new hand-off states with the last action
@@ -85,7 +85,7 @@ All three finished (`model_24995`). New model; hand-off with mount policy `mm4-d
 - **Robust to the mount policy:** with the later mount policy `mm5-exc-ar2` (not the one the states were recorded from) `bs3-exc25-ar2` still gives 95%.
 - Still above the limits on action size (1.45) and targets outside the range (6.3%); the action change is inside (0.29).
 
-Best pair: mount `piplus_ball_mountmin_clip/*_mm5-exc-ar2/model_17995.pt`, balance `piplus_ball_balancefrommount_clip/*_bs3-exc25-ar2/model_24995.pt` (the defaults of `scripts/play_chain.py`; headless check, 512 envs, 20 s: 549 switches, 37 falls after a switch).
+Best pair: mount `piplus_ball_mountmin_clip/*_mm5-exc-ar2/model_17995.pt`, balance `piplus_ball_balancefrommount_clip/*_bs3-exc25-ar2/model_24995.pt` (the defaults of `scripts/play_chain.py` (removed; [git history](../README.md#conventions-shared-by-all-experiments)); headless check, 512 envs, 20 s: 549 switches, 37 falls after a switch).
 
 ## Round 4 (`bs4-*`)
 

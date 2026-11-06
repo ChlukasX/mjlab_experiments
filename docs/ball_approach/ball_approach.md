@@ -1,6 +1,6 @@
 # Ball Approach (phase 3)
 
-Branch: `feat/ball-approach` — **placeholder, not started**
+Planned branch: `feat/ball-approach` (not created yet) — **placeholder, not started**
 
 High-level policy that walks the robot to the ball.
 

@@ -13,7 +13,7 @@ Launched Oct 12 2026 on the working tree of `feat/balance-from-mount` (on top of
 | `bfm1-scratch` | `BalanceFromMount` | scratch | `9uk2bz7l` | Is the balance learnable from the hand-off states alone? | Hand-off 66% success. 8000 it: reward 24, episode 197/1000, `single_leg_stance` 0.50 of 4. |
 | `bfm1-scratch-mix50` | `BalanceFromMount-Mix50` | scratch | `gw4slcjf` | Same with drops in the mix. | Hand-off 61% success, drops 59%. 8000 it: reward 19, episode 168, `single_leg_stance` 0.46. |
 
-Eval of the warm starts (`model_12998`, 1024 envs, 20 s, run on cl06). Success = stance with the free sole 10 cm clear, CoM over the ball, flat sole, for 90% of the last 3 s. Hand-off: mount policy `mm3-c10-s16` `model_11997` from the standing start, switch after 0.2 s in the stance with the free sole 6 cm clear (`scripts/eval_handoff.py --hold 0.2 --switch-clearance 0.06 --balance-task Mjlab-Piplus-Ball-BalanceFromMount`).
+Eval of the warm starts (`model_12998`, 1024 envs, 20 s, run on cl06). Success = stance with the free sole 10 cm clear, CoM over the ball, flat sole, for 90% of the last 3 s. Hand-off: mount policy `mm3-c10-s16` `model_11997` from the standing start, switch after 0.2 s in the stance with the free sole 6 cm clear (`scripts/eval_handoff.py --hold 0.2 --switch-clearance 0.06 --balance-task Mjlab-Piplus-Ball-BalanceFromMount` (removed; [git history](../README.md#conventions-shared-by-all-experiments))).
 
 | Balance policy | From recorded hand-off states | From drops | **Real hand-off** | Hand-off by ball size (1-2 / 3 / 4-5) |
 |---|---|---|---|---|

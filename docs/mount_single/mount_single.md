@@ -1,10 +1,12 @@
 # One policy for mount and stance
 
-Branch: `feat/mount-single` (off `feat/balance-smooth`) — **in progress**
+Branch: `feat/mount-single` (deleted; was off `feat/balance-smooth`). Commits: `git log --oneline --grep '^mount-single:'`.
+
+**Status (Nov 6 2026): superseded.** The single policy was reached here (`ms3-shell` 98%; `bob1` blind on the ball 95%) and exported as `bob2-up05` ([deploy_mount](../deploy_mount/deploy_mount.md)). The work went on in [mount_latency](../mount_latency/mount_latency.md), [mount_straight](../mount_straight/mount_straight.md) and [mount_curriculum](../mount_curriculum/mount_curriculum.md). The open questions at the end of this file are still open.
 
 Decision (Oct 14 2026): continue with a single policy that mounts the ball and holds the single-leg stance, instead of a mount policy plus a balance policy with a switch. The mount policy `mm7-exc200-ar2` alone reaches 87% (the pair 91 to 96%), and one policy needs no switcher on the robot. The two-policy state is tagged `two-policy-chain` (commit `746982e`) to come back to. Runs: [mount_single_log.md](mount_single_log.md). History of the policy: [ball_mount_rewards_log](../ball_mount_rewards/ball_mount_rewards_log.md).
 
-Task `Mjlab-Piplus-Ball-MountMin-Clip`; evaluate with `scripts/eval_mountbalance.py --task Mjlab-Piplus-Ball-MountMin-Clip --checkpoint <model> --probe` and `scripts/audit_policy.py`.
+Task `Mjlab-Piplus-Ball-MountMin-Clip`; evaluate with `scripts/eval_mountbalance.py --task Mjlab-Piplus-Ball-MountMin-Clip --checkpoint <model> --probe` and `scripts/audit_policy.py` (removed; now `eval_mountbalance.py --audit`; [git history](../README.md#conventions-shared-by-all-experiments)).
 
 ## The spin (Oct 14 2026)
 

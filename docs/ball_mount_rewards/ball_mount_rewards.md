@@ -1,6 +1,6 @@
 # Ball mount: pruned rewards, staged stance target
 
-Branch: `feat/ball-mount-rewards` (off `feat/ball-mount-curriculum`) — **done**: first real mount; the policy line continues as `mm4` to `mm7` (log below) and then in [mount_single](../mount_single/mount_single.md).
+Branch: `feat/ball-mount-rewards` (deleted; was off `feat/ball-mount-curriculum`). Commits: `git log --oneline --grep '^ball-mount-rewards:'`. — **done**: first real mount; the policy line continues as `mm4` to `mm7` (log below) and then in [mount_single](../mount_single/mount_single.md).
 
 Goal: the mount (standing beside the ball to a single-leg stance on top of it) with a smaller reward set. Review of all earlier mount results, what was wrong with the rewards, and the tasks that test the fix. Runs: [ball_mount_rewards_log.md](ball_mount_rewards_log.md). Earlier rounds: [mount_feasibility](../mount_feasibility/mount_feasibility.md), [ball_mount](../ball_mount/ball_mount_log.md), [mount_potential](../mount_potential/mount_potential_log.md).
 
@@ -58,5 +58,5 @@ Three stages (3 cm from scratch, then 6 cm, then 10 cm; `mm1` to `mm3` in the [l
 ## Success criteria
 
 - Stage 1: at least 50% of mounts hold the stance with the free sole 3 cm clear over the last 3 s (`scripts/eval_mountbalance.py --task <task> --free-foot-clearance 0.03 --probe`).
-- Final: the same at 10 cm (the script's default), then the hand-off test (`scripts/eval_handoff.py`) with `mb3-mix0` as the balance policy.
+- Final: the same at 10 cm (the script's default), then the hand-off test (`scripts/eval_handoff.py` (removed; [git history](../README.md#conventions-shared-by-all-experiments))) with `mb3-mix0` as the balance policy.
 - If `-Locked` does not load the ball leg either, test cause 5 directly (torque on the ball leg, nominal mass, a lower step) before more reward work.

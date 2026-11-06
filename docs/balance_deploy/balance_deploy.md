@@ -1,6 +1,6 @@
 # Balance policy for the real robot
 
-Branch: `feat/balance-deploy` — **audit done; superseded**: the bounded-action retraining of plan item 1 was done in [balance_smooth](../balance_smooth/balance_smooth.md) and [mount_single](../mount_single/mount_single.md) (the audit tool is in that line of branches). Plan item 2 (export and checklist) is open and now belongs to the deployment of the single policy (see the deployment check in mount_single).
+Branch: `feat/balance-deploy` (deleted). Commits: `git log --oneline --grep '^balance-deploy:'`. — **audit done; superseded**: the bounded-action retraining of plan item 1 was done in [balance_smooth](../balance_smooth/balance_smooth.md) and [mount_single](../mount_single/mount_single.md) (the audit tool is in that line of branches). Plan item 2 (export and checklist) is open and now belongs to the deployment of the single policy (see the deployment check in mount_single).
 
 Goal: put a balance policy on the real Pi Plus, mounting the ball by hand. Runs and audit results: [balance_deploy_log.md](balance_deploy_log.md).
 
@@ -8,7 +8,7 @@ Goal: put a balance policy on the real Pi Plus, mounting the ball by hand. Runs 
 
 Only proprioception-only actors can run on the robot (joint encoders and IMU): `Mjlab-Piplus-Ball-Small`, `-Ball-Small-Turf` (size 5 football) and `Mjlab-Piplus-Ball-Balance-Size1` (size 1). The MountBalance actors also take a ball position and need a perception system.
 
-## Audit (`scripts/audit_policy.py`)
+## Audit (`scripts/audit_policy.py` (removed; now `eval_mountbalance.py --audit`; [git history](../README.md#conventions-shared-by-all-experiments)))
 
 Runs a checkpoint in its play config and reports how hard it drives the actuators: size of the actions (1 unit = 0.5 rad of joint-target offset from the home pose), share of commanded targets outside the joint limits, share of joint-steps where the PD torque saturates (legs: ±20 Nm at 0.4 rad of error, arms: ±10 Nm at 1.7 rad), and the mean change of the action per step. The thresholds in the script (mean |action| ≤ 1, ≤ 2% of targets outside the limits, action change ≤ 0.3 per step) are proposals to agree on, not measured limits.
 

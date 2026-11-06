@@ -1,12 +1,12 @@
 # Smoothing the balance policy
 
-Branch: `feat/balance-smooth` (off `feat/ball-chain`, plus the audit tool from `feat/balance-deploy`) — **done, parked**: balance `bs4-exc100-ar2` at the audit limits with 96% hand-off. On Oct 14 2026 the project switched to one policy ([mount_single](../mount_single/mount_single.md)); this two-policy state is tagged `two-policy-chain`.
+Branch: `feat/balance-smooth` (deleted; was off `feat/ball-chain`, plus the audit tool from `feat/balance-deploy`). Commits: `git log --oneline --grep '^balance-smooth:'`. — **done, parked**: balance `bs4-exc100-ar2` at the audit limits with 96% hand-off. On Oct 14 2026 the project switched to one policy ([mount_single](../mount_single/mount_single.md)); this two-policy state is tagged `two-policy-chain`.
 
 Goal: a balance policy for the chain (mount policy -> switch -> balance policy) whose actions a real actuator can follow, without losing the hand-off. Runs: [balance_smooth_log.md](balance_smooth_log.md).
 
 ## Starting point
 
-`scripts/audit_policy.py` (256 envs, 10 s, play config; thresholds are the proposals from [balance_deploy](../balance_deploy/balance_deploy.md)):
+`scripts/audit_policy.py` (removed; now `eval_mountbalance.py --audit`; [git history](../README.md#conventions-shared-by-all-experiments)) (256 envs, 10 s, play config; thresholds are the proposals from [balance_deploy](../balance_deploy/balance_deploy.md)):
 
 | Policy | mean \\|action\\| (limit 1.0) | Targets outside joint limits (limit 2%) | Mean action change per step (limit 0.30) | Leg torque saturated |
 |---|---|---|---|---|
@@ -23,7 +23,7 @@ Earlier results that decide the approach: stronger smoothness penalties from scr
 - **`action_excess` (new, weight 0 by default):** rad by which the commanded targets lie outside the joint ranges, summed over the joints. It is 0 for any in-range target, so it removes the bang-bang commands without pulling the posture toward the home pose.
 - **`action_rate`** 5 times larger (−0.05).
 
-Acceptance: the audit within the three thresholds, and at least 50% success in the real hand-off (`scripts/eval_handoff.py ... --balance-task Mjlab-Piplus-Ball-BalanceFromMount-Clip --balance-bounded`; `bfm1-warm`: 70%). `--balance-bounded` (also in `scripts/play_chain.py`) keeps the joint-target clip after the switch.
+Acceptance: the audit within the three thresholds, and at least 50% success in the real hand-off (`scripts/eval_handoff.py ... --balance-task Mjlab-Piplus-Ball-BalanceFromMount-Clip --balance-bounded` (removed; [git history](../README.md#conventions-shared-by-all-experiments)); `bfm1-warm`: 70%). `--balance-bounded` (also in `scripts/play_chain.py`) keeps the joint-target clip after the switch.
 
 ## Re-run
 

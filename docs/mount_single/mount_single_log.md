@@ -13,7 +13,7 @@ Resume `mm7-exc200-ar2` `model_23993`, 3000 iterations, 2048 envs, task `MountMi
 | `ms1-sat` | `1l6w28w3` | 0 | −2.0 | Does the saturation share come down without losing the stance? | Reward 286, episode 793. **94%**, spin 5.1 rad/s; saturation share barely moved. |
 | `ms1-yaw-sat` | `vg8jziyh` | −0.05 | −2.0 | Both together. | **Best.** Reward 211, episode 698. 93%, spin 1.9 rad/s, 80% under the changed friction model. |
 
-All four finished (`model_26992`). Eval: success = stance with the free sole 10 cm clear for 90% of the last 3 s (1024 envs, 20 s); "friction changed" = same with an elliptic cone and torsional friction 0.02 at the feet; audit = `scripts/audit_policy.py`.
+All four finished (`model_26992`). Eval: success = stance with the free sole 10 cm clear for 90% of the last 3 s (1024 envs, 20 s); "friction changed" = same with an elliptic cone and torsional friction 0.02 at the feet; audit = `scripts/audit_policy.py` (removed; now `eval_mountbalance.py --audit`; [git history](../README.md#conventions-shared-by-all-experiments)).
 
 | Run | Success (by ball size 1-2 / 3 / 4-5) | Survive | Spin (base / ball) | Success, friction changed (spin) | mean \|action\| (limit 1.0) | Targets outside limits (2%) | Action change per step (0.30) | Leg torque saturated |
 |-----|------|------|------|------|------|------|------|------|

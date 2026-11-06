@@ -1,10 +1,14 @@
 # Deploying the ball-mount policy on the Bit-Bots stack
 
-Branch: `feat/deploy-mount` (off `feat/mount-single`) — **export and sim2sim done; the policy is not robust to latency above 15 ms (see the [log](deploy_mount_log.md)), retraining before the robot side continues**
+Branch: `feat/deploy-mount` (deleted; was off `feat/mount-single`). Commits: `git log --oneline --grep '^deploy-mount:'`.
+
+**Status (Nov 6 2026): parked.** Export and sim2sim of `bob2-up05` are done (Oct 29 2026). That policy is not robust to latency above 15 ms (see the [log](deploy_mount_log.md)). The retraining went on in [mount_latency](../mount_latency/mount_latency.md), [mount_straight](../mount_straight/mount_straight.md) and [mount_curriculum](../mount_curriculum/mount_curriculum.md); those policies are **not exported**. Newest results: `lat2-big` 94 / 94 / 89 / 56% success on size 4-5 balls at 10 / 20 / 30 / 40 ms latency (with noise and bias); `cur4b` `model_21600` survival 96 / 98 / 93 / 68% at the same latencies, but it does not hold the stance. The robot-side node is not in this repository. The deploy strategy is to be decided; until then `deploy/` stays out of git and the two scripts below are parked.
 
 Policy: `piplus_ball_mountmin_blindonball/*_bob2-up05/model_39988.pt` (task `Mjlab-Piplus-Ball-MountMin-BlindOnBall`, 97% in simulation, best on size 3-5 balls; exported Oct 29 2026, replacing `bob1` `model_36989`, see [mount_single log](../mount_single/mount_single_log.md) round 5). The `bob1` export is kept as `deploy/bitbots/mount_ball_bob1.{onnx,yaml}`; the parameter files are identical. The robot-side node goes into `bitbots_main` (`bitbots_rl_motion`; a skeleton on `feature/balance_ball_rl`, not working yet); this repo provides the model, the parameters and a reference of the observation code.
 
 ## Files
+
+`deploy/` is not in git (decision of Nov 6 2026). The files below exist only on the machine that exported them.
 
 | File | What |
 |---|---|
@@ -13,6 +17,8 @@ Policy: `piplus_ball_mountmin_blindonball/*_bob2-up05/model_39988.pt` (task `Mjl
 | `deploy/bitbots/mount_obs.py` | reference observation and action code without ROS (what the node has to reproduce) |
 | `scripts/export_mount.py` | regenerates the two files above from a checkpoint (`uv run --with onnxruntime python scripts/export_mount.py --checkpoint <model.pt>`) |
 | `scripts/sim2sim_onnx.py` | runs the ONNX model in the simulation with `mount_obs.py` built from raw signals (encoder angles, IMU quaternion and gyro, ball in the IMU frame, base height) |
+
+`mount_ball.onnx` and `mount_ball.yaml` come back from `scripts/export_mount.py` and the checkpoint. `mount_obs.py` is in git history: `git show 993d320^:deploy/bitbots/mount_obs.py > deploy/bitbots/mount_obs.py`. `scripts/sim2sim_onnx.py` imports it, so it runs only where this file exists.
 
 Sim check (`sim2sim_onnx.py`, 20 s): `bob2-up05` **96% success, 97% survive** (512 envs; Oct 29 2026); `bob1` 93% / 97% (128 envs). Both with the ONNX model, batch-1 inference and the robot-side observation; the target computed by `mount_obs.py` equals the env's exactly. Both runs fed encoder angles with the ±0.015 rad encoder bias of the randomization, which the training observation never contained (mjlab's `joint_pos_rel` reads unbiased angles): the policy tolerates that offset (`bob1` 93% against 95%, `bob2-up05` 96% against 97%).
 
@@ -47,6 +53,6 @@ On-ball latch: base (IMU) height above the floor > 0.42 m while the tilt is belo
 
 ## Open on this side
 
-- **Latency (blocker):** training models a 0-15 ms actuator delay; success is 62% at 20 ms, 0% from 30 ms, and a 20 ms delay of the joint or gyro signals alone fails (see the [log](deploy_mount_log.md)). The real sensor-to-motor latency is not measured; it sets the range for the retraining.
+- **Latency (blocker for `bob2-up05`; trained away in later policies, which are not exported):** training models a 0-15 ms actuator delay; success is 62% at 20 ms, 0% from 30 ms, and a 20 ms delay of the joint or gyro signals alone fails (see the [log](deploy_mount_log.md)). The real sensor-to-motor latency is not measured; it sets the range for the retraining.
 - With the training observation noise and encoder bias on, success is 87% (71% on size 1-2 balls); evaluate with `--obs-noise` from now on.
 - Real motor torque limits and the real ball's mass and give are not measured (the policy's leg actuators sit at the model limit ~4% of the time).
