@@ -23,6 +23,8 @@ ROBOT_SPAWN_Z   = 0.75 m   (0.5 m above platform top — avoids spawn clipping)
 BASE_HEIGHT_TARGET = 0.60 m
 ```
 
+`get_platform_spec()` (in `tasks/platform/piplus_platform_env_cfg.py`) builds the platform as a body without joints and with a BOX geom. mjlab wraps it as a mocap entity.
+
 Platform motion (3 DOF sinusoids driven via mocap pose each control step):
 
 ```
