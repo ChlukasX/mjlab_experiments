@@ -62,7 +62,6 @@ The rewards and terminations are those of `Mjlab-Piplus-Ball-Mount-Flat`: foot o
 | `stand_tall` | +2.0 | With a foot on the ball: `exp(-((h − 0.30) / 0.10)²)`, h = base height above the ball top. |
 | `free_foot_lift` | +1.0 | With one foot on the ball: lift of the other foot, 0 to 1 over 10 cm of clearance. |
 | `single_leg_stance` test | | Other foot must now clear the floor by 10 cm (ankle above 0.15 m), was 3 cm (0.08 m). |
-
 | `support_on_ball` | +4.0 | Foot flat on the ball and whole-robot CoM within 0.12 m of the ball centre (`foot_on_ball` is now only a +1.0 touch bonus). |
 | `com_over_ball` | +2.0 | With a foot on the ball: `exp(-(d / 0.25)²)`, d = CoM-to-ball distance. |
 | `com_toward_ball_velocity` | +1.0 | Momentum: CoM speed toward the ball while it is not yet over it. |
