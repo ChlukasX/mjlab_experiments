@@ -73,3 +73,56 @@ Also fixed during the runs: the stage clock starts at the first call with a non-
 3. **Physical limit check:** if stances stay short with tapping penalized, test whether a still stance on a size 3-5 ball is possible with the 5036 ankle torque (e.g. a drop spawn onto the ball with the same rewards, or a higher ankle torque limit as a probe).
 4. **Real thigh range:** the policy uses +26° (p90 +42°); check this against the Pi Plus thigh joint before deploying.
 5. **Robot node:** the kinematic ball estimate (`kin_ball_radius`, ankle poses from tf), latch tilt 0.79 rad, no start hold in this task (the node's hold is for the `-Hold` tasks only).
+
+## Re-run
+
+The launch scripts `logs/probes/run_cur*.sh` are lost. The commands below are copied unchanged from [runs_index.md](../runs_index.md), which holds the arguments from the wandb metadata. Run the commands in the repository root.
+
+**Code.** Each run recorded the commit `1f8fe43755` with a dirty tree. The module `piplus_ball_mount_curriculum_cfg.py` was untracked at launch, so the saved diff (`git/mjlab_experiments.diff` in each run directory) does not hold it. The first commit that holds the module is `f8d4e38`. Its changes to the two tracked files (`ball_mount_min/__init__.py`, `piplus_ball_mountmin_env_cfg.py`) equal the saved diff of `cur4`, `cur4b`, and `cur4c`. The saved diffs of `cur1`, `cur2`, and `cur3` are shorter: they show earlier states of the same two files, so `f8d4e38` is not byte-identical to the code of these three runs. To re-run, check out `f8d4e38` and run `uv sync` (the environment comes from `uv.lock`).
+
+**Data and checkpoints.** No run needs a data file. `cur1`, `cur2`, and `cur4` are cold starts and need no checkpoint. The other runs resume a checkpoint:
+
+| Run | Resumes | Note |
+|---|---|---|
+| `cur3` | `piplus_ball_mountmin_curriculum_fullthigh_ramp/2026-11-05_00-00-00_init-from-cur2-15200` `model_15200` | A copy of `cur2` `model_15200` with the action noise std clamped to 1.0. The script that made the copy (`logs/probes/clamp_std_init.py`) is lost. `cur2` keeps only its last checkpoint (`model_19999`), so keep the copy |
+| `cur4b` | `2026-11-05_15-17-57_cur4` `model_12800` | |
+| `cur4c` | `2026-11-05_23-35-02_cur4b` `model_21600` | |
+
+**Runs.** Start `cur1`, `cur2`, and `cur4` in any order. Start `cur4b` after `cur4`, and `cur4c` after `cur4b`.
+
+| Run | wandb | Last checkpoint | Outcome |
+|---|---|---|---|
+| `cur1` | `ef6lg6t0` | `model_3050` | Stopped at stage 0: never mounted (thigh ±0.6 rad) |
+| `cur2` | `g9ud6tzg` | `model_19999` | Collapsed in stage 3 |
+| `cur3` | `zrb014gg` | `model_19850` | Collapsed in stage 3 (two shorter tries before it, same arguments) |
+| `cur4` | `n90vngh3` | `model_12800` | Stopped in stage 6 |
+| `cur4b` | `k6nfwd6c` | `model_21600` | Crashed at the stage 7 → 8 hand-over (fixed afterwards, see the run log) |
+| `cur4c` | `3z7h5zxk` | `model_24450` | Stopped in stage 8 (protected checkpoint, see `docs/baseline/task_fingerprints.json`) |
+
+The commands:
+
+```bash
+# cur1
+uv run train Mjlab-Piplus-Ball-MountMin-Curriculum --env.scene.num-envs 2048 --agent.max-iterations 20000 --agent.seed 42 --agent.run-name cur1
+
+# cur2
+uv run train Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh --env.scene.num-envs 2048 --agent.max-iterations 20000 --agent.seed 42 --agent.run-name cur2
+
+# cur3
+uv run train Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp --env.scene.num-envs 2048 --agent.resume True --agent.load-run 2026-11-05_00-00-00_init-from-cur2-15200 --agent.load-checkpoint model_15200.pt --env.curriculum.stage.params.start_stage 3 --agent.max-iterations 15000 --agent.seed 42 --agent.run-name cur3
+
+# cur4
+uv run train Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess --env.scene.num-envs 2048 --agent.max-iterations 30000 --agent.seed 42 --agent.run-name cur4
+
+# cur4b
+uv run train Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess --env.scene.num-envs 2048 --agent.resume True --agent.load-run 2026-11-05_15-17-57_cur4 --agent.load-checkpoint model_12800.pt --env.curriculum.stage.params.start_stage 7 --env.curriculum.stage.params.late_threshold 0.3 --agent.max-iterations 17200 --agent.seed 42 --agent.run-name cur4b
+
+# cur4c
+uv run train Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess --env.scene.num-envs 2048 --agent.resume True --agent.load-run 2026-11-05_23-35-02_cur4b --agent.load-checkpoint model_21600.pt --env.curriculum.stage.params.start_stage 8 --env.curriculum.stage.params.late_threshold 0.3 --agent.max-iterations 8400 --agent.seed 42 --agent.run-name cur4c
+```
+
+**Check.** Evaluate the end state (`cur4c` `model_24450`) with the command below. The numbers are not bit-exact on the same GPU: five identical runs gave survival of 92 to 97% (success, strict success, and level success were 0% in all five).
+
+```bash
+uv run python scripts/eval_policy.py --task Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess --checkpoint logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess/2026-11-06_10-05-48_cur4c/model_24450.pt --num-envs 64 --seed 0
+```
