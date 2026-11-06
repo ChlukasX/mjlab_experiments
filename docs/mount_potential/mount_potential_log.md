@@ -1,10 +1,12 @@
-# Ball mount curriculum: run log
+# mount_potential run log
 
-One row per run, newest last; add a row at launch and fill in the result when it finishes. Design: [ball_mount_curriculum.md](ball_mount_curriculum.md). Shared conventions: [../README.md](../README.md).
+Formerly `ball_mount_curriculum`. Not the same experiment as [mount_curriculum](../mount_curriculum/mount_curriculum.md).
+
+One row per run, newest last; add a row at launch and fill in the result when it finishes. Design: [mount_potential.md](mount_potential.md). Shared conventions: [../README.md](../README.md).
 
 ## Round 1
 
-From scratch, mounts only, 2048 envs, 6000 iterations, settings as in the [design doc](ball_mount_curriculum.md) (`num_steps_per_env` 64, `gamma` 0.995, entropy 0.003, bounded actions, rebalanced weights). Launched Oct 9 2026 at commit `7290a9a`; 2 runs on the local GPU, 2 on cl06. All four share the log dirs `logs/rsl_rl/piplus_ball_mountcurr_<variant>`.
+From scratch, mounts only, 2048 envs, 6000 iterations, settings as in the [design doc](mount_potential.md) (`num_steps_per_env` 64, `gamma` 0.995, entropy 0.003, bounded actions, rebalanced weights). Launched Oct 9 2026 at commit `7290a9a`; 2 runs on the local GPU, 2 on cl06. All four share the log dirs `logs/rsl_rl/piplus_ball_mountcurr_<variant>`.
 
 | Run | Task | Where | wandb | Outcome |
 |-----|------|-------|-------|---------|

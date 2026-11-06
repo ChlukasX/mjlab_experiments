@@ -9,74 +9,28 @@ uv sync
 uv run wandb login   # required for training
 ```
 
-## Experiments
+## Where to find things
 
-| Task | Description |
+| What | Where |
 |---|---|
-| `Mjlab-Piplus-Upright` | Baseline: stand upright on flat terrain |
-| `Mjlab-Piplus-NonInertial` | Sinusoidal forces on root body simulating platform acceleration |
-| `Mjlab-Piplus-Platform` | Physical 3 m × 3 m mocap platform with roll, pitch, heave (boat motion) |
-| `Mjlab-Piplus-Locomotion` | Velocity-tracked walking on flat terrain (legs only) |
-| `Mjlab-Piplus-Locomotion-Arms` | Same, with arms actuated |
-| `Mjlab-Piplus-Ball` | Balance on a large free-rolling ball (0.45 m radius) |
-| `Mjlab-Piplus-Ball-Arms` | Same, with arms actuated |
-| `Mjlab-Piplus-Ball-Small` | Single-leg balance on a football; sim2real setup |
-| `Mjlab-Piplus-Ball-Small-Turf` | Same, on astroturf (soft two-plane terrain) |
+| Tasks (one per experiment variant) and their descriptions | [AGENTS.md](AGENTS.md#registered-tasks) |
+| Commands: train, resume, evaluate, play, manage runs | [AGENTS.md](AGENTS.md#commands) |
+| Experiments: status, design notes, run logs | [docs/README.md](docs/README.md) |
+| Every training run, with its commit and launch arguments | [docs/runs_index.md](docs/runs_index.md) |
+| Exact map of the repository, for agents and for contributors | [AGENTS.md](AGENTS.md#architecture) |
 
-## Train
+## Repository structure
 
-```bash
-bash scripts/train.sh                          # interactive task selection menu
-bash scripts/train.sh Mjlab-Piplus-Platform    # skip menu
-bash scripts/train.sh --cpu                    # CPU mode, 64 envs
-bash scripts/train.sh --tmux                   # wrap in tmux session mjlab-train
-bash scripts/train.sh --num-envs 2048          # custom env count (reduce if OOM)
-```
-
-Runs 4096 envs on GPU by default, logs to wandb under the task name.
-
-## Play
-
-```bash
-uv run mjx play                                # interactive task + run selection
-uv run mjx --task Mjlab-Piplus-Platform play   # skip menu
-```
-
-Or directly:
-
-```bash
-uv run play Mjlab-Piplus-Platform \
-  --checkpoint-file logs/rsl_rl/piplus_platform/<run>/model_N.pt \
-  --viewer viser --num-envs 1
-```
-
-## Manage runs
-
-```bash
-uv run mjx runs                                # list runs with iteration count and age
-uv run mjx clean                               # prune old checkpoints (keep every 5th)
-uv run mjx clean --dry-run                     # preview what would be deleted
-```
-
-## Repo structure
+This is the overview. It changes only when the structure changes in a big way. The exact map is in [AGENTS.md](AGENTS.md#architecture).
 
 ```
-src/mjlab_piplus/
-  robot/                  Pi+ MJCF + constants (actuators, collision presets)
-  tasks/
-    upright/              Mjlab-Piplus-Upright
-    noninertial/          Mjlab-Piplus-NonInertial
-    platform/             Mjlab-Piplus-Platform
-    locomotion/           Mjlab-Piplus-Locomotion
-    locomotion_arms/      Mjlab-Piplus-Locomotion-Arms
-    ball/                 Mjlab-Piplus-Ball
-    ball_arms/            Mjlab-Piplus-Ball-Arms
-    ball_small/           Mjlab-Piplus-Ball-Small, Mjlab-Piplus-Ball-Small-Turf
-  terrains/               Custom terrains (astroturf)
-scripts/
-  train.sh                GPU training launcher with wandb + optional tmux
-logs/rsl_rl/              Checkpoints (gitignored)
-docs/                     One directory per experiment: design notes + run log (see docs/README.md)
+src/mjlab_piplus/   Python package: the Pi+ robot model, one folder per group of tasks, terrains
+scripts/            tools to train, evaluate, check, and export
+tests/              automatic checks that the tasks still work
+docs/               one folder per experiment (design notes and run log) and the experiment index
+logs/  wandb/       training output (not in git)
+deploy/             files for the robot (not in git)
+data/               datasets made from trained policies (not in git)
 ```
 
-See `AGENTS.md` or `CLAUDE.md` for architecture details and notes relevant to further development.
+The task folders in `src/mjlab_piplus/tasks/` fall into four groups: standing (`upright`, `noninertial`, `platform`), walking (`locomotion`, `locomotion_arms`), balancing on a ball (`ball`, `ball_arms`, `ball_small`), and mounting a ball and balancing on it (`ball_mount`, `ball_mount_min`, `ball_mount_curriculum`, `ball_balance_from_mount`).
