@@ -20,23 +20,13 @@ from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
+from mjlab_piplus.common.rewards import foot_flatness
 from mjlab_piplus.robot.piplus_constants import get_piplus_robot_cfg
 
 
 def base_height_l2(env, target_height: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
   asset = env.scene[asset_cfg.name]
   return torch.square(asset.data.root_link_pos_w[:, 2] - target_height)
-
-
-def foot_flatness(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  asset = env.scene[asset_cfg.name]
-  # body_quat_w: [B, num_bodies, 4] as (w, x, y, z)
-  quat = asset.data.body_com_quat_w[:, asset_cfg.body_ids, :]  # [B, 2, 4]
-  _, x, y, z = quat[..., 0], quat[..., 1], quat[..., 2], quat[..., 3]
-  # z-component of the body's local z-axis in world frame (R[2,2] = 1 - 2(x²+y²))
-  # equals 1 when foot sole is flat, decreases with tilt
-  foot_up_z = 1 - 2 * (x * x + y * y)  # [B, 2]
-  return foot_up_z.clamp(0, 1).mean(dim=-1)  # [B]
 
 
 def piplus_upright_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:

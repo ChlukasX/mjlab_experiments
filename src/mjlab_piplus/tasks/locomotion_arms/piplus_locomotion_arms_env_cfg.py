@@ -31,10 +31,8 @@ from mjlab.tasks.velocity.mdp.velocity_command import UniformVelocityCommandCfg
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
+from mjlab_piplus.common.locomotion import FOOT_SENSOR_NAME, VEL_CMD_NAME
 from mjlab_piplus.robot.piplus_constants import get_piplus_robot_with_arms_cfg
-
-FOOT_SENSOR_NAME = "foot_contact"
-VEL_CMD_NAME = "vel_cmd"
 
 
 def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
