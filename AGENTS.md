@@ -44,7 +44,7 @@ uv run train Mjlab-Piplus-Platform --env.scene.num-envs 4096
 bash scripts/train.sh <task> --name <run-name> --agent.resume True --agent.load-run <run dir name> --agent.load-checkpoint model_N.pt --agent.max-iterations <additional>
 
 # Evaluate a checkpoint (success by spawn mode and ball size)
-uv run python scripts/eval_mountbalance.py --task <task> --checkpoint <model.pt>
+uv run python scripts/eval_policy.py --task <task> --checkpoint <model.pt>
 #   --probe: posture and saturation; --audit: action size against the clip and the joint limits;
 #   --gait: free-foot placement, floor taps, stance length, foot heading
 
@@ -183,10 +183,10 @@ Experiments that use a code package are listed in the column `Code package` of t
 | `src/mjlab_piplus/tasks/ball/`, `ball_arms/`, `ball_small/` | Balance on a ball: large ball, large ball with arms, football (`ball_small` is the base of the later ball families) |
 | `src/mjlab_piplus/tasks/ball_mount/` | `piplus_ball_mount_env_cfg.py`: Mount and Balance-Size1 tasks and the shared reward and observation functions. `piplus_ball_mountbalance_env_cfg.py`: one policy for mount and balance. `events.py`: reset and randomization events, viewer spawn-mode dropdown |
 | `src/mjlab_piplus/tasks/ball_mount_curriculum/` | `MountCurr` tasks: ball lock and potential-based reward |
-| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `piplus_ball_mount_selfcontact_cfg.py`: the `LegGap` task (leg-to-leg distance penalty). `piplus_ball_mount_imunoise_cfg.py`: the `ImuNoise` task (lower IMU noise on the `LegGap` task). `__init__.py`: the variant table |
+| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `piplus_ball_mount_selfcontact_cfg.py`: the `LegGap` task (leg-to-leg distance penalty). `piplus_ball_mount_imunoise_cfg.py`: the `ImuNoise` task (lower IMU noise on the `LegGap` task). `__init__.py`: the variant tables (`VARIANTS` for `MountMin`, `CURRICULUM_VARIANTS` for the curriculum) |
 | `src/mjlab_piplus/tasks/ball_balance_from_mount/` | Balance from recorded hand-off states |
 | `scripts/train.sh` | Launch training with wandb: task menu from the live registry, `--name` (required), `--tmux`, `--cpu` |
-| `scripts/eval_mountbalance.py` | Evaluate a checkpoint by ball size and spawn mode. Flags `--probe`, `--audit`, `--gait` and others |
+| `scripts/eval_policy.py` | Evaluate a checkpoint by ball size and spawn mode. Flags `--probe`, `--audit`, `--gait` and others. `scripts/eval_mountbalance.py` is a shim that runs it (run logs and docs cite the old name) |
 | `scripts/eval_selfcontact.py`, `scripts/gen_selfcontact_report.py` | Self-contact and close-call probe of a policy (contacts and distances by body pair and gait phase), and its tables |
 | `scripts/check_tasks.py` | Compatibility checks C1, C2, C3 (section Compatibility) |
 | `scripts/make_runs_index.py` | Writes `docs/runs_index.md` from `logs/` and the local `wandb/` metadata |
@@ -268,7 +268,7 @@ These rules apply to new and edited code. Do not reformat or restructure an exis
 | S9 | Use bounded raw actions (runner `clip_actions`) in every new task. Reason: unbounded outputs drifted past the clip in `cur2` and `cur3`. |
 | S10 | Use named constants for the timestep (0.005), decimation (4), episode length, and the play value (1e9). Import `SIM_TIMESTEP`, `DECIMATION`, `EPISODE_LENGTH_S`, and `PLAY_EPISODE_LENGTH_S` from `mjlab_piplus.common.env_parts`. Write `njmax` and `nconmax` explicitly and say why when they differ from 200 and 100. |
 | S11 | Define the hyperparameters of a runner as module constants at the top of the module. Set `experiment_name` with `log_group(task_id)` from `mjlab_piplus.naming`. Keep the CLI values (`--agent.max-iterations`, number of environments, seed) in the run log. |
-| S12 | Register a family in its `__init__.py` from one table `VARIANTS` (task suffix → flags) and one loop. Write one entry per line. Use no line longer than 100 characters. |
+| S12 | Register a family in its `__init__.py` from one table `VARIANTS` (task suffix → flags) and one loop. Write one entry per line. Use no line longer than 100 characters. A module with more than one factory has one table per factory (for example `MOUNT_VARIANTS` and `MOUNTBALANCE_VARIANTS` in `ball_mount`). |
 | S13 | Give each module a docstring that names the design doc. Give each public function a one-line docstring. State units and the sign in the docstring of a reward. Comments say why, not what. |
 | S14 | Annotate all function signatures. |
 | S15 | Use `snake_case` for functions. Name a function that another module imports without a leading underscore. Do not import a name with a leading underscore from a module of another task package (`tests/test_imports.py` checks this). To share a private function, move it to `common/` under a public name and do not change its body, because check C2 hashes it. A caller that used the private name keeps it with `import <name> as _<name>`, because check C2 also hashes the source of the caller. |
