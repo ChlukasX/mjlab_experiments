@@ -22,13 +22,16 @@ import onnxruntime as ort
 import torch
 import yaml
 
-import mjlab_piplus  # noqa: F401  (registers tasks)
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
+import mjlab_piplus  # noqa: F401  (registers tasks)
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import BALL_SIZES, ON_BALL_Z_CENTER
-from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import START_HOLD_S, HoldJointPositionAction
+from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import (
+    START_HOLD_S,
+    HoldJointPositionAction,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", required=True)
@@ -65,7 +68,9 @@ mj = u.sim.mj_model
 robot = u.scene["robot"]
 act = {mj.actuator(f"robot/{n}").trnid[0]: mj.actuator(f"robot/{n}") for n in robot.actuator_names}
 jid = {n: mj.joint(f"robot/{n}").id for n in names}
-limits = {n: tuple(float(x) for x in mj.joint(f"robot/{n}").range) for n in names}  # the task's model (-Straight narrows the thigh)
+limits = {
+    n: tuple(float(x) for x in mj.joint(f"robot/{n}").range) for n in names
+}  # the task's model (-Straight narrows the thigh)
 ball_term = cfg.observations["actor"].terms["ball_pos"].params
 params = {
     "model": f"{args.name}.onnx",
@@ -74,17 +79,22 @@ params = {
         "walkready_state": [float(x) for x in term._offset[0].tolist()],
         "kp": [float(act[jid[n]].gainprm[0]) for n in names],
         "kd": [float(-act[jid[n]].biasprm[2]) for n in names],
-        "action_scales": [float(x) for x in torch.as_tensor(term._scale).expand(len(names)).tolist()],
+        "action_scales": [
+            float(x) for x in torch.as_tensor(term._scale).expand(len(names)).tolist()
+        ],
         # This MJCF uses the robot's joint convention (as the Bit-Bots mjlab walk policy). Check on the robot.
         "joint_signs": [1.0] * len(names),
         "lower_limits": [limits[n][0] for n in names],
         "upper_limits": [limits[n][1] for n in names],
     },
-    "on_ball": {"height": float(ball_term["height_threshold"]), "max_tilt": float(ball_term["max_tilt"]),
-                # -KinBall: kinematic ball estimate on the ball. Set to the real ball's radius (m);
-                # null = zeros on the ball. Default: size 5.
-                "kin_ball_radius": BALL_SIZES[5][0] if ball_term.get("kinematic") is not None else None,
-                "ankle_above_contact": ON_BALL_Z_CENTER},
+    "on_ball": {
+        "height": float(ball_term["height_threshold"]),
+        "max_tilt": float(ball_term["max_tilt"]),
+        # -KinBall: kinematic ball estimate on the ball. Set to the real ball's radius (m);
+        # null = zeros on the ball. Default: size 5.
+        "kin_ball_radius": BALL_SIZES[5][0] if ball_term.get("kinematic") is not None else None,
+        "ankle_above_contact": ON_BALL_Z_CENTER,
+    },
     # Home pose (action 0, last-action input 0) this long after activation, then the policy.
     "start_hold_s": START_HOLD_S if isinstance(term, HoldJointPositionAction) else 0.0,
     "phase": {"use_phase": False, "control_dt": float(u.step_dt), "gait_frequency": 0.0},

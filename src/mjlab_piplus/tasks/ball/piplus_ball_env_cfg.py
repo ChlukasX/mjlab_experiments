@@ -12,10 +12,10 @@ Ball geometry:
 
 import math
 
+from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.entity import EntityCfg
 from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
@@ -54,6 +54,7 @@ from mjlab_piplus.robot.piplus_constants import (
 # Specs
 # ---------------------------------------------------------------------------
 
+
 def get_piplus_on_ball_cfg() -> EntityCfg:
     spawn_state = EntityCfg.InitialStateCfg(
         pos=(0, 0, ROBOT_SPAWN_Z),
@@ -72,22 +73,23 @@ def get_piplus_on_ball_cfg() -> EntityCfg:
 # Environment config
 # ---------------------------------------------------------------------------
 
+
 def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     robot_cfg = SceneEntityCfg("robot")
     ball_cfg = SceneEntityCfg("ball")
 
     obs_terms = {
-        "joint_pos":         ObservationTermCfg(func=envs_mdp.joint_pos_rel),
-        "joint_vel":         ObservationTermCfg(func=envs_mdp.joint_vel_rel),
+        "joint_pos": ObservationTermCfg(func=envs_mdp.joint_pos_rel),
+        "joint_vel": ObservationTermCfg(func=envs_mdp.joint_vel_rel),
         "projected_gravity": ObservationTermCfg(func=envs_mdp.projected_gravity),
-        "actions":           ObservationTermCfg(func=envs_mdp.last_action),
-        "ball_state":        ObservationTermCfg(
+        "actions": ObservationTermCfg(func=envs_mdp.last_action),
+        "ball_state": ObservationTermCfg(
             func=ball_state_obs,
             params={"asset_cfg": robot_cfg, "ball_cfg": ball_cfg},
         ),
     }
     observations = {
-        "actor":  ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
+        "actor": ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
         "critic": ObservationGroupCfg(terms=obs_terms, enable_corruption=False),
     }
 
@@ -124,18 +126,24 @@ def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             weight=3.0,
             params={
                 "std": {
-                    ".*_hip_roll_joint":    0.05,
-                    ".*_hip_pitch_joint":   0.40,
-                    ".*_thigh_joint":       0.40,
-                    ".*_calf_joint":        0.40,
+                    ".*_hip_roll_joint": 0.05,
+                    ".*_hip_pitch_joint": 0.40,
+                    ".*_thigh_joint": 0.40,
+                    ".*_calf_joint": 0.40,
                     ".*_ankle_pitch_joint": 0.20,
-                    ".*_ankle_roll_joint":  0.25,
+                    ".*_ankle_roll_joint": 0.25,
                 },
-                "asset_cfg": SceneEntityCfg("robot", joint_names=(
-                    ".*_hip_roll_joint", ".*_hip_pitch_joint",
-                    ".*_thigh_joint", ".*_calf_joint",
-                    ".*_ankle_pitch_joint", ".*_ankle_roll_joint",
-                )),
+                "asset_cfg": SceneEntityCfg(
+                    "robot",
+                    joint_names=(
+                        ".*_hip_roll_joint",
+                        ".*_hip_pitch_joint",
+                        ".*_thigh_joint",
+                        ".*_calf_joint",
+                        ".*_ankle_pitch_joint",
+                        ".*_ankle_roll_joint",
+                    ),
+                ),
             },
         ),
         "ball_control": RewardTermCfg(
@@ -149,12 +157,12 @@ def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             params={"asset_cfg": robot_cfg},
         ),
         "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.05),
-        "joint_vel":   RewardTermCfg(func=envs_mdp.joint_vel_l2,   weight=-0.005),
+        "joint_vel": RewardTermCfg(func=envs_mdp.joint_vel_l2, weight=-0.005),
     }
 
     terminations = {
-        "time_out":     TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
-        "fell_over":    TerminationTermCfg(
+        "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
+        "fell_over": TerminationTermCfg(
             func=envs_mdp.bad_orientation,
             params={"limit_angle": math.radians(70.0)},
         ),
@@ -189,7 +197,7 @@ def piplus_ball_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             terrain=TerrainEntityCfg(terrain_type="plane"),
             entities={
                 "robot": get_piplus_on_ball_cfg(),
-                "ball":  EntityCfg(
+                "ball": EntityCfg(
                     spec_fn=get_ball_spec,
                     init_state=EntityCfg.InitialStateCfg(pos=(0, 0, BALL_RADIUS)),
                 ),

@@ -39,19 +39,19 @@ def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     robot_cfg = SceneEntityCfg("robot")
 
     obs_terms = {
-        "joint_pos":         ObservationTermCfg(func=envs_mdp.joint_pos_rel),
-        "joint_vel":         ObservationTermCfg(func=envs_mdp.joint_vel_rel),
+        "joint_pos": ObservationTermCfg(func=envs_mdp.joint_pos_rel),
+        "joint_vel": ObservationTermCfg(func=envs_mdp.joint_vel_rel),
         "projected_gravity": ObservationTermCfg(func=envs_mdp.projected_gravity),
-        "actions":           ObservationTermCfg(func=envs_mdp.last_action),
-        "base_lin_vel":      ObservationTermCfg(func=envs_mdp.base_lin_vel),
-        "base_ang_vel":      ObservationTermCfg(func=envs_mdp.base_ang_vel),
+        "actions": ObservationTermCfg(func=envs_mdp.last_action),
+        "base_lin_vel": ObservationTermCfg(func=envs_mdp.base_lin_vel),
+        "base_ang_vel": ObservationTermCfg(func=envs_mdp.base_ang_vel),
         "velocity_commands": ObservationTermCfg(
             func=envs_mdp.generated_commands,
             params={"command_name": VEL_CMD_NAME},
         ),
     }
     observations = {
-        "actor":  ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
+        "actor": ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
         "critic": ObservationGroupCfg(terms=obs_terms, enable_corruption=False),
     }
 
@@ -115,34 +115,42 @@ def piplus_locomotion_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             params={
                 "std": {
                     # legs — same as locomotion
-                    ".*_hip_roll_joint":    0.10,
-                    ".*_hip_pitch_joint":   0.40,
-                    ".*_thigh_joint":       0.40,
-                    ".*_calf_joint":        0.40,
+                    ".*_hip_roll_joint": 0.10,
+                    ".*_hip_pitch_joint": 0.40,
+                    ".*_thigh_joint": 0.40,
+                    ".*_calf_joint": 0.40,
                     ".*_ankle_pitch_joint": 0.20,
-                    ".*_ankle_roll_joint":  0.15,
+                    ".*_ankle_roll_joint": 0.15,
                     # arms — loose enough to swing naturally
                     ".*_shoulder_pitch_joint": 0.40,
-                    ".*_shoulder_roll_joint":  0.20,
-                    ".*_upper_arm_joint":      0.50,
-                    ".*_elbow_joint":          0.30,
+                    ".*_shoulder_roll_joint": 0.20,
+                    ".*_upper_arm_joint": 0.50,
+                    ".*_elbow_joint": 0.30,
                 },
-                "asset_cfg": SceneEntityCfg("robot", joint_names=(
-                    ".*_hip_roll_joint", ".*_hip_pitch_joint",
-                    ".*_thigh_joint", ".*_calf_joint",
-                    ".*_ankle_pitch_joint", ".*_ankle_roll_joint",
-                    ".*_shoulder_pitch_joint", ".*_shoulder_roll_joint",
-                    ".*_upper_arm_joint", ".*_elbow_joint",
-                )),
+                "asset_cfg": SceneEntityCfg(
+                    "robot",
+                    joint_names=(
+                        ".*_hip_roll_joint",
+                        ".*_hip_pitch_joint",
+                        ".*_thigh_joint",
+                        ".*_calf_joint",
+                        ".*_ankle_pitch_joint",
+                        ".*_ankle_roll_joint",
+                        ".*_shoulder_pitch_joint",
+                        ".*_shoulder_roll_joint",
+                        ".*_upper_arm_joint",
+                        ".*_elbow_joint",
+                    ),
+                ),
             },
         ),
         "joint_pos_limits": RewardTermCfg(func=envs_mdp.joint_pos_limits, weight=-1.0),
-        "action_rate":      RewardTermCfg(func=envs_mdp.action_rate_l2,   weight=-0.01),
-        "joint_vel":        RewardTermCfg(func=envs_mdp.joint_vel_l2,     weight=-0.005),
+        "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.01),
+        "joint_vel": RewardTermCfg(func=envs_mdp.joint_vel_l2, weight=-0.005),
     }
 
     terminations = {
-        "time_out":  TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
+        "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
         "fell_over": TerminationTermCfg(
             func=envs_mdp.bad_orientation,
             params={"limit_angle": math.radians(60.0)},

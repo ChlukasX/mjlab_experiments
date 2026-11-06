@@ -181,9 +181,7 @@ def norm(obj, _stack=None):
     if hasattr(obj, "__dict__") and not inspect.ismodule(obj):
         return {
             "__class__": f"{type(obj).__module__}.{type(obj).__qualname__}",
-            "attrs": norm(
-                {k: v for k, v in vars(obj).items() if not k.startswith("__")}, stack
-            ),
+            "attrs": norm({k: v for k, v in vars(obj).items() if not k.startswith("__")}, stack),
         }
     return _ADDR.sub("", repr(obj))
 
@@ -264,7 +262,7 @@ def dump(tasks, out_dir):
     out.mkdir(parents=True, exist_ok=True)
     for task in tasks:
         for name, cfg in load_configs(task).items():
-            path = out / f"{task[len(PREFIX):]}.{name}.json"
+            path = out / f"{task[len(PREFIX) :]}.{name}.json"
             path.write_text(json.dumps(norm(cfg), sort_keys=True, indent=1))
     print(f"normalized configs written to {out}")
 
@@ -324,7 +322,7 @@ def check_checkpoints(tasks):
                 continue
             problems.append(
                 f"{group}/{run}/{ckpt.name}: widths {tuple(int(x) for x in shape)} "
-                f"fit none of {[(t[len(PREFIX):], d) for t, d in dims.items()]}"
+                f"fit none of {[(t[len(PREFIX) :], d) for t, d in dims.items()]}"
             )
     for rel, digest in read_baseline().get("protected_checkpoints", {}).items():
         path = REPO / rel
@@ -347,8 +345,13 @@ def main():
     parser.add_argument("--fingerprint", action="store_true", help="C2")
     parser.add_argument("--checkpoints", action="store_true", help="C3")
     parser.add_argument("--update-baseline", action="store_true", help="write the C2 baseline")
-    parser.add_argument("--protect", nargs="*", default=None, metavar="CKPT",
-                        help="record the SHA-256 of these checkpoints (repo-relative) in the baseline")
+    parser.add_argument(
+        "--protect",
+        nargs="*",
+        default=None,
+        metavar="CKPT",
+        help="record the SHA-256 of these checkpoints (repo-relative) in the baseline",
+    )
     parser.add_argument("--dump", metavar="DIR", help="write normalized configs and exit")
     parser.add_argument("--tasks", nargs="*", help="limit to these task IDs")
     args = parser.parse_args()

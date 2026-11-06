@@ -45,7 +45,9 @@ One row per training run. `logs/` and `wandb/` are not in git; the wandb cloud h
 
 
 def load_check_tasks():
-    spec = importlib.util.spec_from_file_location("check_tasks", REPO / "scripts" / "check_tasks.py")
+    spec = importlib.util.spec_from_file_location(
+        "check_tasks", REPO / "scripts" / "check_tasks.py"
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -145,7 +147,7 @@ def build():
             n_git += commit != "—"
             lines.append(
                 f"| `{group_dir.name}` | `{run.name}` | {f'`{name}`' if name else '—'} | "
-                f"{f'`{commit}`' if commit != '—' else '—'} | {tree} | {f'`{w['id']}`' if w else '—'} | "
+                f"{f'`{commit}`' if commit != '—' else '—'} | {tree} | {f'`{w["id"]}`' if w else '—'} | "
                 f"{f'`{ckpt}`' if ckpt != '—' else '—'} | {loadable} | {f'`{esc(args)}`' if w else '—'} |"
             )
     unmatched = [w for w in wandb_runs if w["id"] not in taken]
@@ -160,12 +162,18 @@ def build():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--check", action="store_true", help="exit 1 when docs/runs_index.md is out of date")
+    parser.add_argument(
+        "--check", action="store_true", help="exit 1 when docs/runs_index.md is out of date"
+    )
     args = parser.parse_args()
     if not LOGS.exists():
         sys.exit(f"no {LOGS}: this machine has no training logs")
     text, stats = build()
-    print("runs {}, with git {}, with wandb args {}, wandb dirs {}, unmatched wandb dirs {}".format(*stats))
+    print(
+        "runs {}, with git {}, with wandb args {}, wandb dirs {}, unmatched wandb dirs {}".format(
+            *stats
+        )
+    )
     if args.check:
         if not OUT.exists() or OUT.read_text() != text:
             print("docs/runs_index.md is out of date: run scripts/make_runs_index.py")
