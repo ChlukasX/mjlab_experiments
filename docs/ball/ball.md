@@ -2,9 +2,9 @@
 
 Task IDs: `Mjlab-Piplus-Ball`, `Mjlab-Piplus-Ball-Arms`
 
-The robot stands with both feet on top of a large free-rolling sphere. Its own foot forces make the ball roll, so the instability is entirely self-generated: there are no injected forces and no platform motion. The robot must keep the ball still underneath it or it slides off.
+The robot stands with both feet on top of a large free-rolling sphere. The foot forces of the robot make the ball roll. The instability is therefore entirely self-generated. The task has no injected forces and no platform motion. The robot must keep the ball still underneath it. Otherwise it slides off.
 
-`Ball-Arms` is the same task with the arm joints actuated (20 DOF instead of 12), so arm swing can help manage angular momentum. It is a separate task so the two can be compared directly.
+`Ball-Arms` is the same task with actuated arm joints (20 degrees of freedom (DOF) instead of 12). The arm swing can then help manage angular momentum. It is a separate task. This allows a direct comparison of the two tasks.
 
 Config: `tasks/ball/piplus_ball_env_cfg.py`, `tasks/ball_arms/piplus_ball_arms_env_cfg.py`.
 
@@ -18,7 +18,7 @@ ROBOT_SPAWN_Z      = 1.40 m   (0.5 m free-fall onto the ball)
 BASE_HEIGHT_TARGET = 1.25 m   (ball top + 0.35 m)
 ```
 
-The ball is a sphere with a free joint (a physics body, not mocap), `condim=3`, friction `(0.9, 0.02, 0.001)`. It sits on a flat plane.
+The ball is a sphere with a free joint (a physics body, not a motion capture (mocap) body). It has `condim=3` and friction `(0.9, 0.02, 0.001)`. It sits on a flat plane.
 
 ## Observations
 
@@ -30,13 +30,13 @@ The ball is a sphere with a free joint (a physics body, not mocap), `condim=3`, 
 | `actions` | Last policy output |
 | `ball_state` | Ball position relative to robot base (3) + ball xy velocity (2) |
 
-Actor and critic see the same terms. `ball_state` is ground truth from the simulator, so this policy is not deployable as-is: a real robot has no ball sensor. See `ball_small.md` for the proprioception-only setup.
+The actor and the critic see the same terms. `ball_state` is ground truth from the simulator. This policy is therefore not deployable as is, because a real robot has no ball sensor. See `ball_small.md` for the proprioception-only setup.
 
-No noise is configured on any term, so `enable_corruption` currently has no effect.
+The configuration sets no noise on any term, so `enable_corruption` currently has no effect.
 
 ## Actions
 
-One `JointPositionActionCfg` over all actuators, scale 0.5 rad, offset from the home pose.
+One `JointPositionActionCfg` acts on all actuators. The scale is 0.5 rad. The action is an offset from the home pose.
 
 | Task | Actuators | DOF |
 |------|-----------|-----|
@@ -44,6 +44,8 @@ One `JointPositionActionCfg` over all actuators, scale 0.5 rad, offset from the 
 | Ball-Arms | legs + arms (`ACTUATOR_4438`) | 20 |
 
 ## Reward Formulation
+
+In this section, std means standard deviation.
 
 | Term | Weight | Formula / purpose |
 |------|--------|-------------------|
@@ -69,7 +71,7 @@ Posture std (rad):
 | upper arm (Arms only) | 0.50 |
 | elbow (Arms only) | 0.30 |
 
-The arm stds are deliberately loose so the arms can find useful counterbalancing poses.
+The arm std values are loose on purpose. The arms can then find useful counterbalancing poses.
 
 ## Terminations
 
@@ -77,7 +79,7 @@ The arm stds are deliberately loose so the arms can find useful counterbalancing
 |------|-----------|
 | `time_out` | 20 s episode |
 | `fell_over` | Base tilt > 70° |
-| `ball_escaped` | Ball more than 3 m from env origin |
+| `ball_escaped` | Ball more than 3 m from environment origin |
 | `robot_off_ball` | Base lower than ball top + 0.3 m |
 
 ## Events
@@ -87,7 +89,7 @@ The arm stds are deliberately loose so the arms can find useful counterbalancing
 | `reset_scene_to_default` | reset | Places robot and ball at their spawn poses. Must be first. |
 | `randomize_yaw` | reset | Random yaw in [−π, π] at spawn |
 
-No pushes and no domain randomisation.
+The task has no pushes and no domain randomization.
 
 ## Sim Parameters
 
@@ -103,7 +105,7 @@ nconmax     = 100
 
 | | Ball | Ball-Arms |
 |--|------|-----------|
-| Network (actor and critic) | 128 × 128, ELU | 128 × 128, ELU |
+| Network (actor and critic) | 128 × 128, exponential linear unit (ELU) | 128 × 128, ELU |
 | `max_iterations` | 1000 | 1000 |
 | Experiment dir | `logs/rsl_rl/piplus_ball` | `logs/rsl_rl/piplus_ball_arms` |
 
@@ -114,6 +116,6 @@ bash scripts/train.sh Mjlab-Piplus-Ball-Arms
 
 ## Known Limitations
 
-- **Fall detection is orientation- and height-only.** `Ball-Small` had a failure mode where the robot fell while keeping its feet on the ball. `robot_off_ball` covers most of that here, but there is no check for non-foot bodies touching the ball or floor.
-- **Arm collisions changed.** `get_spec_with_arms()` now resizes the torso and arm collision geoms to match the visual meshes (see `ball_small.md`). `Ball-Arms` checkpoints trained before that change may rely on arms passing through the torso.
-- **Not sim2real-ready:** privileged ball state in the actor, no noise, no randomisation.
+- **Fall detection uses orientation and height only.** `Ball-Small` had a failure mode in which the robot fell and kept its feet on the ball. `robot_off_ball` covers most of these cases here. The task does not check whether non-foot bodies touch the ball or the floor. <!-- STE-deviation: no number in source ("most of") -->
+- **Arm collisions changed.** `get_spec_with_arms()` now resizes the torso and arm collision geoms. They match the visual meshes (see `ball_small.md`). `Ball-Arms` checkpoints that were trained before this change may rely on arms that pass through the torso.
+- **Not sim2real-ready:** the actor reads the privileged ball state. The task has no noise and no randomization.

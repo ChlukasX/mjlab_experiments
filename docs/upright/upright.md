@@ -2,7 +2,7 @@
 
 Task ID: `Mjlab-Piplus-Upright`
 
-The robot learns to stand upright on flat ground with flat feet, resisting random velocity disturbances.
+The robot learns to stand upright on flat ground with flat feet. It resists random velocity disturbances.
 
 ## Observations
 
@@ -13,16 +13,16 @@ The robot learns to stand upright on flat ground with flat feet, resisting rando
 | `projected_gravity` | Gravity vector projected into base frame — encodes tilt |
 | `actions` | Last action (policy output) |
 
-Actor observations have noise corruption enabled during training; disabled for play and critic.
+Training enables noise corruption for the actor observations. Play and the critic have noise corruption disabled.
 
 ## Actions
 
-Single `JointPositionActionCfg` targeting all leg actuators (`ACTUATOR_5036`).  
-Scale `0.5` rad, added as offset to the home pose (`use_default_offset=True`).
+A single `JointPositionActionCfg` targets all leg actuators (`ACTUATOR_5036`).  
+The scale is `0.5` rad. The action is added as an offset to the home pose (`use_default_offset=True`).
 
 ## Reward Formulation
 
-All rewards are summed each control step (50 Hz) and discounted with γ=0.99.
+The environment sums all rewards at each control step (50 Hz). The sum is discounted with γ=0.99.
 
 ### Upright (weight +1.0)
 
@@ -30,7 +30,7 @@ All rewards are summed each control step (50 Hz) and discounted with γ=0.99.
 r = exp(−‖g_proj‖² / std²),  std = √0.05 ≈ 0.224
 ```
 
-`g_proj` = gravity vector projected onto the `torso_link` body frame. Zero when perfectly upright, falls off as the torso tilts. Gaussian width chosen to stay near 1.0 for small tilts and sharply penalize large ones.
+`g_proj` is the gravity vector projected onto the `torso_link` body frame. It is zero when the torso is perfectly upright. The reward falls off as the torso tilts. The Gaussian width keeps the reward near 1.0 for small tilts. It penalizes large tilts sharply. Here std is the standard deviation (the width) of the Gaussian.
 
 ### Base Height (weight −2.0)
 
@@ -38,11 +38,11 @@ r = exp(−‖g_proj‖² / std²),  std = √0.05 ≈ 0.224
 r = −(z_root − 0.35)²
 ```
 
-L2 penalty on CoM height deviation from 0.35 m. Prevents the robot from cheating by crouching or rising onto toes (toe-standing raises CoM above target).
+This is an L2 penalty on the deviation of the center of mass (CoM) height from 0.35 m. It stops the robot from cheating by crouching or by rising onto the toes. Toe-standing raises the CoM above the target.
 
 ### Joint Position Limits (weight −1.0)
 
-Built-in penalty when joints exceed their soft limits (`soft_joint_pos_limit_factor = 0.9`). Prevents hyperextension and keeps joints in safe operating range.
+This is a built-in penalty. It applies when a joint exceeds its soft limit (`soft_joint_pos_limit_factor = 0.9`). It prevents hyperextension. It keeps the joints in the safe operating range.
 
 ### Posture (weight +2.0)
 
@@ -50,7 +50,7 @@ Built-in penalty when joints exceed their soft limits (`soft_joint_pos_limit_fac
 r = exp(−mean_j(err_j² / std_j²))
 ```
 
-Encourages joint positions to stay close to the home keyframe. Per-joint std controls tightness:
+The reward encourages the joint positions to stay close to the home keyframe. The std of each joint controls the tightness:
 
 | Joint group | std | Rationale |
 |-------------|-----|-----------|
@@ -61,7 +61,7 @@ Encourages joint positions to stay close to the home keyframe. Per-joint std con
 | `.*_calf_joint` | 0.25 | Loose |
 | `.*_ankle_roll_joint` | 0.25 | Loose |
 
-Tight std collapses the reward to near zero even at 0.2 rad deviation; loose std allows ±0.25 rad with ~37% reward remaining.
+A tight std collapses the reward to near zero even at a deviation of 0.2 rad. A loose std allows ±0.25 rad with about 37% of the reward remaining.
 
 ### Foot Flatness (weight +1.0)
 
@@ -70,8 +70,8 @@ r = mean([R_right[2,2], R_left[2,2]]).clamp(0, 1)
 ```
 
 `R[2,2] = 1 − 2(x² + y²)` is the z-component of the foot body's local z-axis in world frame.  
-Equals 1.0 when the sole is flat (local z points up), decreases as the foot tilts.  
-Replaces a binary "foot in contact" reward which also fired during toe-standing.
+It equals 1.0 when the sole is flat (local z points up). It decreases as the foot tilts.  
+It replaces a binary "foot in contact" reward. That reward also fired during toe-standing.
 
 ### Action Rate (weight −0.005)
 
@@ -79,7 +79,7 @@ Replaces a binary "foot in contact" reward which also fired during toe-standing.
 r = −‖a_t − a_{t−1}‖²
 ```
 
-L2 penalty on action changes. Smooths joint commands and discourages jitter.
+This is an L2 penalty on action changes. It smooths the joint commands. It discourages jitter.
 
 ### Joint Velocity (weight −0.01)
 
@@ -87,7 +87,7 @@ L2 penalty on action changes. Smooths joint commands and discourages jitter.
 r = −‖q̇‖²
 ```
 
-L2 penalty on all joint velocities. Suppresses toe-tapping and fidgeting.
+This is an L2 penalty on all joint velocities. It suppresses toe-tapping and fidgeting.
 
 ## Termination
 
@@ -98,13 +98,13 @@ L2 penalty on all joint velocities. Suppresses toe-tapping and fidgeting.
 
 ## Disturbances (Push Events)
 
-Random velocity pushes applied to the root body in interval mode:
+Random velocity pushes act on the root body in interval mode:
 
-- **Interval:** 1–10 s (uniform random per env per episode)  
+- **Interval:** 1–10 s (uniform random per environment per episode)  
 - **Magnitude:** x ∈ [−2.0, 2.0] m/s, y ∈ [−2.0, 2.0] m/s independently  
-- **Implementation:** `push_by_setting_velocity` — directly sets root linear velocity, not a force/impulse
+- **Implementation:** `push_by_setting_velocity` sets the root linear velocity directly. It does not apply a force or an impulse.
 
-2.0 m/s ≈ fast-walking speed applied sideways. The wide interval range ensures some environments see frequent pushes and others see rare but harder ones in the same training batch.
+2.0 m/s is about the speed of fast walking, applied sideways. The wide interval range ensures that some environments see frequent pushes. Other environments see rare but harder pushes. Both kinds are in the same training batch. <!-- STE-deviation: no number in source -->
 
 ## Sim Parameters
 
@@ -113,7 +113,7 @@ Random velocity pushes applied to the root body in interval mode:
 | Timestep | 0.005 s |
 | Decimation | 4 (control at 50 Hz) |
 | Episode length | 20 s |
-| Environments | 4096 (GPU) / 64 (CPU) |
+| Environments | 4096 (graphics processing unit, GPU) / 64 (central processing unit, CPU) |
 | njmax | 200 |
 
 ## Robot Config
@@ -129,12 +129,12 @@ Home keyframe (Pi+ leg joints, symmetric signs for mirrored axes):
 | r/l_ankle_pitch | ±0.5 |
 | r/l_ankle_roll | 0.0 |
 
-Arms are defined in the MJCF but excluded from actuators and home keyframe.
+The MuJoCo XML format (MJCF) file defines the arms. The actuators and the home keyframe do not include the arms.
 
 ## Curriculum (Planned)
 
-Training is robust enough to reach stable standing quickly, but strong pushes create a sparse recovery problem — the robot may learn to fall gracefully rather than recover.
+Training reaches stable standing quickly. Strong pushes create a sparse recovery problem. The robot may learn to fall gracefully instead of recovering.
 
-Planned two-phase approach:
-1. **Phase 1**: Train to convergence (~400 iters) with mild pushes (±0.5 m/s, 5–10 s interval)
-2. **Phase 2**: Load Phase 1 checkpoint, retrain with current harsh pushes (±2.0 m/s, 1–10 s interval)
+The planned approach has two phases:
+1. **Phase 1**: Train to convergence (about 400 iterations) with mild pushes (±0.5 m/s, 5–10 s interval)
+2. **Phase 2**: Load the Phase 1 checkpoint. Retrain with the current harsh pushes (±2.0 m/s, 1–10 s interval)
