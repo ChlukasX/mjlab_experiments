@@ -1,13 +1,13 @@
 # Collision check of the robot model
 
-Branch: `feat/collision-check` (off `feat/balance-smooth`) — **done**: head box fitted and contact stiffness randomized (applied from Oct 13 2026); elbow range still to check on the robot.
+Branch: `feat/collision-check` (deleted; was off `feat/balance-smooth`). Commits: `git log --oneline --grep '^collision-check:'`. — **done**: head box fitted and contact stiffness randomized (applied from Oct 13 2026); elbow range still to check on the robot.
 
 Question: in the viewer the feet are inside the ball and the arms inside the head. The ball tasks use all 20 leg and arm joints, so is the collision model complete, and is the simulation enforcing it?
 
 ## Method
 
-- `scripts/play_chain.py --steps 1000 --num-envs 256 --dump FILE` records simulator states of the chain (mount `mm3-c10-s16`, balance `bs1-clip-exc`; 20 s, every 0.1 s) with the largest number of constraint rows and contacts seen.
-- `scripts/check_collisions.py FILE` compares, for every pair of robot bodies that are not parent and child and for each foot against ball and floor, the distance between the **visual meshes** (convex hulls: what the viewer shows) and between the **collision primitives** (what the simulation enforces), over 2000 states. Meshes that intersect while the primitives are apart or missing are a gap in the collision model. Limit of the method: convex hulls overstate the overlap of concave parts and of links that nest at a joint.
+- `scripts/play_chain.py --steps 1000 --num-envs 256 --dump FILE` (removed; [git history](../README.md#conventions-shared-by-all-experiments)) records simulator states of the chain (mount `mm3-c10-s16`, balance `bs1-clip-exc`; 20 s, every 0.1 s) with the largest number of constraint rows and contacts seen.
+- `scripts/check_collisions.py FILE` (removed; [git history](../README.md#conventions-shared-by-all-experiments)) compares, for every pair of robot bodies that are not parent and child and for each foot against ball and floor, the distance between the **visual meshes** (convex hulls: what the viewer shows) and between the **collision primitives** (what the simulation enforces), over 2000 states. Meshes that intersect while the primitives are apart or missing are a gap in the collision model. Limit of the method: convex hulls overstate the overlap of concave parts and of links that nest at a joint.
 
 ## Findings (Oct 13 2026)
 

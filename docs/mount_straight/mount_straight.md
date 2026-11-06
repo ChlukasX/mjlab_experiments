@@ -1,6 +1,6 @@
 # mount_straight: mount and stance without the twisted support leg
 
-Branch: `feat/mount-straight` (off `feat/mount-free-leg`). Task `Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall-FreeLeg-Straight`. Run log: [mount_straight_log.md](mount_straight_log.md). Predecessor: [mount_latency](../mount_latency/mount_latency.md) (rounds 7-8, `kb1`, `fl1`).
+Branch: `feat/mount-straight` (deleted; was off `feat/mount-free-leg`). Commits: `git log --oneline --grep '^mount-straight:'`. Task `Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall-FreeLeg-Straight`. Run log: [mount_straight_log.md](mount_straight_log.md). Predecessor: [mount_latency](../mount_latency/mount_latency.md) (rounds 7-8, `kb1`, `fl1`).
 
 ## Why
 

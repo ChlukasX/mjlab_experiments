@@ -31,11 +31,11 @@ With the terminal potential fixed the dive-and-die exploit is gone (`fell_over` 
 
 `mc1-release` (no potential, rebalanced rewards) at it 1956, ball releasing (level 0.68): reward 221, episode 946/1000, `support_on_ball` 1.73 of 2, `com_over_ball` 1.65 of 2, `single_leg_stance` 0.000 in every window, including the first 1000 iterations with the ball locked. The straddle persists on a locked ball, so the lock alone does not get the second foot off the floor.
 
-**Takeaway.** Neither the lock nor the potential reward gets PPO to the stance, and the locked-ball feasibility question is still open. Next: a model-based search for a mount trajectory that does not depend on PPO exploration (`scripts/mount_cem.py`), on a fixed ball, free and locked. See [Model-based search](#model-based-search).
+**Takeaway.** Neither the lock nor the potential reward gets PPO to the stance, and the locked-ball feasibility question is still open. Next: a model-based search for a mount trajectory that does not depend on PPO exploration (`scripts/mount_cem.py` (removed; [git history](../README.md#conventions-shared-by-all-experiments))), on a fixed ball, free and locked. See [Model-based search](#model-based-search).
 
 ## Model-based search
 
-`scripts/mount_cem.py`: cross-entropy search over open-loop joint-target splines (16 knots over 4 s, 320 parameters), 4096 identical worlds per iteration (mount spawn, size 5 ball, no randomization or noise, no pushes), scored with the task's own reward (progress potential with terminal potential 0, plus the stance reward). It needs no PPO exploration, so it answers whether a mount exists for this robot and ball. `--lock` uses the ball with large rolling resistance. `scripts/replay_cem.py` replays the best trajectory and prints the state along it. Success = some sample holds the single-leg stance (CoM over the ball, flat sole, free foot 10 cm clear) for 1 s.
+`scripts/mount_cem.py`: cross-entropy search over open-loop joint-target splines (16 knots over 4 s, 320 parameters), 4096 identical worlds per iteration (mount spawn, size 5 ball, no randomization or noise, no pushes), scored with the task's own reward (progress potential with terminal potential 0, plus the stance reward). It needs no PPO exploration, so it answers whether a mount exists for this robot and ball. `--lock` uses the ball with large rolling resistance. `scripts/replay_cem.py` (removed; [git history](../README.md#conventions-shared-by-all-experiments)) replays the best trajectory and prints the state along it. Success = some sample holds the single-leg stance (CoM over the ball, flat sole, free foot 10 cm clear) for 1 s.
 
 | Search | Ball | Settings | Result |
 |--------|------|----------|--------|

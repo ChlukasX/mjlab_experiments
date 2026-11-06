@@ -60,7 +60,7 @@ Strict success by ball size for `mm2-c06-nocom` at 3 cm: 2% (size 1-2), 18% (siz
 
 ### Hand-off test (Oct 10 2026)
 
-`scripts/eval_handoff.py`, 1024 envs, 20 s: mount policy `mm2-c06-nocom` `model_8998`, then the drop-balance policy `mb3-mix0` `model_7999`. New option `--switch-clearance`: switch on a real stance (free sole that far off the floor) instead of on the straddle test.
+`scripts/eval_handoff.py` (removed; [git history](../README.md#conventions-shared-by-all-experiments)), 1024 envs, 20 s: mount policy `mm2-c06-nocom` `model_8998`, then the drop-balance policy `mb3-mix0` `model_7999`. New option `--switch-clearance`: switch on a real stance (free sole that far off the floor) instead of on the straddle test.
 
 | Switch condition | Switched | Success | Survived |
 |---|---|---|---|
@@ -112,7 +112,7 @@ Resume `mm3-c10-s16` `model_11997`, 3000 iterations, 2048 envs, cl06, same weigh
 | `mm4-dr` | `eahx3412` | 0 | Does the mount adapt to the new head box and contact range? | Reward 171, episode 693, `single_leg_stance` 7.04 of 16, `action_rate` −4.28. Eval: **62% success at 10 cm**. |
 | `mm4-dr-exc` | `3ufjn5na` | −0.2 | Can the mount policy's commands be brought inside the joint limits at the same time? | Reward 178, episode 705, `single_leg_stance` 8.15, `action_rate` −2.44. Eval: **56% success**, actions half the size. |
 
-Both finished (`model_14996`). Eval on the new model: `scripts/eval_mountbalance.py --probe` (1024 envs, 20 s, success = stance with the free sole 10 cm clear for 90% of the last 3 s) and `scripts/audit_policy.py`.
+Both finished (`model_14996`). Eval on the new model: `scripts/eval_mountbalance.py --probe` (1024 envs, 20 s, success = stance with the free sole 10 cm clear for 90% of the last 3 s) and `scripts/audit_policy.py` (removed; now `eval_mountbalance.py --audit`; [git history](../README.md#conventions-shared-by-all-experiments)).
 
 | Run | Success at 10 cm | Held at 10 cm / 6 cm | Survive | CoM to ball | Base above top | Free sole above floor | Free sole on floor | mean \|action\| | Targets outside limits | Action change per step | Leg torque saturated |
 |-----|------|------|------|------|------|------|------|------|------|------|------|

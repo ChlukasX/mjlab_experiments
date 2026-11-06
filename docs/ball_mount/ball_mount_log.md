@@ -2,7 +2,7 @@
 
 One row per run, newest last; add a row at launch and fill in the result when it finishes. Design and findings: [ball_mount.md](ball_mount.md). Shared conventions (launching, resuming, metrics, eval): [../README.md](../README.md).
 
-Branch `feat/ball-mount-balance`. Task `Mjlab-Piplus-Ball-MountBalance` and variants.
+Branch `feat/ball-mount-balance` (deleted). Commits: `git log --oneline --grep '^ball-mount-balance:'`. Task `Mjlab-Piplus-Ball-MountBalance` and variants.
 
 Task `Mjlab-Piplus-Ball-MountBalance`: per reset 50% mount / 50% drop, ball radius 0.07 to 0.11 m, mass tied to radius, ball and ground friction 0.3 to 1.2, actor does not see the size, network 512-256-128, 20 s episodes, flat sole. Details in [ball_mount.md](ball_mount.md).
 
@@ -212,7 +212,7 @@ Results (both finished; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s):
 - Whether the 5× smoothness result changes when applied by resuming a mounted policy.
 ### Hand-off test: balance policy takes over from the straddle (Oct 9 2026)
 
-`scripts/eval_handoff.py`, 1024 envs, mount spawns, 20 s. Mount policy `mb7-clip-ent-final-x2` `model_11998` (bounded targets, as trained) runs until the robot has been in the straddle for 1 s (foot flat on the ball, CoM within 0.12 m of the ball centre); then the drop-balance policy `mb3-mix0` `model_7999` (unbounded targets, 97% on drops) takes over for that env (its clip is lifted inside the action term, so both policies see the raw action in their observation). A first version clipped the action before stepping, which changed the "last action" observation and made the baseline survive 32% instead of 99%; that run was discarded.
+`scripts/eval_handoff.py` (removed; [git history](../README.md#conventions-shared-by-all-experiments)), 1024 envs, mount spawns, 20 s. Mount policy `mb7-clip-ent-final-x2` `model_11998` (bounded targets, as trained) runs until the robot has been in the straddle for 1 s (foot flat on the ball, CoM within 0.12 m of the ball centre); then the drop-balance policy `mb3-mix0` `model_7999` (unbounded targets, 97% on drops) takes over for that env (its clip is lifted inside the action term, so both policies see the raw action in their observation). A first version clipped the action before stepping, which changed the "last action" observation and made the baseline survive 32% instead of 99%; that run was discarded.
 
 | Mode | Reached straddle | Success | Survived |
 |------|------------------|---------|----------|

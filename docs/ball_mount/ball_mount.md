@@ -1,6 +1,6 @@
 # Ball Mount + Balance (phase 4)
 
-Branch: `feat/ball-mount-balance` — **done**: drop balance on a randomized ball learned (97%, `mb3-mix0`), no mount in any run (the stance test of the first run was passed on tiptoe, see [ball_mount_rewards](../ball_mount_rewards/ball_mount_rewards.md)). Continued in [mount_potential](../mount_potential/mount_potential.md).
+Branch: `feat/ball-mount-balance` (deleted). Commits: `git log --oneline --grep '^ball-mount-balance:'`. — **done**: drop balance on a randomized ball learned (97%, `mb3-mix0`), no mount in any run (the stance test of the first run was passed on tiptoe, see [ball_mount_rewards](../ball_mount_rewards/ball_mount_rewards.md)). Continued in [mount_potential](../mount_potential/mount_potential.md).
 
 Task IDs: `Mjlab-Piplus-Ball-MountBalance` (50/50 mix), `-Mix30`, `-Mix70`
 

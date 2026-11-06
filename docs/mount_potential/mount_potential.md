@@ -2,7 +2,7 @@
 
 Formerly `ball_mount_curriculum` (renamed Nov 6 2026 so that the name does not clash with [mount_curriculum](../mount_curriculum/mount_curriculum.md)). The code package keeps its name, `tasks/ball_mount_curriculum/`. Task IDs and log groups (`piplus_ball_mountcurr_*`) are unchanged.
 
-Branch: `feat/ball-mount-curriculum` — **done, negative**: neither the ball lock, the potential reward nor the CEM search produced a mount. The cause (lift measured at the ankle) was found next, in [ball_mount_rewards](../ball_mount_rewards/ball_mount_rewards.md).
+Branch: `feat/ball-mount-curriculum` (deleted). Commits: `git log --oneline --grep '^ball-mount-curriculum' --grep '^mount_potential' --grep '^scripts: CEM'`. — **done, negative**: neither the ball lock, the potential reward nor the CEM search produced a mount. The cause (lift measured at the ankle) was found next, in [ball_mount_rewards](../ball_mount_rewards/ball_mount_rewards.md).
 
 Goal: a mount policy that takes the robot from standing beside the ball to a single-leg stance on top of it, on a randomized ball (radius 0.07 to 0.11 m). It is followed by a balance policy (see [ball_mount](../ball_mount/ball_mount.md)), so the mount only has to reach a state the balance policy can hold. Runs and results: [mount_potential_log.md](mount_potential_log.md).
 

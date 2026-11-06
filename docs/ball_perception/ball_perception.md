@@ -1,6 +1,6 @@
 # Ball Perception (phase 2)
 
-Branch: `feat/ball-perception` — **placeholder, not started**
+Planned branch: `feat/ball-perception` (not created yet) — **placeholder, not started**
 
 Sim stand-in for a camera ball detector. Defines the interface the real robot's detector must fill.
 

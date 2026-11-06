@@ -1,6 +1,6 @@
 # Size 1 ball (mount and balance)
 
-Branch: `feat/mount-feasibility` — **done**
+Branch: `feat/mount-feasibility` (deleted; shared with [mount_feasibility](../mount_feasibility/mount_feasibility.md)). Commits: `git log --oneline --grep '^ball-mount:'`. — **done**
 
 > **Correction (Oct 15 2026).** The size 1 mount runs did not mount the ball either: `mount-size1-flat-v2-cont` `model_9998`, re-evaluated with the sole-based test (`scripts/eval_mountbalance.py --task Mjlab-Piplus-Ball-Mount-Size1-Flat --free-foot-clearance 0.03 --probe`), has 0% success, the centre of mass 0.235 m from the ball and the other sole on the floor 97% of the time: tiptoe beside the ball, as in [mount_feasibility](../mount_feasibility/mount_feasibility.md). The drop-balance run (`balance-size1-flat-v1`) is not affected.
 

@@ -2,7 +2,7 @@
 
 One row per run, newest last; add a row at launch and fill in the result when it finishes. Design and findings: [mount_feasibility.md](mount_feasibility.md). Shared conventions (launching, resuming, metrics, eval): [../README.md](../README.md).
 
-Branch `feat/mount-feasibility`. Tasks `Mjlab-Piplus-Ball-Mount[-Flat]`: robot starts standing, ball 0.30 m ahead of the right foot, 10 s episodes. Spike runs v1 to v4 had wandb disabled.
+Branch `feat/mount-feasibility` (deleted). Commits: `git log --oneline --grep '^ball-mount:'`. Tasks `Mjlab-Piplus-Ball-Mount[-Flat]`: robot starts standing, ball 0.30 m ahead of the right foot, 10 s episodes. Spike runs v1 to v4 had wandb disabled.
 
 Task `Mjlab-Piplus-Ball-Mount` (and `-Flat`): robot starts standing, ball 0.30 m ahead of the right foot, 10 s episodes. Spike runs v1 to v4 had wandb disabled.
 
