@@ -2,6 +2,12 @@ from functools import partial
 
 from mjlab.tasks.registry import register_mjlab_task
 
+from .piplus_ball_mount_curriculum_cfg import (
+  piplus_ball_mount_curriculum_env_cfg,
+  EARLY_ACTION_EXCESS,
+  MAX_ACTION_STD,
+  piplus_ball_mount_curriculum_ppo_runner_cfg,
+)
 from .piplus_ball_mountmin_env_cfg import (
   piplus_ball_mountmin_env_cfg,
   piplus_ball_mountmin_ppo_runner_cfg,
@@ -38,3 +44,32 @@ for suffix, kw in (
     play_env_cfg=env_cfg(play=True),
     rl_cfg=piplus_ball_mountmin_ppo_runner_cfg(suffix.lower().replace("-", "_"), kw.get("bounded_actions", False)),
   )
+
+# One cold start through all stages (mount first, then the robustness features); docs/mount_curriculum.
+register_mjlab_task(
+  task_id="Mjlab-Piplus-Ball-MountMin-Curriculum",
+  env_cfg=piplus_ball_mount_curriculum_env_cfg(),
+  play_env_cfg=piplus_ball_mount_curriculum_env_cfg(play=True),
+  rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg(),
+)
+# Same with the full thigh range (cur1 with +-0.6 rad never mounted).
+register_mjlab_task(
+  task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh",
+  env_cfg=piplus_ball_mount_curriculum_env_cfg(straight=False),
+  play_env_cfg=piplus_ball_mount_curriculum_env_cfg(play=True, straight=False),
+  rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh"),
+)
+# Same, with the stage weights ramped in and the action noise std capped (cur2 collapsed at stage 3).
+register_mjlab_task(
+  task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp",
+  env_cfg=piplus_ball_mount_curriculum_env_cfg(straight=False, ramp=True),
+  play_env_cfg=piplus_ball_mount_curriculum_env_cfg(play=True, straight=False, ramp=True),
+  rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp", max_std=MAX_ACTION_STD),
+)
+# Same, with action_excess from stage 0 (cur2's outputs drifted past the clip, cur3 collapsed).
+register_mjlab_task(
+  task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess",
+  env_cfg=piplus_ball_mount_curriculum_env_cfg(straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS),
+  play_env_cfg=piplus_ball_mount_curriculum_env_cfg(play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS),
+  rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess", max_std=MAX_ACTION_STD),
+)

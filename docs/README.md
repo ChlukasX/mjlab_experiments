@@ -24,6 +24,7 @@ One directory per experiment: `docs/<experiment>/<experiment>.md` is the design 
 | mount_single | `Mjlab-Piplus-Ball-MountMin-Clip` (one policy) | [spec](mount_single/mount_single.md), [log](mount_single/mount_single_log.md) |
 | mount_latency | `Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency[-Big[-OneFoot[-Level[-NoiseRamp[-Latch45-Hold[-Deadline/-KinBall[-FreeLeg]]]]]]]` | [spec](mount_latency/mount_latency.md), [log](mount_latency/mount_latency_log.md) |
 | mount_straight | `...-KinBall-FreeLeg-Straight[-Gate-Deadline]` (cold start, thigh limited) | [spec](mount_straight/mount_straight.md), [log](mount_straight/mount_straight_log.md) |
+| mount_curriculum | `Mjlab-Piplus-Ball-MountMin-Curriculum[-FullThigh[-Ramp[-Excess]]]` (one cold start through staged mount and robustness stages; thigh ±0.6 rad, -FullThigh: full range) | [spec](mount_curriculum/mount_curriculum.md), [log](mount_curriculum/mount_curriculum_log.md) |
 | deploy_mount | export of the ball-mount policy for the Bit-Bots stack, robustness sweep | [plan](deploy_mount/deploy_mount.md), [log](deploy_mount/deploy_mount_log.md) |
 | locomotion_s2r, ball_perception, ball_approach, ball_chain | placeholders for the ball chain | [locomotion_s2r](locomotion_s2r/locomotion_s2r.md), [ball_perception](ball_perception/ball_perception.md), [ball_approach](ball_approach/ball_approach.md), [ball_chain](ball_chain/ball_chain.md) |
 

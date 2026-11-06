@@ -31,4 +31,6 @@ Cold start as `st1` (`logs/probes/run_st2.sh`: 6000 iterations, 2048 envs, seed 
 
 | Run | wandb | Outcome |
 |-----|-------|---------|
-| `st3` | `xmvcad00` | Running. |
+| `st3` | `xmvcad00` | **Never mounted.** Finished (`model_9998`): `single_leg_stance` and `support_on_ball` 0 for all 4000 iterations, every episode ended by the deadline (~150 steps). Sweep (`logs/probes/sweep_st3.txt`): 0% success in every condition, survival 85-96%, 0% latched. |
+
+**Round 3 conclusion (Nov 4 2026):** the straight-thigh mount was not found by a cold start with everything at once (`st2`) nor from `st1`'s parked pose with the deadline (`st3`). The mount was only ever learned on an easy task and carried forward by warm starts; the next attempt does that inside one run: [mount_curriculum](../mount_curriculum/mount_curriculum.md).

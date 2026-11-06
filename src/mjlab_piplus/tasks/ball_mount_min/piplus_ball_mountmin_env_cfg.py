@@ -85,6 +85,12 @@ def noise_curriculum(env, env_ids, start, ramp_steps, t0):
     """Scale every uniform actor noise range from `start` to 1 over `ramp_steps`, counted from
     step `t0` (a resume restores the step counter: pass the checkpoint's)."""
     f = start + (1.0 - start) * min(max(env.common_step_counter - t0, 0) / ramp_steps, 1.0)
+    set_noise_scale(env, f)
+    return {"noise_scale": torch.tensor(f)}
+
+
+def set_noise_scale(env, f: float) -> None:
+    """Scale every uniform actor noise range to `f` x its configured range."""
     for term in env.observation_manager._group_obs_term_cfgs["actor"]:
         n = term.noise
         if isinstance(n, UniformNoiseCfg):
@@ -92,7 +98,6 @@ def noise_curriculum(env, env_ids, start, ramp_steps, t0):
                 n.full_range = (n.n_min, n.n_max)
             n.n_min, n.n_max = n.full_range[0] * f, n.full_range[1] * f
             n._tensor_cache.clear()  # apply() caches the range as tensors
-    return {"noise_scale": torch.tensor(f)}
 
 
 # Latch: "on the ball" (ball input zeroed) needs the base tilt below this. ON_BALL_MAX_TILT
@@ -194,9 +199,12 @@ class posture_free_leg(envs_mdp.posture):
         leg = lambda side: [n.startswith(side) and any(f"_{j}_joint" in n for j in _LEG) for n in names]
         self.free_mask = torch.tensor([leg("l_"), leg("r_")], device=env.device)  # row = support foot
 
-    def __call__(self, env, std, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False):
+    def __call__(self, env, std, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg,
+                 gated: bool = False, release: bool = True):
         robot = env.scene[asset_cfg.name]
         err = ((robot.data.joint_pos[:, asset_cfg.joint_ids] - self.default_joint_pos[:, asset_cfg.joint_ids]) / self.std) ** 2
+        if not release:  # plain posture (curriculum stages before the free leg)
+            return torch.exp(-err.mean(-1))
         single, si = _single_support(env, foot_cfg, ball_cfg, gated)
         w = (~(self.free_mask[si] & single.unsqueeze(-1))).float()
         return torch.exp(-(err * w).sum(-1) / w.sum(-1))
@@ -266,11 +274,16 @@ def latency_curriculum(
     A resume restores the step counter from the checkpoint: zero it in the init copy."""
     f = min(env.common_step_counter / ramp_steps, 1.0)
     lo, hi = (round(a + f * (b - a)) for a, b in zip(start, final))
+    set_lag(env, lo, hi)
+    return {"lag_min": torch.tensor(float(lo)), "lag_max": torch.tensor(float(hi))}
+
+
+def set_lag(env, lo: int, hi: int) -> None:
+    """Actuator lag range in physics steps (the delay buffer must be sized for `hi`)."""
     for act in env.scene["robot"].actuators:
         buf = getattr(act, "_delay_buffer", None)
         if buf is not None:
             buf.min_lag, buf.max_lag = lo, hi
-    return {"lag_min": torch.tensor(float(lo)), "lag_max": torch.tensor(float(hi))}
 
 
 def piplus_ball_mountmin_env_cfg(
