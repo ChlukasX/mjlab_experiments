@@ -48,7 +48,7 @@ extend-exclude = [
     "src/mjlab_piplus/tasks/ball_balance_from_mount",
     "src/mjlab_piplus/robot",
     "src/mjlab_piplus/terrains",
-    "scripts/eval_mountbalance.py",
+    "scripts/eval_policy.py",
 ]
 
 [tool.ruff.format]

@@ -8,7 +8,7 @@ Each step the observation is rebuilt by `deploy/bitbots/mount_obs.py` from raw s
 (encoder angles and velocities, IMU orientation and gyro, ball position in the IMU frame,
 base height), exactly as the robot node does, and fed to onnxruntime. Checks that it
 equals the training observation and that the targets equal the env's, then reports the
-success like `eval_mountbalance.py`. Catches ordering, history and latch mistakes.
+success like `eval_policy.py`. Catches ordering, history and latch mistakes.
 
     uv run --with onnxruntime python scripts/sim2sim_onnx.py --onnx deploy/bitbots/mount_ball.onnx
 """

@@ -8,7 +8,7 @@ success also requires that the free foot does not touch the ball; level success 
 the support sole is near horizontal (foot near the ball top, not on its flank).
 Envs are binned by their own randomized ball radius and by spawn mode.
 
-    uv run python scripts/eval_mountbalance.py \
+    uv run python scripts/eval_policy.py \
         --checkpoint logs/rsl_rl/piplus_ball_mountbalance/<run>/model_N.pt
 
 `--probe` (posture, saturation), `--audit` (action size against the clip and the joint limits)
