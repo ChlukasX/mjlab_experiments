@@ -1,6 +1,6 @@
 # mjlab-piplus
 
-Pi+ humanoid experiments using [mjlab](https://mujocolab.github.io/mjlab/main/index.html) (MuJoCo + RSL-RL + PPO). These are mainly personal experiments, if you want to see more with what we do with the PI+ humanoid robot, and many other cool things, check out the [Hamburg bit-bots](https://github.com/bit-bots/) RoboCup team. 
+Pi+ humanoid experiments with [mjlab](https://mujocolab.github.io/mjlab/main/index.html) (MuJoCo + RSL-RL + PPO). PPO is Proximal Policy Optimization. These experiments are mainly personal. To see more of what we do with the Pi+ humanoid robot, see the [Hamburg bit-bots](https://github.com/bit-bots/) RoboCup team.
 
 ## Setup
 
@@ -21,7 +21,7 @@ uv run wandb login   # required for training
 
 ## Repository structure
 
-This is the overview. It changes only when the structure changes in a big way. The exact map is in [AGENTS.md](AGENTS.md#architecture).
+This is the overview. It changes only when the structure of the repository changes substantially. The exact map is in [AGENTS.md](AGENTS.md#architecture).
 
 ```
 src/mjlab_piplus/   Python package: the Pi+ robot model, one folder per group of tasks, terrains
@@ -33,4 +33,4 @@ deploy/             files for the robot (not in git)
 data/               datasets made from trained policies (not in git)
 ```
 
-The task folders in `src/mjlab_piplus/tasks/` fall into four groups: standing (`upright`, `noninertial`, `platform`), walking (`locomotion`, `locomotion_arms`), balancing on a ball (`ball`, `ball_arms`, `ball_small`), and mounting a ball and balancing on it (`ball_mount`, `ball_mount_min`, `ball_mount_curriculum`, `ball_balance_from_mount`).
+The task folders in `src/mjlab_piplus/tasks/` form four groups: standing (`upright`, `noninertial`, `platform`), walking (`locomotion`, `locomotion_arms`), balancing on a ball (`ball`, `ball_arms`, `ball_small`), and mounting a ball and balancing on it (`ball_mount`, `ball_mount_min`, `ball_mount_curriculum`, `ball_balance_from_mount`).
