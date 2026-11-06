@@ -5,7 +5,9 @@ ignores the new inputs until it learns them. Everything else is copied.
 
     uv run python scripts/make_padded_init.py <src.pt> <dst.pt> <new critic input dim>
 """
+
 import sys
+
 import torch
 
 src, dst, n_new = sys.argv[1], sys.argv[2], int(sys.argv[3])
@@ -29,6 +31,9 @@ n_opt = 0
 for state in ck["optimizer_state_dict"]["state"].values():
     for name, t in state.items():
         if torch.is_tensor(t) and t.dim() == 2 and t.shape == (cs["mlp.0.weight"].shape[0], n_old):
-            state[name] = pad(t); n_opt += 1
+            state[name] = pad(t)
+            n_opt += 1
 torch.save(ck, dst)
-print(f"critic input {n_old} -> {n_new}; padded critic layer, normalizer and {n_opt} optimizer moments")
+print(
+    f"critic input {n_old} -> {n_new}; padded critic layer, normalizer and {n_opt} optimizer moments"
+)

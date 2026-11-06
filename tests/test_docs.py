@@ -1,7 +1,7 @@
 """Checks of the documentation structure: the experiment index and the relative links.
 
-    uv run pytest                    # index and link checks
-    uv run pytest -m runs_index      # also: docs/runs_index.md is up to date (needs logs/ and wandb/)
+uv run pytest                    # index and link checks
+uv run pytest -m runs_index      # also: docs/runs_index.md is up to date (needs logs/ and wandb/)
 """
 
 import re
@@ -70,10 +70,15 @@ def test_relative_markdown_links_resolve():
 
 
 @pytest.mark.runs_index
-@pytest.mark.skipif(not (REPO / "logs" / "rsl_rl").exists(), reason="no logs/rsl_rl on this machine")
+@pytest.mark.skipif(
+    not (REPO / "logs" / "rsl_rl").exists(), reason="no logs/rsl_rl on this machine"
+)
 def test_runs_index_is_up_to_date():
     result = subprocess.run(
         ["uv", "run", "python", "scripts/make_runs_index.py", "--check"],
-        cwd=REPO, capture_output=True, text=True, check=False,
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout[-400:]

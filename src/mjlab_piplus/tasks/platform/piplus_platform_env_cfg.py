@@ -22,10 +22,10 @@ import mujoco
 import numpy as np
 import torch
 
+from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.entity import EntityCfg
 from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
@@ -43,7 +43,6 @@ from mjlab.viewer import ViewerConfig
 
 from mjlab_piplus.common.rewards import base_height_gauss, xy_drift_gauss
 from mjlab_piplus.robot.piplus_constants import (
-    ACTUATOR_5036,
     FULL_COLLISION,
     HOME_KEYFRAME,
     PIPLUS_ARTICULATION,
@@ -51,7 +50,7 @@ from mjlab_piplus.robot.piplus_constants import (
 )
 
 # Platform geometry
-PLATFORM_Z = 0.2        # center height — bottom at z=0.15, top at z=0.25
+PLATFORM_Z = 0.2  # center height — bottom at z=0.15, top at z=0.25
 PLATFORM_HALF_H = 0.05  # half-thickness
 PLATFORM_HALF_XY = 1.5  # half-width/length (3m × 3m platform)
 
@@ -61,14 +60,15 @@ PLATFORM_HALF_XY = 1.5  # half-width/length (3m × 3m platform)
 # base-to-lowest = 0.2915 + 0.05 = 0.3415
 # Settle measurement (200 steps, zero action): base settles to ~0.615.
 _BASE_TO_LOWEST = 0.3415
-PLATFORM_TOP = PLATFORM_Z + PLATFORM_HALF_H            # = 0.25
-ROBOT_SPAWN_Z = PLATFORM_TOP + 0.5                     # = 0.75  (0.5 m above platform)
-BASE_HEIGHT_TARGET = PLATFORM_TOP + 0.35               # = 0.60  (matches noninertial convention)
+PLATFORM_TOP = PLATFORM_Z + PLATFORM_HALF_H  # = 0.25
+ROBOT_SPAWN_Z = PLATFORM_TOP + 0.5  # = 0.75  (0.5 m above platform)
+BASE_HEIGHT_TARGET = PLATFORM_TOP + 0.35  # = 0.60  (matches noninertial convention)
 
 
 # ---------------------------------------------------------------------------
 # Specs
 # ---------------------------------------------------------------------------
+
 
 def get_platform_spec() -> mujoco.MjSpec:
     """Flat box platform — no joints, auto-wrapped as mocap by mjlab.
@@ -114,6 +114,7 @@ def get_piplus_on_platform_cfg() -> EntityCfg:
 # Helper: quaternion from roll+pitch (MuJoCo [w,x,y,z] convention)
 # ---------------------------------------------------------------------------
 
+
 def _roll_pitch_to_quat(roll: torch.Tensor, pitch: torch.Tensor) -> torch.Tensor:
     """Returns [B, 4] quaternion [w,x,y,z] for roll-then-pitch rotation."""
     cr = torch.cos(roll * 0.5)
@@ -132,6 +133,7 @@ def _roll_pitch_to_quat(roll: torch.Tensor, pitch: torch.Tensor) -> torch.Tensor
 # Custom obs / reward / event functions
 # ---------------------------------------------------------------------------
 
+
 def foot_flatness(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
     quat = asset.data.body_com_quat_w[:, asset_cfg.body_ids, :]
@@ -140,7 +142,9 @@ def foot_flatness(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     return foot_up_z.clamp(0, 1).mean(dim=-1)
 
 
-def foot_grounding(env, std: float, asset_cfg: SceneEntityCfg, platform_cfg: SceneEntityCfg) -> torch.Tensor:
+def foot_grounding(
+    env, std: float, asset_cfg: SceneEntityCfg, platform_cfg: SceneEntityCfg
+) -> torch.Tensor:
     """Reward feet staying on platform — penalises lifting off surface."""
     robot = env.scene[asset_cfg.name]
     platform = env.scene[platform_cfg.name]
@@ -151,7 +155,9 @@ def foot_grounding(env, std: float, asset_cfg: SceneEntityCfg, platform_cfg: Sce
     return torch.exp(-lift.sum(dim=-1) / std)
 
 
-def off_platform(env, margin: float, asset_cfg: SceneEntityCfg, platform_cfg: SceneEntityCfg) -> torch.Tensor:
+def off_platform(
+    env, margin: float, asset_cfg: SceneEntityCfg, platform_cfg: SceneEntityCfg
+) -> torch.Tensor:
     """Terminate when robot xy drifts beyond the platform boundary."""
     robot = env.scene[asset_cfg.name]
     platform = env.scene[platform_cfg.name]
@@ -163,14 +169,14 @@ def platform_state_obs(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Privileged obs: [roll, pitch, roll_rate, pitch_rate, heave_vel] [B, 5]."""
     if not hasattr(env, "_plat_amp"):
         return torch.zeros(env.num_envs, 5, device=env.device)
-    a = env._plat_amp    # [B, 3]  (roll, pitch, heave)
+    a = env._plat_amp  # [B, 3]  (roll, pitch, heave)
     ph = env._plat_phase  # [B, 3]
-    fr = env._plat_freq   # [B, 3]
-    roll       = a[:, 0] * torch.sin(ph[:, 0])
-    pitch      = a[:, 1] * torch.sin(ph[:, 1])
-    roll_rate  = a[:, 0] * torch.cos(ph[:, 0]) * fr[:, 0]
+    fr = env._plat_freq  # [B, 3]
+    roll = a[:, 0] * torch.sin(ph[:, 0])
+    pitch = a[:, 1] * torch.sin(ph[:, 1])
+    roll_rate = a[:, 0] * torch.cos(ph[:, 0]) * fr[:, 0]
     pitch_rate = a[:, 1] * torch.cos(ph[:, 1]) * fr[:, 1]
-    heave_vel  = a[:, 2] * torch.cos(ph[:, 2]) * fr[:, 2]
+    heave_vel = a[:, 2] * torch.cos(ph[:, 2]) * fr[:, 2]
     return torch.stack([roll, pitch, roll_rate, pitch_rate, heave_vel], dim=-1)
 
 
@@ -187,9 +193,9 @@ def reset_platform_motion(
 
     if not hasattr(env, "_plat_amp"):
         B = env.num_envs
-        env._plat_amp   = torch.zeros(B, 3, device=device)
+        env._plat_amp = torch.zeros(B, 3, device=device)
         env._plat_phase = torch.zeros(B, 3, device=device)
-        env._plat_freq  = torch.zeros(B, 3, device=device)
+        env._plat_freq = torch.zeros(B, 3, device=device)
 
     r_max, p_max, h_max = amp_max
     f_lo, f_hi = freq_range
@@ -197,9 +203,7 @@ def reset_platform_motion(
     env._plat_amp[env_ids, 1] = torch.rand(n, device=device) * p_max
     env._plat_amp[env_ids, 2] = torch.rand(n, device=device) * h_max
     env._plat_phase[env_ids] = 0.0  # start flat; sin(0)=0, no tilt at spawn
-    env._plat_freq[env_ids] = (
-        torch.rand(n, 3, device=device) * (f_hi - f_lo) + f_lo
-    )
+    env._plat_freq[env_ids] = torch.rand(n, 3, device=device) * (f_hi - f_lo) + f_lo
 
     # Place platform at rest pose for reset env_ids.
     platform = env.scene[platform_cfg.name]
@@ -246,7 +250,11 @@ class PushEventWithVis:
         env._push_vel_scale = 0.0  # disabled by default in play mode
         with visualizer.server.gui.add_folder("Push"):
             s = visualizer.server.gui.add_slider(
-                "Velocity scale (0=off)", min=0.0, max=2.0, step=0.1, initial_value=0.0,
+                "Velocity scale (0=off)",
+                min=0.0,
+                max=2.0,
+                step=0.1,
+                initial_value=0.0,
             )
 
             def _on_change(_ev, _s=s):
@@ -273,14 +281,14 @@ class ApplyPlatformMotion:
         # Allow play-mode amplitude override via slider.
         amp = getattr(env, "_plat_amp_override", env._plat_amp)
 
-        roll  = amp[:, 0] * torch.sin(env._plat_phase[:, 0])
+        roll = amp[:, 0] * torch.sin(env._plat_phase[:, 0])
         pitch = amp[:, 1] * torch.sin(env._plat_phase[:, 1])
         heave = amp[:, 2] * torch.sin(env._plat_phase[:, 2])
 
         all_ids = torch.arange(env.num_envs, device=env.device)
         pose = torch.zeros(env.num_envs, 7, device=env.device)
         pose[:, :2] = env.scene.env_origins[:, :2]
-        pose[:, 2]  = PLATFORM_Z + heave
+        pose[:, 2] = PLATFORM_Z + heave
         pose[:, 3:7] = _roll_pitch_to_quat(roll, pitch)
         platform.write_mocap_pose_to_sim(pose, env_ids=all_ids)
 
@@ -298,13 +306,25 @@ class ApplyPlatformMotion:
             self._slider_added = True
             with visualizer.server.gui.add_folder("Platform Motion"):
                 s_roll = visualizer.server.gui.add_slider(
-                    "Roll amp (rad)", min=0.0, max=0.35, step=0.01, initial_value=0.0,
+                    "Roll amp (rad)",
+                    min=0.0,
+                    max=0.35,
+                    step=0.01,
+                    initial_value=0.0,
                 )
                 s_pitch = visualizer.server.gui.add_slider(
-                    "Pitch amp (rad)", min=0.0, max=0.25, step=0.01, initial_value=0.0,
+                    "Pitch amp (rad)",
+                    min=0.0,
+                    max=0.25,
+                    step=0.01,
+                    initial_value=0.0,
                 )
                 s_heave = visualizer.server.gui.add_slider(
-                    "Heave amp (m)", min=0.0, max=0.30, step=0.01, initial_value=0.0,
+                    "Heave amp (m)",
+                    min=0.0,
+                    max=0.30,
+                    step=0.01,
+                    initial_value=0.0,
                 )
 
                 def _on_change(_ev, _r=s_roll, _p=s_pitch, _h=s_heave):
@@ -321,7 +341,7 @@ class ApplyPlatformMotion:
         # Draw tilt normal arrow for first visualized env.
         amp = getattr(env, "_plat_amp_override", env._plat_amp)
         for env_idx in visualizer.get_env_indices(env.num_envs):
-            roll  = float(amp[env_idx, 0] * torch.sin(env._plat_phase[env_idx, 0]))
+            roll = float(amp[env_idx, 0] * torch.sin(env._plat_phase[env_idx, 0]))
             pitch = float(amp[env_idx, 1] * torch.sin(env._plat_phase[env_idx, 1]))
             heave = float(amp[env_idx, 2] * torch.sin(env._plat_phase[env_idx, 2]))
             if abs(roll) < 0.01 and abs(pitch) < 0.01:
@@ -348,7 +368,7 @@ def platform_motion_curriculum(
     roll_max = pitch_max = heave_max = 0.0
     for stage in stages:
         if env.common_step_counter >= stage["step"]:
-            roll_max  = stage["roll_max"]
+            roll_max = stage["roll_max"]
             pitch_max = stage["pitch_max"]
             heave_max = stage["heave_max"]
 
@@ -361,22 +381,23 @@ def platform_motion_curriculum(
 # Environment config
 # ---------------------------------------------------------------------------
 
+
 def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     robot_cfg = SceneEntityCfg("robot")
     platform_cfg = SceneEntityCfg("platform")
 
     obs_terms = {
-        "joint_pos":         ObservationTermCfg(func=envs_mdp.joint_pos_rel),
-        "joint_vel":         ObservationTermCfg(func=envs_mdp.joint_vel_rel),
+        "joint_pos": ObservationTermCfg(func=envs_mdp.joint_pos_rel),
+        "joint_vel": ObservationTermCfg(func=envs_mdp.joint_vel_rel),
         "projected_gravity": ObservationTermCfg(func=envs_mdp.projected_gravity),
-        "actions":           ObservationTermCfg(func=envs_mdp.last_action),
-        "platform_state":    ObservationTermCfg(
+        "actions": ObservationTermCfg(func=envs_mdp.last_action),
+        "platform_state": ObservationTermCfg(
             func=platform_state_obs,
             params={"asset_cfg": robot_cfg},
         ),
     }
     observations = {
-        "actor":  ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
+        "actor": ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
         "critic": ObservationGroupCfg(terms=obs_terms, enable_corruption=False),
     }
 
@@ -416,34 +437,43 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             weight=3.0,
             params={
                 "std": {
-                    ".*_hip_roll_joint":    0.05,   # tight: no lateral sway
-                    ".*_hip_pitch_joint":   0.40,   # loose: hip flex absorbs motion
-                    ".*_thigh_joint":       0.40,   # loose: knee flex absorbs motion
-                    ".*_calf_joint":        0.40,   # loose: knee flex absorbs motion
-                    ".*_ankle_pitch_joint": 0.20,   # moderate: some ankle compensation
-                    ".*_ankle_roll_joint":  0.25,
+                    ".*_hip_roll_joint": 0.05,  # tight: no lateral sway
+                    ".*_hip_pitch_joint": 0.40,  # loose: hip flex absorbs motion
+                    ".*_thigh_joint": 0.40,  # loose: knee flex absorbs motion
+                    ".*_calf_joint": 0.40,  # loose: knee flex absorbs motion
+                    ".*_ankle_pitch_joint": 0.20,  # moderate: some ankle compensation
+                    ".*_ankle_roll_joint": 0.25,
                 },
-                "asset_cfg": SceneEntityCfg("robot", joint_names=(
-                    ".*_hip_roll_joint",
-                    ".*_hip_pitch_joint",
-                    ".*_thigh_joint",
-                    ".*_calf_joint",
-                    ".*_ankle_pitch_joint",
-                    ".*_ankle_roll_joint",
-                )),
+                "asset_cfg": SceneEntityCfg(
+                    "robot",
+                    joint_names=(
+                        ".*_hip_roll_joint",
+                        ".*_hip_pitch_joint",
+                        ".*_thigh_joint",
+                        ".*_calf_joint",
+                        ".*_ankle_pitch_joint",
+                        ".*_ankle_roll_joint",
+                    ),
+                ),
             },
         ),
         "foot_flatness": RewardTermCfg(
             func=foot_flatness,
             weight=2.0,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_ankle_roll_link", "l_ankle_roll_link"])},
+            params={
+                "asset_cfg": SceneEntityCfg(
+                    "robot", body_names=["r_ankle_roll_link", "l_ankle_roll_link"]
+                )
+            },
         ),
         "foot_grounding": RewardTermCfg(
             func=foot_grounding,
             weight=5.0,
             params={
                 "std": 0.02,
-                "asset_cfg": SceneEntityCfg("robot", body_names=["r_ankle_roll_link", "l_ankle_roll_link"]),
+                "asset_cfg": SceneEntityCfg(
+                    "robot", body_names=["r_ankle_roll_link", "l_ankle_roll_link"]
+                ),
                 "platform_cfg": SceneEntityCfg("platform"),
             },
         ),
@@ -453,11 +483,11 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             params={"std": 2.0, "asset_cfg": robot_cfg},
         ),
         "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.05),
-        "joint_vel":   RewardTermCfg(func=envs_mdp.joint_vel_l2,   weight=-0.005),
+        "joint_vel": RewardTermCfg(func=envs_mdp.joint_vel_l2, weight=-0.005),
     }
 
     terminations = {
-        "time_out":  TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
+        "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
         "fell_over": TerminationTermCfg(
             func=envs_mdp.bad_orientation,
             params={"limit_angle": math.radians(70.0)},
@@ -500,7 +530,7 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             mode="reset",
             params={
                 "amp_max": (0.0, 0.0, 0.0),  # ramped by curriculum
-                "freq_range": (0.3, 1.2),     # rad/s ≈ 0.05–0.19 Hz (ship swell)
+                "freq_range": (0.3, 1.2),  # rad/s ≈ 0.05–0.19 Hz (ship swell)
                 "platform_cfg": platform_cfg,
             },
         ),
@@ -511,36 +541,42 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         ),
     }
 
-    curriculum = {} if play else {
-        "platform_motion": CurriculumTermCfg(
-            func=platform_motion_curriculum,
-            params={
-                "stages": [
-                    {"step":     0, "roll_max": 0.00, "pitch_max": 0.00, "heave_max": 0.00},
-                    {"step":  6000, "roll_max": 0.10, "pitch_max": 0.08, "heave_max": 0.10},
-                    {"step": 12000, "roll_max": 0.20, "pitch_max": 0.15, "heave_max": 0.20},
-                    {"step": 20000, "roll_max": 0.30, "pitch_max": 0.20, "heave_max": 0.25},
-                ],
-            },
-        ),
-    }
+    curriculum = (
+        {}
+        if play
+        else {
+            "platform_motion": CurriculumTermCfg(
+                func=platform_motion_curriculum,
+                params={
+                    "stages": [
+                        {"step": 0, "roll_max": 0.00, "pitch_max": 0.00, "heave_max": 0.00},
+                        {"step": 6000, "roll_max": 0.10, "pitch_max": 0.08, "heave_max": 0.10},
+                        {"step": 12000, "roll_max": 0.20, "pitch_max": 0.15, "heave_max": 0.20},
+                        {"step": 20000, "roll_max": 0.30, "pitch_max": 0.20, "heave_max": 0.25},
+                    ],
+                },
+            ),
+        }
+    )
 
     return ManagerBasedRlEnvCfg(
         scene=SceneCfg(
             terrain=TerrainEntityCfg(terrain_type="plane"),
             entities={
-                "robot":    get_piplus_on_platform_cfg(),
+                "robot": get_piplus_on_platform_cfg(),
                 "platform": EntityCfg(
                     spec_fn=get_platform_spec,
                     init_state=EntityCfg.InitialStateCfg(pos=(0, 0, PLATFORM_Z)),
-                    collisions=(CollisionCfg(
-                        geom_names_expr=("platform_geom",),
-                        contype=1,
-                        conaffinity=1,
-                        condim=3,
-                        priority=1,
-                        friction=(0.8,),
-                    ),),
+                    collisions=(
+                        CollisionCfg(
+                            geom_names_expr=("platform_geom",),
+                            contype=1,
+                            conaffinity=1,
+                            condim=3,
+                            priority=1,
+                            friction=(0.8,),
+                        ),
+                    ),
                 ),
             },
             num_envs=1,

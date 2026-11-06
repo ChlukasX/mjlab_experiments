@@ -35,3 +35,32 @@ markers = [
     "checkpoints: loads every checkpoint under logs/rsl_rl (about 1 minute on the CPU)",
     "runs_index: docs/runs_index.md equals the regenerated file (needs logs/ and wandb/)",
 ]
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+# Hot and warm files keep their format until phase 10 (freeze gate). Phase 10 removes this list.
+extend-exclude = [
+    "src/mjlab_piplus/tasks/ball_mount",
+    "src/mjlab_piplus/tasks/ball_mount_curriculum",
+    "src/mjlab_piplus/tasks/ball_mount_min",
+    "src/mjlab_piplus/tasks/ball_small",
+    "src/mjlab_piplus/tasks/ball_balance_from_mount",
+    "src/mjlab_piplus/robot",
+    "src/mjlab_piplus/terrains",
+    "scripts/eval_mountbalance.py",
+]
+
+[tool.ruff.format]
+indent-style = "space"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+# Rule S3: standard library, third party, mjlab, mjlab_piplus.
+section-order = ["future", "standard-library", "third-party", "mjlab", "first-party", "local-folder"]
+known-first-party = ["mjlab_piplus"]
+
+[tool.ruff.lint.isort.sections]
+mjlab = ["mjlab"]

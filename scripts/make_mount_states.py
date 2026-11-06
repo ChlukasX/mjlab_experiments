@@ -24,6 +24,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import torch
+
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
@@ -74,9 +75,12 @@ for _ in range(int(args.seconds / u.step_dt)):
     with torch.no_grad():
         action = policy(obs)
     obs, _, dones, _ = env.step(action)
-    stance = single_leg_stance_lifted(
-        u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z, COM_OVER_BALL, args.clearance
-    ) > 0
+    stance = (
+        single_leg_stance_lifted(
+            u, foot_cfg, ball_cfg, None, True, STAND_FOOT_Z, COM_OVER_BALL, args.clearance
+        )
+        > 0
+    )
     counter = torch.where(stance & ~dones.bool(), counter + 1, torch.zeros_like(counter))
     m = counter == hold_steps
     if m.any():
@@ -86,10 +90,12 @@ for _ in range(int(args.seconds / u.step_dt)):
             torch.cat(
                 [
                     radius[m, None],
-                    torch.cat([robot.data.root_link_pose_w[m], robot.data.root_link_vel_w[m]], -1) - origin,
+                    torch.cat([robot.data.root_link_pose_w[m], robot.data.root_link_vel_w[m]], -1)
+                    - origin,
                     robot.data.joint_pos[m],
                     robot.data.joint_vel[m],
-                    torch.cat([ball.data.root_link_pose_w[m], ball.data.root_link_vel_w[m]], -1) - origin,
+                    torch.cat([ball.data.root_link_pose_w[m], ball.data.root_link_vel_w[m]], -1)
+                    - origin,
                     u.action_manager.action[m],  # the mount policy's last (raw) action
                 ],
                 dim=-1,
@@ -108,4 +114,6 @@ torch.save(
     },
     args.out,
 )
-print(f"saved {len(states)} states to {args.out}; radius {states[0, 0]:.3f} to {states[-1, 0]:.3f} m")
+print(
+    f"saved {len(states)} states to {args.out}; radius {states[0, 0]:.3f} to {states[-1, 0]:.3f} m"
+)

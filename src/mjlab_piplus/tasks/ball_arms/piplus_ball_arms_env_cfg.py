@@ -6,10 +6,10 @@ Arm swing can contribute to angular momentum management on the ball.
 
 import math
 
+from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.entity import EntityCfg
 from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
@@ -37,9 +37,8 @@ from mjlab_piplus.common.balls import (
 )
 from mjlab_piplus.common.rewards import base_height_gauss, xy_centering
 from mjlab_piplus.robot.piplus_constants import (
-    HOME_KEYFRAME_WITH_ARMS,
-    get_piplus_robot_with_arms_cfg,
     FULL_COLLISION,
+    HOME_KEYFRAME_WITH_ARMS,
 )
 
 
@@ -49,7 +48,11 @@ def get_piplus_on_ball_with_arms_cfg() -> EntityCfg:
         joint_pos=HOME_KEYFRAME_WITH_ARMS.joint_pos,
         joint_vel=HOME_KEYFRAME_WITH_ARMS.joint_vel,
     )
-    from mjlab_piplus.robot.piplus_constants import PIPLUS_ARTICULATION_WITH_ARMS, get_spec_with_arms
+    from mjlab_piplus.robot.piplus_constants import (
+        PIPLUS_ARTICULATION_WITH_ARMS,
+        get_spec_with_arms,
+    )
+
     return EntityCfg(
         init_state=spawn_state,
         collisions=(FULL_COLLISION,),
@@ -63,17 +66,17 @@ def piplus_ball_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     ball_cfg = SceneEntityCfg("ball")
 
     obs_terms = {
-        "joint_pos":         ObservationTermCfg(func=envs_mdp.joint_pos_rel),
-        "joint_vel":         ObservationTermCfg(func=envs_mdp.joint_vel_rel),
+        "joint_pos": ObservationTermCfg(func=envs_mdp.joint_pos_rel),
+        "joint_vel": ObservationTermCfg(func=envs_mdp.joint_vel_rel),
         "projected_gravity": ObservationTermCfg(func=envs_mdp.projected_gravity),
-        "actions":           ObservationTermCfg(func=envs_mdp.last_action),
-        "ball_state":        ObservationTermCfg(
+        "actions": ObservationTermCfg(func=envs_mdp.last_action),
+        "ball_state": ObservationTermCfg(
             func=ball_state_obs,
             params={"asset_cfg": robot_cfg, "ball_cfg": ball_cfg},
         ),
     }
     observations = {
-        "actor":  ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
+        "actor": ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
         "critic": ObservationGroupCfg(terms=obs_terms, enable_corruption=False),
     }
 
@@ -109,37 +112,49 @@ def piplus_ball_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             weight=3.0,
             params={
                 "std": {
-                    ".*_hip_roll_joint":       0.05,
-                    ".*_hip_pitch_joint":      0.40,
-                    ".*_thigh_joint":          0.40,
-                    ".*_calf_joint":           0.40,
-                    ".*_ankle_pitch_joint":    0.20,
-                    ".*_ankle_roll_joint":     0.25,
+                    ".*_hip_roll_joint": 0.05,
+                    ".*_hip_pitch_joint": 0.40,
+                    ".*_thigh_joint": 0.40,
+                    ".*_calf_joint": 0.40,
+                    ".*_ankle_pitch_joint": 0.20,
+                    ".*_ankle_roll_joint": 0.25,
                     # arms loose — let them find useful poses
                     ".*_shoulder_pitch_joint": 0.40,
-                    ".*_shoulder_roll_joint":  0.20,
-                    ".*_upper_arm_joint":      0.50,
-                    ".*_elbow_joint":          0.30,
+                    ".*_shoulder_roll_joint": 0.20,
+                    ".*_upper_arm_joint": 0.50,
+                    ".*_elbow_joint": 0.30,
                 },
-                "asset_cfg": SceneEntityCfg("robot", joint_names=(
-                    ".*_hip_roll_joint", ".*_hip_pitch_joint",
-                    ".*_thigh_joint", ".*_calf_joint",
-                    ".*_ankle_pitch_joint", ".*_ankle_roll_joint",
-                    ".*_shoulder_pitch_joint", ".*_shoulder_roll_joint",
-                    ".*_upper_arm_joint", ".*_elbow_joint",
-                )),
+                "asset_cfg": SceneEntityCfg(
+                    "robot",
+                    joint_names=(
+                        ".*_hip_roll_joint",
+                        ".*_hip_pitch_joint",
+                        ".*_thigh_joint",
+                        ".*_calf_joint",
+                        ".*_ankle_pitch_joint",
+                        ".*_ankle_roll_joint",
+                        ".*_shoulder_pitch_joint",
+                        ".*_shoulder_roll_joint",
+                        ".*_upper_arm_joint",
+                        ".*_elbow_joint",
+                    ),
+                ),
             },
         ),
-        "ball_control":     RewardTermCfg(func=ball_control,     weight=3.0,  params={"std": 0.5, "ball_cfg": ball_cfg}),
-        "xy_centering":     RewardTermCfg(func=xy_centering,    weight=0.5,  params={"asset_cfg": robot_cfg}),
+        "ball_control": RewardTermCfg(
+            func=ball_control, weight=3.0, params={"std": 0.5, "ball_cfg": ball_cfg}
+        ),
+        "xy_centering": RewardTermCfg(
+            func=xy_centering, weight=0.5, params={"asset_cfg": robot_cfg}
+        ),
         "joint_pos_limits": RewardTermCfg(func=envs_mdp.joint_pos_limits, weight=-1.0),
-        "action_rate":      RewardTermCfg(func=envs_mdp.action_rate_l2,   weight=-0.05),
-        "joint_vel":        RewardTermCfg(func=envs_mdp.joint_vel_l2,     weight=-0.005),
+        "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.05),
+        "joint_vel": RewardTermCfg(func=envs_mdp.joint_vel_l2, weight=-0.005),
     }
 
     terminations = {
-        "time_out":     TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
-        "fell_over":    TerminationTermCfg(
+        "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
+        "fell_over": TerminationTermCfg(
             func=envs_mdp.bad_orientation,
             params={"limit_angle": math.radians(70.0)},
         ),
@@ -174,7 +189,7 @@ def piplus_ball_arms_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             terrain=TerrainEntityCfg(terrain_type="plane"),
             entities={
                 "robot": get_piplus_on_ball_with_arms_cfg(),
-                "ball":  EntityCfg(
+                "ball": EntityCfg(
                     spec_fn=get_ball_spec,
                     init_state=EntityCfg.InitialStateCfg(pos=(0, 0, BALL_RADIUS)),
                 ),
