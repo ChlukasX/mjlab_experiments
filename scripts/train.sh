@@ -1,43 +1,9 @@
 #!/usr/bin/env bash
 # Quickstart trainer: wandb logging. Use --tmux to wrap in a tmux session.
+# --name is required. The task menu comes from the live task registry (uv run mjx tasks).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-
-TASKS=(
-  "Mjlab-Piplus-Upright"
-  "Mjlab-Piplus-Locomotion"
-  "Mjlab-Piplus-Locomotion-Arms"
-  "Mjlab-Piplus-NonInertial"
-  "Mjlab-Piplus-Platform"
-  "Mjlab-Piplus-Ball"
-  "Mjlab-Piplus-Ball-Arms"
-  "Mjlab-Piplus-Ball-Small"
-  "Mjlab-Piplus-Ball-Small-Turf"
-  "Mjlab-Piplus-Ball-Mount"
-  "Mjlab-Piplus-Ball-Mount-Flat"
-  "Mjlab-Piplus-Ball-Mount-Size1"
-  "Mjlab-Piplus-Ball-Mount-Size1-Flat"
-  "Mjlab-Piplus-Ball-Balance-Size1"
-  "Mjlab-Piplus-Ball-MountBalance"
-  "Mjlab-Piplus-Ball-MountBalance-Mix30"
-  "Mjlab-Piplus-Ball-MountBalance-Mix70"
-  "Mjlab-Piplus-Ball-MountBalance-Mix0"
-  "Mjlab-Piplus-Ball-MountBalance-Mix100"
-  "Mjlab-Piplus-Ball-MountBalance-Clip"
-  "Mjlab-Piplus-Ball-MountBalance-Mix100-Clip"
-  "Mjlab-Piplus-Ball-MountBalance-Mix0-Clip"
-  "Mjlab-Piplus-Ball-MountCurr-Release"
-  "Mjlab-Piplus-Ball-MountCurr-ReleasePot"
-  "Mjlab-Piplus-Ball-MountCurr-Pot"
-  "Mjlab-Piplus-Ball-MountCurr-Locked"
-  "Mjlab-Piplus-Ball-MountMin"
-  "Mjlab-Piplus-Ball-MountMin-Clip"
-  "Mjlab-Piplus-Ball-MountMin-Locked"
-  "Mjlab-Piplus-Ball-BalanceFromMount"
-  "Mjlab-Piplus-Ball-BalanceFromMount-Mix50"
-  "Mjlab-Piplus-Ball-BalanceFromMount-Clip"
-)
 
 TASK=""
 NUM_ENVS=""
@@ -66,8 +32,16 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --name)
+      if [[ $# -lt 2 ]]; then
+        echo "error: --name needs a value." >&2
+        exit 1
+      fi
       NAME="$2"
       shift 2
+      ;;
+    --name=*)
+      NAME="${1#--name=}"
+      shift
       ;;
     *)
       EXTRA_ARGS+=("$1")
@@ -76,12 +50,28 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$NAME" ]]; then
+  echo "error: --name is required. Name every run, e.g. --name cur5-short-slug." >&2
+  echo "usage: bash scripts/train.sh [task] --name <run-name> [--num-envs N] [--cpu] [--tmux]" >&2
+  exit 1
+fi
+
 if [[ -z "$TASK" ]]; then
+  TASK_LIST="$(uv run mjx tasks)"
+  if [[ -z "$TASK_LIST" ]]; then
+    echo "error: the task registry lists no Pi Plus task." >&2
+    exit 1
+  fi
+  mapfile -t TASKS <<<"$TASK_LIST"
   echo "Select task:"
   select choice in "${TASKS[@]}"; do
     [[ -n "$choice" ]] && TASK="$choice" && break
     echo "Invalid selection."
   done
+  if [[ -z "$TASK" ]]; then
+    echo "error: no task selected." >&2
+    exit 1
+  fi
 fi
 
 if [[ -z "$NUM_ENVS" ]]; then
@@ -102,7 +92,7 @@ TRAIN_CMD=(uv run train "$TASK"
   --agent.logger wandb
   --agent.wandb-project "$TASK"
   --env.scene.num-envs "$NUM_ENVS"
-  ${NAME:+--agent.run-name "$NAME"}
+  --agent.run-name "$NAME"
   "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}")
 
 if [[ "$TMUX" -eq 1 ]]; then
