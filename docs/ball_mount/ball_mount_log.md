@@ -219,5 +219,5 @@ Results (both finished; eval = `scripts/eval_mountbalance.py`, 1024 envs, 20 s):
 | mount policy only | 100% (mean 1.5 s) | 0% | 99 to 100% |
 | mount policy, then balance policy after 1 s in the straddle | 100% (mean 1.5 s) | **0%** | **0%** (1% in the smallest bin) |
 
-Conclusion: the existing balance policy does **not** rescue the straddle; every env falls after the switch. It was trained from a start with the free leg hanging and has never seen this posture. The "two skills plus a switcher" design therefore needs a mount policy that reaches a state the balance policy can handle (or a balance policy trained on straddle starts). Next: the mount curriculum experiments, see [ball_mount_curriculum](../ball_mount_curriculum/ball_mount_curriculum.md).
+Conclusion: the existing balance policy does **not** rescue the straddle; every env falls after the switch. It was trained from a start with the free leg hanging and has never seen this posture. The "two skills plus a switcher" design therefore needs a mount policy that reaches a state the balance policy can handle (or a balance policy trained on straddle starts). Next: the mount curriculum experiments, see [mount_potential](../mount_potential/mount_potential.md).
 

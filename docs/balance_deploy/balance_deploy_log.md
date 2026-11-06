@@ -18,4 +18,4 @@ All three are far above the proposed limits: targets tens of radians from the ho
 
 ## Next
 
-- Drops-only ablation for a bounded-action balance policy (see the plan in the design doc). Not launched yet: both GPUs are busy with the mount curriculum round 1 ([ball_mount_curriculum_log.md](../ball_mount_curriculum/ball_mount_curriculum_log.md)).
+- Drops-only ablation for a bounded-action balance policy (see the plan in the design doc). Not launched yet: both GPUs are busy with the mount curriculum round 1 ([mount_potential_log.md](../mount_potential/mount_potential_log.md)).

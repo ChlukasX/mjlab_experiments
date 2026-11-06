@@ -42,23 +42,45 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 ## Commands
 
 ```bash
-# Train — interactive task selection menu when no task given
+# Train. Name every run (--name). Interactive task selection menu when no task is given.
 bash scripts/train.sh
-bash scripts/train.sh Mjlab-Piplus-Platform --num-envs 64
-bash scripts/train.sh --cpu   # CPU mode, 64 envs
+bash scripts/train.sh Mjlab-Piplus-Platform --name <run-name> --num-envs 64
+bash scripts/train.sh <task> --name <run-name> [overrides]   # wandb project = task id, default 4096 envs
+bash scripts/train.sh <task> --tmux                          # wrap in tmux session mjlab-train, with a spare viewer window
+bash scripts/train.sh --cpu                                  # CPU mode, 64 envs
 
 # Train directly
 uv run train Mjlab-Piplus-Platform --env.scene.num-envs 4096
 
-# Play back a checkpoint (interactive selection via mjx)
-uv run mjx play
-uv run mjx --task Mjlab-Piplus-Platform play
+# Overrides: reward weight
+--env.rewards.<term>.weight <value>
+
+# Resume (the iteration counter continues from N)
+bash scripts/train.sh <task> --name <run-name> --agent.resume True --agent.load-run <run dir name> --agent.load-checkpoint model_N.pt --agent.max-iterations <additional>
+
+# Evaluate a checkpoint (success by spawn mode and ball size)
+uv run python scripts/eval_mountbalance.py --task <task> --checkpoint <model.pt>
+#   --probe: posture and saturation; --audit: action size against the clip and the joint limits;
+#   --gait: free-foot placement, floor taps, stance length, foot heading
+
+# Check that no experiment broke (run after every change in src/)
+uv run pytest
+uv run python scripts/check_tasks.py --load --fingerprint --checkpoints
+
+# Play back a checkpoint (interactive selection via mjx). Start every play run under timeout 15m.
+timeout 15m uv run mjx play
+timeout 15m uv run mjx --task Mjlab-Piplus-Platform play [--run <prefix>] [--ckpt N]
 
 # Play directly
-uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/<run>/model_N.pt --viewer viser --num-envs 1
+timeout 15m uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/<run>/model_N.pt --viewer viser --num-envs 1
+
+# Manage runs
+uv run mjx runs                    # list runs with iteration count and age
+uv run mjx clean --dry-run         # preview which checkpoints would be deleted
+uv run mjx clean                   # DELETES intermediate checkpoints (keeps every 5th and each run's last); ask first
 ```
 
-`scripts/train.sh` requires wandb login (`uv run wandb login` or `WANDB_API_KEY` env var) and creates a tmux session `mjlab-train` with a spare viewer window.
+`scripts/train.sh` requires wandb login (`uv run wandb login` or `WANDB_API_KEY` env var). Parallel runs: stagger the launches by about 20 s. `MountBalance` tasks have a Spawn mode dropdown in the viewer. Logs, checkpoints, and run metadata: see `docs/README.md` (Conventions) and `docs/runs_index.md`.
 
 ## Registered Tasks
 
@@ -119,7 +141,7 @@ Hierarchical: Approach policy → `(vx, vy, ωz)` → frozen Locomotion policy; 
 - [ ] 1. `feat/locomotion-s2r` — Locomotion-Arms v2: proprio-only actor + history, noise, DR, ball obstacle, yaw-rate penalty. ([docs](docs/locomotion_s2r/locomotion_s2r.md))
 - [ ] 2. `feat/ball-perception` — noisy ball position in base frame (noise, dropout, latency, FOV). ([docs](docs/ball_perception/ball_perception.md))
 - [ ] 3. `feat/ball-approach` — high-level policy driving the frozen locomotion policy to the stand-off pose. ([docs](docs/ball_approach/ball_approach.md))
-- [x] 4a. `feat/ball-mount-balance`, `feat/ball-mount-curriculum` — one Mount+Balance policy, then a mount curriculum: no mount (0% success), drop balance 97%. ([docs](docs/ball_mount/ball_mount.md), [docs](docs/ball_mount_curriculum/ball_mount_curriculum.md))
+- [x] 4a. `feat/ball-mount-balance`, `feat/ball-mount-curriculum` — one Mount+Balance policy, then a mount curriculum: no mount (0% success), drop balance 97%. ([docs](docs/ball_mount/ball_mount.md), [docs](docs/mount_potential/mount_potential.md))
 - [x] 4b. `feat/ball-mount-rewards` — pruned mount rewards with the lift measured at the sole: first real mount (`MountMin-Clip`, on the ball in 0.5 s; does not hold the stance alone). ([docs](docs/ball_mount_rewards/ball_mount_rewards.md))
 - [x] 4c. `feat/balance-from-mount` — balance policy trained from the mount policy's hand-off states: 70% mount → balance success. ([docs](docs/balance_from_mount/balance_from_mount.md))
 - [x] 4d. `feat/balance-smooth` (parked; tag `two-policy-chain`) — actions a real actuator can follow (audit thresholds), on the corrected model (fitted head box, randomized contact stiffness; [collision_check](docs/collision_check/collision_check.md)). Balance `bs4-exc100-ar2`: at the limits on two of three measures, hand-off 96%. Mount `mm7-exc200-ar2`: 87% alone, close to the limits. Open: torque saturation (11 to 17%), small balls, one policy or two. ([docs](docs/balance_smooth/balance_smooth.md), [mount log](docs/ball_mount_rewards/ball_mount_rewards_log.md))
