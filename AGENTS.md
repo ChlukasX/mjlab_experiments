@@ -68,6 +68,8 @@ uv run mjx clean                   # DELETES intermediate checkpoints (keeps eve
 
 `scripts/train.sh` requires wandb login (`uv run wandb login` or `WANDB_API_KEY` env var). Parallel runs: stagger the launches by about 20 s. `MountBalance` tasks have a Spawn mode dropdown in the viewer. Logs, checkpoints, and run metadata: see `docs/README.md` (Conventions) and `docs/runs_index.md`.
 
+Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone. Then `git blame` skips the format-only commits that the file lists. Add the SHA of each new format-only commit to the file.
+
 ## Registered Tasks
 
 One task ID per row (48 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
