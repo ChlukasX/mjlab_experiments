@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 - **One fact lives in one file.** Do not copy a fact into a second file. Do not move information from one file to another without the approval of the user. Fix an error in the file that holds the fact. Owners: this file owns the task list, the commands, the rules, and the detailed repository map; `docs/README.md` owns the experiment index (status, tasks, code package, run ID prefix); the experiment docs own status and results; `docs/platform/platform.md` owns the platform task details; `README.md` owns the short overview of the repository for people.
 - **Artifacts:** `logs/`, `wandb/`, `data/`, and `deploy/` are never committed. Never delete a file under `logs/` or `wandb/` without approval. Never run `mjx clean` without approval. Never delete or overwrite a checkpoint that `docs/baseline/task_fingerprints.json` lists under `protected_checkpoints`.
 - **Hot experiments:** the index table marks the active experiments (`Status` = `active`). Do not rename, reformat, or restructure their files without approval.
-- **Before you ask for a commit:** run `uv run pytest`, run `ruff check` on the files you changed, and run `ruff format --line-length 100` on the files you created.
+- **Before you ask for a commit:** run `uv run pytest`, run `ruff check` on the files you changed, and run `ruff format` on the files you created.
 
 ## Skills
 
@@ -238,13 +238,13 @@ These rules apply to **new** names. Never rename a task ID, an `experiment_name`
 
 ## MJlab coding standard
 
-These rules apply to new and edited code. Do not reformat or restructure an existing file in a feature commit. A format-only change is its own commit and must leave the fingerprint check (C2) equal. Where the mjlab upstream differs (it indents with 2 spaces), this repository follows the rules below.
+These rules apply to new and edited code. Do not reformat or restructure an existing file in a feature commit. A format-only change is its own commit and must leave the fingerprint check (C2) equal. Where the mjlab upstream differs (it indents with 2 spaces), this repository follows the rules below. `ruff` skips the hot and warm files (`extend-exclude` in `pyproject.toml`) until they are formatted.
 
 | ID | Rule |
 |---|---|
 | S1 | Indent with 4 spaces. |
-| S2 | Limit lines to 100 characters. Run `ruff format --line-length 100` on files you create. |
-| S3 | Order imports: standard library, third party (`torch`, `mujoco`), `mjlab`, `mjlab_piplus`. Use absolute imports across packages. Use relative imports for the config module inside its own `__init__.py`. |
+| S2 | Limit lines to 100 characters. Run `ruff format` on files you create. `[tool.ruff]` in `pyproject.toml` sets 100 characters and 4 spaces. |
+| S3 | Order imports: standard library, third party (`torch`, `mujoco`), `mjlab`, `mjlab_piplus`. Use absolute imports across packages. Use relative imports for the config module inside its own `__init__.py`. `ruff check` (rule `I`) enforces the order. |
 | S4 | Order a task module as follows: module docstring, imports, constants (`UPPER_SNAKE_CASE`), scene and entity builders, observation / reward / event / termination functions, `piplus_<family>_env_cfg`, `piplus_<family>_ppo_runner_cfg`. |
 | S5 | Name the factory `piplus_<family>_env_cfg(play: bool = False, **flags) -> ManagerBasedRlEnvCfg`. Make every flag a keyword argument. Give every flag a default that reproduces the oldest behavior. Name a flag for the feature it enables (`blind_on_ball`). Do not use negated names. |
 | S6 | A new family derives from at most one existing family. The derived module states its base in the docstring. Do not edit the behavior of a base family. Add a flag instead. Do not make the chain of bases deeper than 2 for a new family. |
