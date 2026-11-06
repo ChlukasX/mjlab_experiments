@@ -1,5 +1,9 @@
 """Export the ball-mount policy for the Bit-Bots robot code.
 
+PARKED: `deploy/` is not tracked in git. This script works only on a
+machine that has the local `deploy/bitbots/` directory, including `mount_obs.py`. It stays until a
+deploy strategy exists.
+
 Writes `<out>/<name>.onnx` (normalizer included; input [1, 345], output [1, 20]) and
 `<out>/<name>.yaml`, a `bitbots_rl_motion` parameter file for `deploy/bitbots/mount_ball_node.py`
 with the joint order, home pose, gains, joint ranges and on-ball latch taken from the task.

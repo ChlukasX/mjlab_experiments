@@ -1,4 +1,4 @@
-"""Canaries for the registered tasks (see scripts/check_tasks.py and docs/cleanup_plan.md).
+"""Canaries for the registered tasks (see scripts/check_tasks.py).
 
     uv run pytest                   # C1, C2, and the AGENTS.md table check
     uv run pytest -m checkpoints    # C3 as well (needs logs/rsl_rl, about 1 minute on the CPU)
@@ -41,7 +41,7 @@ def test_c3_checkpoints_fit_their_tasks(ct, tasks):
 
 
 @pytest.mark.xfail(
-    reason="AGENTS.md lists tasks with bracket shorthand; phase 6 of docs/cleanup_plan.md "
+    reason="AGENTS.md lists tasks with bracket shorthand; a later cleanup phase "
     "rewrites the table to one task ID per row",
     strict=False,
 )

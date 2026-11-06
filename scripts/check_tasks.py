@@ -38,10 +38,9 @@ BASELINE = REPO / "docs" / "baseline" / "task_fingerprints.json"
 LOGS = REPO / "logs" / "rsl_rl"
 PREFIX = "Mjlab-Piplus-"
 
-# Pairs of tasks that write into one log group. Phase 2 of docs/cleanup_plan.md removes Ball-Chain.
+# Pairs of tasks that write into one log group. Ball-Small-Turf continues Ball-Small on turf.
 KNOWN_SHARED_LOG_GROUPS = {
     "piplus_ball_small": {"Mjlab-Piplus-Ball-Small", "Mjlab-Piplus-Ball-Small-Turf"},
-    "piplus_ball_mountmin_clip": {"Mjlab-Piplus-Ball-MountMin-Clip", "Mjlab-Piplus-Ball-Chain"},
 }
 
 # Runs from before the Ball-Small v4 observation change (80-input actor). They do not load into the
