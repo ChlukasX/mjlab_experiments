@@ -216,5 +216,8 @@ __marimo__/
 **/path_cache/**
 MUJOCO_LOG.TXT
 
-# Deployment files (ONNX, parameters): managed outside the repo
+# Deployment files (ONNX, parameters, robot-side code): not tracked until a deploy strategy exists
 deploy/
+
+# Derived datasets that a task needs (made by a tracked script)
+data/

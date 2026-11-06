@@ -1,5 +1,9 @@
 """Run the exported ONNX policy in the simulation with the robot-side observation code.
 
+PARKED: `deploy/` is not tracked in git. This script works only on a
+machine that has the local `deploy/bitbots/` directory, including `mount_obs.py`. It stays until a
+deploy strategy exists.
+
 Each step the observation is rebuilt by `deploy/bitbots/mount_obs.py` from raw signals
 (encoder angles and velocities, IMU orientation and gyro, ball position in the IMU frame,
 base height), exactly as the robot node does, and fed to onnxruntime. Checks that it
