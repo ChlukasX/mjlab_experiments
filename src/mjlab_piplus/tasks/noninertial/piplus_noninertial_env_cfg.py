@@ -37,6 +37,7 @@ from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
+from mjlab_piplus.common.rewards import base_height_gauss, foot_flatness, xy_drift_gauss
 from mjlab_piplus.robot.piplus_constants import get_piplus_robot_cfg
 
 # Pi+ total body mass from MJCF (sum of all body_mass values)
@@ -46,30 +47,6 @@ ROBOT_MASS = 13.02
 # ---------------------------------------------------------------------------
 # Custom reward / observation / event functions
 # ---------------------------------------------------------------------------
-
-def base_height_gauss(env, target_height: float, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  asset = env.scene[asset_cfg.name]
-  err = asset.data.root_link_pos_w[:, 2] - target_height
-  return torch.exp(-torch.square(err) / (std * std))
-
-
-def foot_flatness(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  asset = env.scene[asset_cfg.name]
-  quat = asset.data.body_com_quat_w[:, asset_cfg.body_ids, :]  # [B, 2, 4]
-  _, x, y, z = quat[..., 0], quat[..., 1], quat[..., 2], quat[..., 3]
-  foot_up_z = 1 - 2 * (x * x + y * y)  # [B, 2]
-  return foot_up_z.clamp(0, 1).mean(dim=-1)
-
-
-def xy_drift_gauss(env, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-  """Reward for staying near spawn origin. Bounded [0,1] — safe when fallen."""
-  asset = env.scene[asset_cfg.name]
-  pos_xy = asset.data.root_link_pos_w[:, :2]
-  if not hasattr(env, "_spawn_xy"):
-    env._spawn_xy = pos_xy.clone()
-  dist_sq = torch.sum((pos_xy - env._spawn_xy) ** 2, dim=-1)
-  return torch.exp(-dist_sq / (std * std))
-
 
 def platform_accel_obs(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
   """Privileged obs: applied force / robot_mass → platform acceleration [B, 3]."""

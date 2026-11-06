@@ -12,9 +12,6 @@ Ball geometry:
 
 import math
 
-import mujoco
-import torch
-
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp.actions import JointPositionActionCfg
@@ -32,6 +29,19 @@ from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.viewer import ViewerConfig
 
+from mjlab_piplus.common.balls import (
+    BALL_MASS,  # noqa: F401  (re-export)
+    BALL_RADIUS,
+    BALL_TOP,  # noqa: F401  (re-export)
+    BASE_HEIGHT_TARGET,
+    ROBOT_SPAWN_Z,
+    ball_control,
+    ball_escaped,
+    ball_state_obs,
+    get_ball_spec,
+    robot_off_ball,
+)
+from mjlab_piplus.common.rewards import base_height_gauss, xy_centering
 from mjlab_piplus.robot.piplus_constants import (
     ACTUATOR_5036,
     FULL_COLLISION,
@@ -40,35 +50,9 @@ from mjlab_piplus.robot.piplus_constants import (
     get_spec,
 )
 
-BALL_RADIUS = 0.45
-BALL_MASS = 5.0
-BALL_TOP = BALL_RADIUS * 2          # = 0.90 m
-ROBOT_SPAWN_Z = BALL_TOP + 0.5      # = 1.40 m  (0.5 m free-fall onto ball)
-BASE_HEIGHT_TARGET = BALL_TOP + 0.35  # = 1.25 m
-
-
 # ---------------------------------------------------------------------------
 # Specs
 # ---------------------------------------------------------------------------
-
-def get_ball_spec() -> mujoco.MjSpec:
-    """Free-floating sphere.  freejoint makes it a physics body, not mocap."""
-    spec = mujoco.MjSpec()
-    body = spec.worldbody.add_body(name="ball_body", pos=[0, 0, BALL_RADIUS])
-    body.add_freejoint(name="ball_free")
-    body.add_geom(
-        name="ball_geom",
-        type=mujoco.mjtGeom.mjGEOM_SPHERE,
-        size=[BALL_RADIUS],
-        mass=BALL_MASS,
-        rgba=[0.85, 0.35, 0.10, 1.0],
-        contype=1,
-        conaffinity=1,
-        condim=3,
-        friction=[0.9, 0.02, 0.001],
-    )
-    return spec
-
 
 def get_piplus_on_ball_cfg() -> EntityCfg:
     spawn_state = EntityCfg.InitialStateCfg(
@@ -82,63 +66,6 @@ def get_piplus_on_ball_cfg() -> EntityCfg:
         spec_fn=get_spec,
         articulation=PIPLUS_ARTICULATION,
     )
-
-
-# ---------------------------------------------------------------------------
-# Custom obs / reward / termination
-# ---------------------------------------------------------------------------
-
-def ball_state_obs(env, asset_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Ball position relative to robot base + ball linear velocity [B, 5]."""
-    robot = env.scene[asset_cfg.name]
-    ball = env.scene[ball_cfg.name]
-    rel_pos = ball.data.root_link_pos_w - robot.data.root_link_pos_w   # [B, 3]
-    ball_vel = ball.data.root_link_vel_w[:, :2]                        # [B, 2] xy only
-    return torch.cat([rel_pos, ball_vel], dim=-1)
-
-
-def base_height_gauss(env, target_height: float, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    asset = env.scene[asset_cfg.name]
-    err = asset.data.root_link_pos_w[:, 2] - target_height
-    return torch.exp(-torch.square(err) / (std * std))
-
-
-def ball_control(env, std: float, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Reward ball moving slowly — penalises the robot destabilising the ball."""
-    ball = env.scene[ball_cfg.name]
-    vel_sq = ball.data.root_link_vel_w[:, :3].pow(2).sum(dim=-1)
-    return torch.exp(-vel_sq / (std * std))
-
-
-def ball_escaped(env, max_dist: float, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Terminate when ball rolls more than max_dist from env origin."""
-    ball = env.scene[ball_cfg.name]
-    dist_sq = (
-        (ball.data.root_link_pos_w[:, :2] - env.scene.env_origins[:, :2])
-        .pow(2).sum(dim=-1)
-    )
-    return dist_sq > max_dist ** 2
-
-
-def xy_centering(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Penalise robot drifting from env origin in XY."""
-    asset = env.scene[asset_cfg.name]
-    drift = asset.data.root_link_pos_w[:, :2] - env.scene.env_origins[:, :2]
-    return -drift.pow(2).sum(dim=-1)
-
-
-def robot_off_ball(
-    env,
-    min_height_above_ball: float,
-    asset_cfg: SceneEntityCfg,
-    ball_cfg: SceneEntityCfg,
-) -> torch.Tensor:
-    """Terminate when robot base drops below ball top + margin (fell off ball)."""
-    robot = env.scene[asset_cfg.name]
-    ball = env.scene[ball_cfg.name]
-    ball_top_z = ball.data.root_link_pos_w[:, 2] + BALL_RADIUS
-    robot_z = robot.data.root_link_pos_w[:, 2]
-    return robot_z < ball_top_z + min_height_above_ball
 
 
 # ---------------------------------------------------------------------------

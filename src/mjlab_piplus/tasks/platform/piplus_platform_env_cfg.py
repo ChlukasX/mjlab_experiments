@@ -41,6 +41,7 @@ from mjlab.terrains import TerrainEntityCfg
 from mjlab.utils.spec_config import CollisionCfg
 from mjlab.viewer import ViewerConfig
 
+from mjlab_piplus.common.rewards import base_height_gauss, xy_drift_gauss
 from mjlab_piplus.robot.piplus_constants import (
     ACTUATOR_5036,
     FULL_COLLISION,
@@ -131,12 +132,6 @@ def _roll_pitch_to_quat(roll: torch.Tensor, pitch: torch.Tensor) -> torch.Tensor
 # Custom obs / reward / event functions
 # ---------------------------------------------------------------------------
 
-def base_height_gauss(env, target_height: float, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    asset = env.scene[asset_cfg.name]
-    err = asset.data.root_link_pos_w[:, 2] - target_height
-    return torch.exp(-torch.square(err) / (std * std))
-
-
 def foot_flatness(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
     quat = asset.data.body_com_quat_w[:, asset_cfg.body_ids, :]
@@ -154,16 +149,6 @@ def foot_grounding(env, std: float, asset_cfg: SceneEntityCfg, platform_cfg: Sce
     foot_bottom = ankle_z - 0.05  # capsule geom is 0.05 m below ankle body origin
     lift = (foot_bottom - plat_top.unsqueeze(-1)).clamp(min=0)  # [B, 2]
     return torch.exp(-lift.sum(dim=-1) / std)
-
-
-def xy_drift_gauss(env, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Reward for staying near platform center (same env-local-frame trick)."""
-    asset = env.scene[asset_cfg.name]
-    pos_xy = asset.data.root_link_pos_w[:, :2]
-    if not hasattr(env, "_spawn_xy"):
-        env._spawn_xy = pos_xy.clone()
-    dist_sq = torch.sum((pos_xy - env._spawn_xy) ** 2, dim=-1)
-    return torch.exp(-dist_sq / (std * std))
 
 
 def off_platform(env, margin: float, asset_cfg: SceneEntityCfg, platform_cfg: SceneEntityCfg) -> torch.Tensor:
