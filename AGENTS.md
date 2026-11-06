@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 - Commit subject: `<experiment or scope>: <summary>`, lowercase, 72 characters or fewer. The commit body names the run IDs and the doc file.
 - **A change that alters how a registered task behaves makes a new task variant.** This covers observations, network, rewards, events, terminations, and curriculum. Put the change into a new task variant (own experiment name) or into a flag whose default keeps the old behavior. Never put it into an existing task, so old checkpoints keep loading and playing. Run the compatibility checks (section Compatibility).
 - **Observation or network size changes** need extra care: a warm start into a new variant loads the actor where its inputs are unchanged. For new critic inputs, pad the old critic with zero-weight columns (`scripts/make_padded_init.py`) rather than starting it fresh: a fresh critic wrecked the warm-started actor within ~40 iterations (`bl3` first try, see docs/mount_latency). Note this in the run log.
-- **Play sessions time out after 15 minutes:** start every play/viewer run (`uv run play`, `mjx play`, play wrappers) under `timeout 15m`, e.g. `timeout 15m uv run play ...`, so no viewer is left running on the GPU.
+- **Play sessions time out after 15 minutes:** start every play/viewer run (`uv run play`, play wrappers) under `timeout 15m`, e.g. `timeout 15m uv run play ...`, so no viewer is left running on the GPU. `mjx play` applies the 15 minutes by itself.
 - **Docs are one directory per experiment** (`docs/<experiment>/<experiment>.md` for the design, `docs/<experiment>/<experiment>_log.md` for its run log). Never mix several experiments in one log. Add each new experiment to the index table in `docs/README.md` in the same commit. See `docs/README.md` for the index and conventions.
 - **One fact lives in one file.** Do not copy a fact into a second file. Do not move information from one file to another without the approval of the user. Fix an error in the file that holds the fact. Owners: this file owns the task list, the commands, the rules, and the detailed repository map; `docs/README.md` owns the experiment index (status, tasks, code package, run ID prefix); the experiment docs own status and results; `docs/platform/platform.md` owns the platform task details; `README.md` owns the short overview of the repository for people.
 - **Artifacts:** `logs/`, `wandb/`, `data/`, and `deploy/` are never committed. Never delete a file under `logs/` or `wandb/` without approval. Never run `mjx clean` without approval. Never delete or overwrite a checkpoint that `docs/baseline/task_fingerprints.json` lists under `protected_checkpoints`.
@@ -26,12 +26,13 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 ## Commands
 
 ```bash
-# Train. Name every run (--name). Interactive task selection menu when no task is given.
-bash scripts/train.sh
+# Train. --name is required: the script stops with an error (exit code 1) without it.
+# The task menu (when no task is given) lists the live task registry (uv run mjx tasks).
+bash scripts/train.sh --name <run-name>
 bash scripts/train.sh Mjlab-Piplus-Platform --name <run-name> --num-envs 64
 bash scripts/train.sh <task> --name <run-name> [overrides]   # wandb project = task id, default 4096 envs
-bash scripts/train.sh <task> --tmux                          # wrap in tmux session mjlab-train, with a spare viewer window
-bash scripts/train.sh --cpu                                  # CPU mode, 64 envs
+bash scripts/train.sh <task> --name <run-name> --tmux          # wrap in tmux session mjlab-train, with a spare viewer window
+bash scripts/train.sh <task> --name <run-name> --cpu           # CPU mode, 64 envs
 
 # Train directly
 uv run train Mjlab-Piplus-Platform --env.scene.num-envs 4096
@@ -51,14 +52,15 @@ uv run python scripts/eval_mountbalance.py --task <task> --checkpoint <model.pt>
 uv run pytest
 uv run python scripts/check_tasks.py --load --fingerprint --checkpoints
 
-# Play back a checkpoint (interactive selection via mjx). Start every play run under timeout 15m.
-timeout 15m uv run mjx play
-timeout 15m uv run mjx --task Mjlab-Piplus-Platform play [--run <prefix>] [--ckpt N]
+# Play back a checkpoint (interactive selection via mjx). mjx play ends by itself after 15 minutes.
+uv run mjx play
+uv run mjx --task Mjlab-Piplus-Platform play [--run <prefix>] [--ckpt N]
 
-# Play directly
+# Play directly. Start it under timeout 15m.
 timeout 15m uv run play Mjlab-Piplus-Platform --checkpoint-file logs/rsl_rl/piplus_platform/<run>/model_N.pt --viewer viser --num-envs 1
 
 # Manage runs
+uv run mjx tasks                   # list the registered Pi Plus tasks (live registry, sorted)
 uv run mjx runs                    # list runs with iteration count and age
 uv run mjx clean --dry-run         # preview which checkpoints would be deleted
 uv run mjx clean                   # DELETES intermediate checkpoints (keeps every 5th and each run's last); ask first
@@ -157,7 +159,9 @@ Experiments that use a code package are listed in the column `Code package` of t
 
 | Path | Role |
 |---|---|
-| `src/mjlab_piplus/__init__.py` | The `mjx` command line (`runs`, `play`, `clean`) and the task list of its menu |
+| `src/mjlab_piplus/__init__.py` | Re-exports `main` from `cli.py` (entry point `mjlab_piplus:main`) |
+| `src/mjlab_piplus/cli.py` | The `mjx` command line (`tasks`, `runs`, `play`, `clean`). The task list and the menu come from the live registry. `play` ends after 15 minutes |
+| `src/mjlab_piplus/naming.py` | `log_group(task_id)`: the log group of a task, with the alias table for the one known exception |
 | `src/mjlab_piplus/robot/piplus_constants.py` | Robot spec loaders (`get_spec`, `get_spec_with_arms`), actuators, keyframes, collision presets, robot config factories |
 | `src/mjlab_piplus/robot/piplus/` | Vendored MJCF `piplus.xml` and the STL meshes. Leave the XML unchanged |
 | `src/mjlab_piplus/terrains/astroturf.py` | Astroturf terrain and the ground-softness event (`Ball-Small-Turf`) |
@@ -168,14 +172,14 @@ Experiments that use a code package are listed in the column `Code package` of t
 | `src/mjlab_piplus/tasks/ball_mount_curriculum/` | `MountCurr` tasks: ball lock and potential-based reward |
 | `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `__init__.py`: the variant table |
 | `src/mjlab_piplus/tasks/ball_balance_from_mount/` | Balance from recorded hand-off states |
-| `scripts/train.sh` | Launch training with wandb: task menu, `--name`, `--tmux`, `--cpu` |
+| `scripts/train.sh` | Launch training with wandb: task menu from the live registry, `--name` (required), `--tmux`, `--cpu` |
 | `scripts/eval_mountbalance.py` | Evaluate a checkpoint by ball size and spawn mode. Flags `--probe`, `--audit`, `--gait` and others |
 | `scripts/check_tasks.py` | Compatibility checks C1, C2, C3 (section Compatibility) |
 | `scripts/make_runs_index.py` | Writes `docs/runs_index.md` from `logs/` and the local `wandb/` metadata |
 | `scripts/make_mount_states.py` | Records the hand-off states that `BalanceFromMount` needs |
 | `scripts/make_padded_init.py` | Pads a critic with zero-weight columns for a warm start |
 | `scripts/export_mount.py`, `scripts/sim2sim_onnx.py` | ONNX export of a mount policy and its simulation check. Parked: they need the local, untracked `deploy/bitbots/` files |
-| `tests/test_tasks.py`, `tests/test_docs.py` | Checks for the task registry, the task fingerprints, this task table, the experiment index, and the links in tracked markdown files |
+| `tests/test_tasks.py`, `tests/test_docs.py`, `tests/test_cli.py`, `tests/test_naming.py` | Checks for the `mjx` command line, `scripts/train.sh`, `log_group()`, the task registry, the task fingerprints, this task table, the experiment index, and the links in tracked markdown files |
 | `docs/README.md` | Experiment index and conventions |
 | `docs/<experiment>/` | Design doc and run log of one experiment |
 | `docs/runs_index.md` | Every training run (generated) |
@@ -222,7 +226,7 @@ These rules apply to **new** names. Never rename a task ID, an `experiment_name`
 |---|---|---|
 | Experiment name (doc directory, index key) | `<domain>_<topic>` or `<domain>_<topic>_<qualifier>`. Lowercase ASCII letters, digits, underscores. 2 or 3 words, 30 characters or fewer. `<domain>` is one of `stand`, `locomotion`, `ball`, `mount`, `balance`, `deploy`, `robot`. No version words (`v2`, `new`, `final`), no phase numbers, no hyphens. Never reuse a name, even of a deleted experiment. | `mount_curriculum` |
 | Task ID | `Mjlab-Piplus-<Domain>-<Topic>[-<Variant>]`, PascalCase. One `<Variant>` segment names one feature flag. Use 2 variant segments or fewer. The cumulative chains continue only in the families `Ball-MountMin-BlindOnBall-…` and `Ball-MountMin-Curriculum-…`, with at most one new suffix per experiment. | `Mjlab-Piplus-Mount-NoTap` |
-| Log group (`experiment_name` of the runner) | `piplus_` + the task ID without `Mjlab-Piplus-`, lowercase, `-` replaced by `_`. 100 characters or fewer. Two tasks never share a log group (one old pair does: `Ball-Small` and `Ball-Small-Turf`). | `piplus_ball_mountmin_clip` |
+| Log group (`experiment_name` of the runner) | `piplus_` + the task ID without `Mjlab-Piplus-`, lowercase, `-` replaced by `_`. Create it with `log_group()` in `src/mjlab_piplus/naming.py`. 100 characters or fewer. Two tasks never share a log group (one old pair does: `Ball-Small` and `Ball-Small-Turf`). | `piplus_ball_mountmin_clip` |
 | Run ID and run name | `<prefix><n>[<letter>][-<slug>]`. `<prefix>` has 2 to 4 lowercase letters and is unique per experiment. List it in the design doc and in the column `Run ID prefix` of the index. `<n>` counts fresh starts (cold or warm). `<letter>` marks a resume of the same run. `<slug>` has 3 words or fewer and names the one setting that differs. Always pass `--name`. Copies for warm starts use `init-from-<run ID>[-<checkpoint number>]`. | `cur4c`, `mm7-exc200-ar2` |
 | Design doc and log | `docs/<experiment>/<experiment>.md` and `docs/<experiment>/<experiment>_log.md`. No other file in the directory, except images that the design doc embeds. | |
 | Title lines (new docs) | Design: `# <experiment>: <one-line summary>`. Log: `# <experiment> run log`. Second block of the design doc: `Status:` (`planned`, `active`, `finished`, `parked`, or `superseded`, with a date), `Code:` (first and last commit), `Tasks:`, `Log:`. | |
@@ -247,7 +251,7 @@ These rules apply to new and edited code. Do not reformat or restructure an exis
 | S8 | Use these observation term names: `joint_pos`, `joint_vel`, `projected_gravity`, `base_ang_vel`, `actions`. Name the groups `actor` and `critic`. Use 5 steps of history for tasks meant for the real robot. The actor never reads `base_lin_vel` or ball velocity (no real sensor). Only the critic may. Put a table of term names, sizes, and order in the design doc. |
 | S9 | Use bounded raw actions (runner `clip_actions`) in every new task. Reason: unbounded outputs drifted past the clip in `cur2` and `cur3`. |
 | S10 | Use named constants for the timestep (0.005), decimation (4), episode length, and the play value (1e9). Write `njmax` and `nconmax` explicitly and say why when they differ from 200 and 100. |
-| S11 | Define the hyperparameters of a runner as module constants at the top of the module. Set `experiment_name` by the log group pattern of the naming convention. Keep the CLI values (`--agent.max-iterations`, number of environments, seed) in the run log. |
+| S11 | Define the hyperparameters of a runner as module constants at the top of the module. Set `experiment_name` with `log_group(task_id)` from `mjlab_piplus.naming`. Keep the CLI values (`--agent.max-iterations`, number of environments, seed) in the run log. |
 | S12 | Register a family in its `__init__.py` from one table `VARIANTS` (task suffix → flags) and one loop. Write one entry per line. Use no line longer than 100 characters. |
 | S13 | Give each module a docstring that names the design doc. Give each public function a one-line docstring. State units and the sign in the docstring of a reward. Comments say why, not what. |
 | S14 | Annotate all function signatures. |
