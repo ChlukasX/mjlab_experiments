@@ -73,3 +73,12 @@ register_mjlab_task(
   play_env_cfg=piplus_ball_mount_curriculum_env_cfg(play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS),
   rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess", max_std=MAX_ACTION_STD),
 )
+# Same, with the tap penalised (free sole on the floor while on the ball) and a stance-duration bonus
+# (cur4c taps: 14.8 floor taps per 10 s, stances of 0.36 s). Reward change only; warm start from cur4c.
+register_mjlab_task(
+    task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap",
+    env_cfg=piplus_ball_mount_curriculum_env_cfg(straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True),
+    play_env_cfg=piplus_ball_mount_curriculum_env_cfg(
+        play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True),
+    rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap", max_std=MAX_ACTION_STD),
+)

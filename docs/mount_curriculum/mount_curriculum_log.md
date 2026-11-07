@@ -82,6 +82,69 @@ Resume `cur4b` `model_21600` with `start_stage 8` (free leg), `late_threshold 0.
 - **Physical limit not shown:** the earlier warm-started policies held long stances (`ms3-shell` 98% success with the ball visible and 0-15 ms; `kb1` blind with latency: full stance 77% of the steps). A test: reward/penalize against the tap and see whether stance segments lengthen.
 - Options for a next run (not started): penalize free-sole floor contact while latched; a stance-duration bonus (pay more the longer the current stance lasts); and only then a placement term (free foot to the side/front), since without the tap incentive the rear placement may change by itself.
 
+## `cur5`: warm start from `cur4c` with the `-NoTap` terms
+
+Task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap` (flag `notap`, experiment `piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap`). It adds two reward terms at stage 8: `free_sole_floor` (penalty, weight −8) and `stance_duration` (bonus, weight +16, cap 2 s). The terms are in the Design section of [mount_curriculum.md](mount_curriculum.md). Observations and network are unchanged, so the `cur4c` actor and critic load (checked: the loaded actor equals the actor of `model_24450`).
+
+Start: a copy of `cur4c` `model_24450.pt` (byte-identical) in the new log group, as `2026-11-07_00-00-00_init-from-cur4c-24450`. `--env.curriculum.stage.params.start_stage 8` starts the stage clock at stage 8. The three old stage-8 terms (`free_foot_ball_clear`, `support_hip_vel`, `support_foot_heading`) therefore ramp in again over 500 iterations, together with the new terms.
+
+4096 envs need `--env.scene.env-spacing 1.0`. With the default 2.0, a smoke run crashed at iteration 5 with NaN in the actor observation. The NaN envs lie far from the world origin (the grid reaches ±64 m at 4096 envs). Spacing 1.0 halves the extent.
+
+| Run | wandb | Outcome |
+|-----|-------|---------|
+| `cur5-notap` | `3zudj4wb` | **Killed** at iteration 24986 (last checkpoint `model_24950`) after 31 min. The log has no error. The process ended with the agent session (`setsid nohup`, not tmux). |
+| `cur5b-notap` | `xz7581wc` | **Finished** 3000 iterations (24450 → 27450, last checkpoint `model_27449`) in 2 h 53 min, 3.45 s per iteration. Restart of `cur5-notap` from the same init copy, in tmux `mjlab-train`. |
+
+Launch command of `cur5-notap`:
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap --name cur5-notap --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-07_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
+Launch command of `cur5b-notap`:
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap --name cur5b-notap --tmux --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-07_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
+**Training (`cur5b-notap`).** The run is stable: no NaN, no divergence.
+
+| Iteration | Mean reward | Stance share | `single_leg_stance` (of 16) | `free_sole_floor` | `stance_duration` |
+|---|---|---|---|---|---|
+| 24700 | 202 | 0.35 | 4.6 | −0.10 | +0.03 |
+| 24950 | 227 | 0.36 | 4.8 | −0.84 | +0.39 |
+| 26200 | 211 | 0.38 | 4.8 | −0.33 | +0.44 |
+| 27449 | 224 | 0.40 | 5.3 | −0.22 | +0.52 |
+
+The `free_sole_floor` value fell by 74% from iteration 24950 to 27449. The eval below shows that the taps did not fall by the same amount.
+
+**Gait eval** (`scripts/eval_mountbalance.py --task <task> --checkpoint <model.pt> --gait`, 1024 envs, mount spawn, ball sizes 3-5):
+
+| Metric | `cur4c` `model_24450` | `cur5-notap` `model_24950` | `cur5b-notap` `model_27449` |
+|---|---|---|---|
+| Floor taps per 10 s | 13.3 | 12.9 | **11.9** |
+| Stance share of the on-ball steps | 57% | 59% | 61% |
+| Stance segment median / p90 | 0.42 / 0.58 s | 0.44 / 0.62 s | 0.48 / 0.70 s |
+| Survived | 94% | 95% | 97% |
+| Free foot behind the support foot | 100% | 100% | 100% |
+
+The held-stance success is 0% for all three checkpoints (the test needs the stance in at least 90% of the last 3 s). The policy still taps.
+
+**Free-foot state** (final policy `model_27449` against `cur4c` `model_24450`; latched, alive, after 3 s; the numbers come from a patched copy of the `--gait` loop that is not kept in the repository):
+
+| Within single support | `cur4c` | `cur5b` |
+|---|---|---|
+| Free foot touches the ball | 7.4% (13.6 events per 10 s) | 3.1% (7.1 events per 10 s) |
+| Free foot on the floor | 14.4% (13.6 events per 10 s) | 13.2% (12.0 events per 10 s) |
+| Free foot in the air | 78.2% | 83.7% |
+
+- The ball touches fell by about half. The stance bonus needs the free foot off the ball, so this follows from `stance_duration`.
+- The floor taps stayed at about the same rate.
+- **`free_sole_floor` is blind.** On `model_27449` a sole is on the floor in 25.9% of the on-ball steps. The term is active in 1.5% of them. In 94% of the floor steps the term is zero, because it needs a flat and level support foot on the ball (`_support_foot` with `"level"`). A tap disturbs the support foot, so the gate fails when the free foot is on the floor. The fall of the term in training shows that the policy avoids the narrow case that the term penalizes. It does not show fewer taps.
+- **The price of a tap is low.** A floor contact lasts about 0.11 s. At weight −8 it costs about 0.9 reward. A fall ends the episode, so the tap stays the better choice.
+
+**Conclusion.** `stance_duration` and the stance share moved in the right direction (stance segment median 0.42 → 0.48 s, survival 94% → 97%). The floor taps did not stop (13.3 → 11.9 per 10 s), because the penalty term does not see most of them. Next run: penalize any sole on the floor, and the free foot on the ball, while latched. See Next steps in [mount_curriculum.md](mount_curriculum.md#next-steps).
+
 ## Conclusion (Nov 6 2026)
 
 - **A cold start reaches the final stage** with ramped stages, a std cap and `action_excess` from stage 0 (`cur4` → `cur4b` → `cur4c`). The two earlier collapses (`cur2`, `cur3`) came from raw outputs drifting past the ±7 clip in stages 0-2, where no penalty has a gradient; `action_excess` from stage 0 kept them inside (median |a| ~1 against 45).

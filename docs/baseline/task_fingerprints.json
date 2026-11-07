@@ -201,6 +201,11 @@
    "play": "6c7deffaccbfef9177d7fa7a114693f32facb147ae4aeb44c02edc61dbf5155e",
    "rl": "f536498568bd9582e9e32e42fbacf3d767c43c89288502178490e25355765e58"
   },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap": {
+   "env": "260da09f309455c9d31d747bd011f08832c91d7334194fa9eea8a9e0e2a8a367",
+   "play": "9945d6ab8ef993a5e5cb7524c3ade67e106cd6211aa5e81b495247e72b69be80",
+   "rl": "bf0c89c13f02e5e798e82c39037992a621ada3ac535bc1a74ebc0a48ea764872"
+  },
   "Mjlab-Piplus-Ball-MountMin-Locked": {
    "env": "2545d234dca1090c0431d318a946b175bee039da4c9a342fd13d6046925d8ac0",
    "play": "986a1802a0882550601a25b5a90db7845bd29afb6ddccbe188429f4b88c1362e",

@@ -28,6 +28,18 @@ All terms, sensors and inputs exist from step 0 (built from `piplus_ball_mountmi
 
 **Judgement:** if stage 0 has not advanced by ~3000 iterations, the straight-leg mount is the blocker, not the curriculum: rerun with the full thigh range.
 
+**Tap stop (`-NoTap`, `notap=True`; added Nov 7 2026).** `cur4c` taps: the free sole touches the floor 14.8 times per 10 s and a stance lasts 0.36 s. The task adds two terms to the `-Excess` reward set. Observations, network and actions stay the same, so the `cur4c` actor and critic load. Both terms exist from stage 0 at weight 0. They get their weight in stage 8, through the curriculum term `notap_curriculum`, which uses the ramp of stage 8 (500 iterations, slow start). `stage_curriculum` stays unchanged, so the fingerprints of the old tasks stay equal. A warm start with `start_stage 8` restarts the stage clock: all stage-8 terms, the old ones too, ramp in again from 0.
+
+| Term | Weight | Value per step |
+|---|---|---|
+| `free_sole_floor` | −8 | 1 while the robot is latched on the ball, one foot is on the ball (level sole), and the lowest corner of the other sole is within 1 cm of the floor (the tap test of `eval_mountbalance.py --gait`). Else 0 |
+| `stance_duration` | +16 | min(length of the current unbroken stance / 2 s, 1). The stance is the live `single_leg_stance` term with its stage params. The count `env._stance_len` restarts at each episode start and at each step without stance |
+
+Why these weights:
+- `free_sole_floor` −8 is half of the `single_leg_stance` weight (16). A tap already loses the stance reward of its steps. The penalty makes each second of floor contact cost 24 instead of 16. A larger weight is risky: the task has no termination penalty, so a penalty that the policy cannot avoid makes ending the episode attractive. Strong penalties that came in at once also collapsed `cur2` and `cur3` at stage 3.
+- `stance_duration` +16 equals the stance weight: an unbroken stance of 2 s or more doubles the stance reward. The bonus grows with the square of the stance length (about L²/4 for a stance of L seconds below the cap), so one long stance pays more than several short ones of the same total length. The cap of 2 s is about 4× the longest `cur4c` stances (p90 0.46 s), so the gradient exists over the whole range that the policy can reach now.
+- Both weights are constants in `piplus_ball_mount_curriculum_cfg.py` (`TAP_PENALTY`, `STANCE_BONUS`, `STANCE_BONUS_CAP_S`). The curriculum sets the weights at each step, so a command line override of `--env.rewards.<term>.weight` does not hold: change the constants for a new run.
+
 Check (a one-off script, not kept): forcing each stage sets the expected weights, params, ranges, lag, noise and latch in the running managers; the ball is resampled from size 3 up on reset in stage 4; the advance rule moves at share 0.6 after 300 iterations, not before, not at 0.3; thigh range ±0.6.
 
 ## Variants (added after the first runs)
@@ -52,7 +64,7 @@ Also fixed during the runs: the stage clock starts at the first call with a non-
 
 ## Next steps
 
-1. **Stop the tap:** warm-start from `cur4c` `model_24450` (or `cur4b` `model_21600`) at stage 8 with (a) a penalty on free-sole floor contact while latched on the ball, and (b) a stance-duration bonus that grows with the length of the current stance (so one long stance beats many short ones). Reward-only change: same inputs and network, actor and critic both load. Measure with `scripts/eval_mountbalance.py --gait` (taps per 10 s, stance segment length, free-foot placement) and the held-stance success of the sweep.
+1. **Stop the tap (implemented and run Nov 7 2026 as `cur5-notap` and `cur5b-notap`, see the run log; the taps did not stop because `free_sole_floor` is active in 1.5% of the on-ball steps; task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap`, terms in Design):** warm-start from `cur4c` `model_24450` (or `cur4b` `model_21600`) at stage 8 with (a) a penalty on free-sole floor contact while latched on the ball, and (b) a stance-duration bonus that grows with the length of the current stance (so one long stance beats many short ones). Reward-only change: same inputs and network, actor and critic both load. Measure with `scripts/eval_mountbalance.py --gait` (taps per 10 s, stance segment length, free-foot placement) and the held-stance success of the sweep.
 2. **Only if the free foot stays behind:** a placement term for the free foot to the side or front of the support foot. Without the tap incentive the rear placement may change by itself.
 3. **Physical limit check:** if stances stay short with tapping penalized, test whether a still stance on a size 3-5 ball is possible with the 5036 ankle torque (e.g. a drop spawn onto the ball with the same rewards, or a higher ankle torque limit as a probe).
 4. **Real thigh range:** the policy uses +26° (p90 +42°); check this against the Pi Plus thigh joint before deploying.

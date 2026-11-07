@@ -72,7 +72,7 @@ Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone. The
 
 ## Registered Tasks
 
-One task ID per row (48 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
+One task ID per row (49 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
 
 | Task ID | Description |
 |---|---|
@@ -124,6 +124,7 @@ One task ID per row (48 tasks). The index in `docs/README.md` maps each experime
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh` | Adds `FullThigh` |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp` | Adds `Ramp` |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess` | Adds `Excess` |
+| `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap` | Adds `NoTap` |
 
 Flag legend:
 
@@ -144,6 +145,7 @@ Flag legend:
 - `FullThigh`: full thigh range instead of ±0.6 rad.
 - `Ramp`: stage weights ramped in. Action noise std capped at 1.
 - `Excess`: `action_excess` penalty −1 from stage 0.
+- `NoTap`: from stage 8, a penalty on free-sole floor contact while on the ball (`free_sole_floor`) and a bonus that grows with the length of the current stance (`stance_duration`). Reward change only.
 
 ## Architecture
 
@@ -203,7 +205,7 @@ Task modules import from each other. `ball_mount` imports `ball_small`. `ball_mo
 
 **Platform task:** the details (geometry, motion, rewards, events, sim sizes) are in [docs/platform/platform.md](docs/platform/platform.md).
 
-**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 48 tasks.
+**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 49 tasks.
 
 ## Documentation standard
 

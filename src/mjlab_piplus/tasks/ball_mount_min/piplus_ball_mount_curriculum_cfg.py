@@ -19,7 +19,11 @@ from mjlab.managers.observation_manager import ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import BALL_SIZES
+from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
+    BALL_SIZES,
+    _sole_clearance,
+    _support_foot,
+)
 from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import (
     ANKLE_ROLL_SOFT,
     BIG_BALL_MIN_RADIUS,
@@ -65,14 +69,57 @@ STAGE_NAMES = ("mount", "clear6", "clear10", "smooth", "robust", "posture", "noi
 # where no penalty has a gradient, so the stage-3 penalties could only make it fall (cur3).
 EARLY_ACTION_EXCESS = -1.0
 
+# Stop the tap (-NoTap, docs/mount_curriculum). cur4c taps: the free sole touches the floor 14.8
+# times per 10 s and a stance lasts 0.36 s. Both terms act from stage 8 and ramp in with it.
+TAP_PENALTY = -8.0  # weight of free_sole_floor, per second of floor contact (half of the stance weight)
+STANCE_BONUS = 16.0  # weight of stance_duration, per second at the full bonus (the stance weight)
+STANCE_BONUS_CAP_S = 2.0  # s of one unbroken stance after which the bonus stops growing
+FLOOR_TOUCH_CLEARANCE = 0.01  # m, sole corner above the floor: the tap test of eval_mountbalance --gait
 
-def stage_settings(s: int, progress_iters: float, excess0: float = 0.0) -> dict:
+
+def free_sole_floor_contact(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Tap indicator [B] (0 or 1 per step; give it a negative weight, per second). 1 while the robot
+    is latched on the ball with one foot on it (level sole) and the other sole's lowest corner is
+    within FLOOR_TOUCH_CLEARANCE (m) of the floor."""
+    latched = getattr(env, "_on_ball_latch", None)
+    if latched is None:
+        return torch.zeros(env.num_envs, device=env.device)
+    sup = _support_foot(env, foot_cfg, ball_cfg, None, "level")
+    down = _sole_clearance(env, foot_cfg) < FLOOR_TOUCH_CLEARANCE
+    return (latched & sup.any(dim=-1) & (down & ~sup).any(dim=-1)).float()
+
+
+def run_length(prev: torch.Tensor, active: torch.Tensor, fresh: torch.Tensor) -> torch.Tensor:
+    """Steps [B] that `active` has held without a break: prev + 1 while active, else 0. `fresh`
+    (first step of an episode) starts the count from 0."""
+    return (torch.where(fresh, torch.zeros_like(prev), prev) + 1.0) * active
+
+
+def stance_duration(env, cap_s: float) -> torch.Tensor:
+    """Stance bonus [B] in [0, 1] per step (give it a positive weight, per second): the length of
+    the current unbroken stance divided by `cap_s` (s), at most 1. The stance is the live
+    `single_leg_stance` term (same params as in the stage). The count is kept in `env._stance_len`
+    (steps) and restarts with each episode. The reward manager skips a term at weight 0, so the
+    count can be stale for the first steps of the ramp; the first step without a stance resets it."""
+    cfg = env.reward_manager.get_term_cfg("single_leg_stance")
+    stance = cfg.func(env, **cfg.params) > 0
+    prev = getattr(env, "_stance_len", None)
+    if prev is None:
+        prev = torch.zeros(env.num_envs, device=env.device)
+    env._stance_len = run_length(prev, stance, env.episode_length_buf <= 1)
+    return (env._stance_len * env.step_dt / cap_s).clamp(max=1.0)
+
+
+def stage_settings(s: int, progress_iters: float, excess0: float = 0.0, notap: bool = False) -> dict:
     """Everything a stage sets; cumulative (stage s includes all earlier stages). `excess0`:
-    action_excess weight of stages 0-2 (0, or EARLY_ACTION_EXCESS for -Excess)."""
+    action_excess weight of stages 0-2 (0, or EARLY_ACTION_EXCESS for -Excess). `notap`: also the
+    weights of free_sole_floor and stance_duration (0 before stage 8)."""
     w = {"single_leg_stance": 8.0, "com_over_ball": 2.0, "action_rate": -0.01, "upright": 2.0,
          "action_excess": excess0, "base_yaw_rate": 0.0, "torque_saturation": 0.0, "torque_demand": 0.0,
          "ankle_roll_excess": 0.0, "free_foot_ball_clear": 0.0, "support_hip_vel": 0.0,
          "support_foot_heading": 0.0}
+    if notap:
+        w.update(free_sole_floor=0.0, stance_duration=0.0)
     clearance, upright_std = 0.03, 0.2236
     if s >= 1:
         clearance = 0.06
@@ -88,6 +135,8 @@ def stage_settings(s: int, progress_iters: float, excess0: float = 0.0) -> dict:
         w["upright"] = 6.0
     if s >= 8:
         w.update(free_foot_ball_clear=2.0, support_hip_vel=-0.01, support_foot_heading=1.0)
+        if notap:
+            w.update(free_sole_floor=TAP_PENALTY, stance_duration=STANCE_BONUS)
     f_lag = 0.0 if s < 4 else (min(progress_iters / LAG_RAMP_ITERS, 1.0) if s == 4 else 1.0)
     f_noise = 0.0 if s < 6 else (min(progress_iters / NOISE_RAMP_ITERS, 1.0) if s == 6 else 1.0)
     return {
@@ -103,14 +152,14 @@ def stage_settings(s: int, progress_iters: float, excess0: float = 0.0) -> dict:
     }
 
 
-def ramped_stage_settings(s: int, progress_iters: float, excess0: float = 0.0) -> dict:
+def ramped_stage_settings(s: int, progress_iters: float, excess0: float = 0.0, notap: bool = False) -> dict:
     """stage_settings, with the weights and upright std of stage s ramped in from stage s-1's
     over STAGE_RAMP_ITERS[s] (the rest, e.g. clearance and switches, change at once)."""
-    st = stage_settings(s, progress_iters, excess0)
+    st = stage_settings(s, progress_iters, excess0, notap)
     R = STAGE_RAMP_ITERS[s]
     if s == 0 or progress_iters >= R:
         return st
-    prev = stage_settings(s - 1, progress_iters, excess0)
+    prev = stage_settings(s - 1, progress_iters, excess0, notap)
     f = (RAMP_SHAPE ** (progress_iters / R) - 1.0) / (RAMP_SHAPE - 1.0)
     st["weights"] = {k: prev["weights"][k] + f * (v - prev["weights"][k]) for k, v in st["weights"].items()}
     st["upright_std"] = prev["upright_std"] + f * (st["upright_std"] - prev["upright_std"])
@@ -185,6 +234,21 @@ def stage_curriculum(env, env_ids, start_stage: int = 0, ramp: bool = False, exc
             "lag_max": torch.tensor(float(st["lag"][1])), "noise_scale": torch.tensor(st["noise"])}
 
 
+NOTAP_TERMS = ("free_sole_floor", "stance_duration")
+
+
+def notap_curriculum(env, env_ids) -> dict[str, torch.Tensor]:
+    """Set the weights of the NOTAP_TERMS with the ramp of the current stage. It runs after
+    `stage_curriculum` (same dict, later key) and reads its stage and clock. `stage_curriculum`
+    itself is not changed: a change in its source changes the fingerprint of the old tasks."""
+    t0 = env.common_step_counter if getattr(env, "_cur_t0", None) is None else env._cur_t0
+    iters = (env.common_step_counter - t0) / STEPS_PER_ITER
+    w = ramped_stage_settings(getattr(env, "_cur_stage", 0), iters, notap=True)["weights"]
+    for k in NOTAP_TERMS:
+        env.reward_manager.get_term_cfg(k).weight = w[k]
+    return {k: torch.tensor(w[k]) for k in NOTAP_TERMS}
+
+
 def curriculum_stage_obs(env) -> torch.Tensor:
     """Critic: curriculum stage / FINAL_STAGE [B, 1] (play: the final stage)."""
     s = getattr(env, "_cur_stage", FINAL_STAGE)
@@ -192,7 +256,9 @@ def curriculum_stage_obs(env) -> torch.Tensor:
 
 
 def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 0, straight: bool = True,
-                                        ramp: bool = False, excess0: float = 0.0) -> ManagerBasedRlEnvCfg:
+                                        ramp: bool = False, excess0: float = 0.0,
+                                        notap: bool = False) -> ManagerBasedRlEnvCfg:
+    """`notap` (-NoTap): add free_sole_floor and stance_duration (weights 0 before stage 8)."""
     cfg = piplus_ball_mountmin_env_cfg(play, bounded_actions=True, blind_on_ball=True, latency=True,
         one_foot=True, latch_fix=True, kin_ball=True, free_leg=True, straight=straight, gate=True)
     r = cfg.rewards
@@ -205,20 +271,26 @@ def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 
     r["sole_flat"].params = {**r["sole_flat"].params, "level": False}  # was shared with foot_lift
     r["posture"].params["release"] = False
     cfg.observations["critic"].terms["curriculum_stage"] = ObservationTermCfg(func=curriculum_stage_obs)
+    if notap:
+        r["free_sole_floor"] = RewardTermCfg(func=free_sole_floor_contact, weight=0.0, params={
+            "foot_cfg": SceneEntityCfg("robot", body_names=_FEET), "ball_cfg": SceneEntityCfg("ball")})
+        r["stance_duration"] = RewardTermCfg(func=stance_duration, weight=0.0, params={"cap_s": STANCE_BONUS_CAP_S})
     if play:
         # Final stage, static: eval and play set lag and noise themselves (latency=True sizes
         # the play actuators for the final 10-40 ms).
-        st = stage_settings(FINAL_STAGE, 0, excess0)
+        st = stage_settings(FINAL_STAGE, 0, excess0, notap)
         _apply_rewards(r.__getitem__, list(r), st)
         cfg.events["ball_size"].params["ranges"] = (BIG_BALL_MIN_RADIUS / BALL_SIZES[5][0], 1.0)
         cfg.observations["actor"].terms["ball_pos"].params["height_threshold"] = ON_BALL_BASE_HEIGHT
     else:
-        st = stage_settings(start_stage, 0, excess0)
+        st = stage_settings(start_stage, 0, excess0, notap)
         _apply_rewards(r.__getitem__, list(r), st)
         cfg.observations["actor"].terms["ball_pos"].params["height_threshold"] = (
             ON_BALL_BASE_HEIGHT if st["latch"] else NO_LATCH)
         cfg.curriculum["stage"] = CurriculumTermCfg(func=stage_curriculum, params={"start_stage": start_stage, "ramp": ramp, "excess0": excess0,
             "late_threshold": THRESHOLD[6]})
+        if notap:
+            cfg.curriculum["notap"] = CurriculumTermCfg(func=notap_curriculum)
     return cfg
 
 
