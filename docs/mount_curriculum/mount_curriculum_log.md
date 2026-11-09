@@ -239,6 +239,88 @@ Eval of `model_27449` (`--gait --probe --audit`, 1024 envs, mount spawn), agains
 bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh --name cur7-midthigh --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-09_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
 ```
 
+## `cur8`: warm start from `cur4c` with a reward for a turned support foot
+
+**Reason.** `cur7` allowed a turned support foot (thigh ±1.2 rad, heading reward 0), and the policy stayed straight (−23°). The test needs a push toward the turn. Task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn` (flag `turn`, experiment `piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_turn`). It builds on `-NoTap` (full thigh range, not `-MidThigh`) and adds the reward `support_foot_turn`. The heading reward `support_foot_heading` has weight 0. This is the third new suffix in `mount_curriculum`; the naming convention allows one per experiment (the user knows). The term is in the Design section of [mount_curriculum.md](mount_curriculum.md).
+
+**Definition.** Per step, in the gated single support (as `support_foot_heading`): 0.5 × (1 + cos(e)), e = d − 100°, d = yaw(support foot) − yaw(torso). This is the number that `scripts/eval_mountbalance.py --gait` prints as "support foot heading - torso" (wrapped to ±180°). The sign of d is mirrored for the left foot. The value is 1 at the target, 0.5 at 90° from it, and 0 at 180° from it.
+
+**Side and target (measured).** Script: a copy of the `eval_mountbalance.py` loop that records d per support foot (not kept). 1024 envs, mount spawn, steps after 3 s, gated single support:
+
+| Policy | Right foot is support foot | d, median (p10 / p90) |
+|---|---|---|
+| `kb1` `model_59946` | 100% | +109° (+99° / +119°) |
+| `cur4c` `model_24450` | 100% (3 steps of 526064 left) | −15° (−23° / −6°) |
+| `cur6` `model_27449` | 100% | −20° (−27° / −10°) |
+
+No measured policy uses the left foot as support foot. The sign for the left foot is the mirror image and is not tested. The target is +100° (about the p10 of `kb1`, and a round number inside the "about 100°" of the decision).
+
+**Width.** A clamped cos around +100° is 0 for every heading from −170° to +10° (more than 90° from the target). The start policy is at −15°, 115° from the target, so it would get value 0 and no gradient. The raised cosine has a gradient everywhere except at 180° from the target. Its value on `cur4c` is 0.291 when active (p10 0.227, p90 0.363).
+
+**Size of the term.** Measured on the play config of the task (stage 8, full weights), 256 envs, seed 3, 20 s episodes, steps from 3 s to 15 s, mean over all envs of the weighted value per second in the reward manager (as in the section `cur6`; a one-off script, not kept). The measurement used weight 4. The values for weight 8 are scaled (the term is linear in the weight):
+
+| Policy | `support_foot_turn` at weight 1, mean per step | Active (gated single support) | Mean when active | All terms per second | Std of the total reward per second across envs |
+|---|---|---|---|---|---|
+| `cur4c` `model_24450` | 0.182 | 62.5% | 0.291 | 21.28 (w 4) | 1.84 |
+| `cur6` `model_27449` | 0.166 | 65.7% | 0.253 | 23.07 (w 4) | 1.92 |
+| `kb1` `model_59946` | 0.817 | 83.0% | 0.985 (p10 0.974) | 17.86 (no turn term) | 1.82 |
+
+The term is high on `kb1` (0.985 when active). Weight choice, with the numbers of `cur4c`:
+- Weight 8 gives +1.46 per second on the start policy (6.6% of the total 22.0), against +9.18 for `single_leg_stance`. The largest possible value is 8 × 0.83 = 6.6 per second, below the stance value.
+- The gain from the start posture to a turned foot at the same active share is 8 × 0.625 × (0.985 − 0.291) = 3.5 per second. This is 1.9 times the std across envs (1.84), 38% of the stance value, and 1.5 times the tap penalty (2.33 per second, which did not change the gait in `cur6`). A turn of 10° from −15° is worth 0.4 per second.
+- Weight 4 would give a gain of 1.7 per second, 0.94 times the std. This is not clearly above the noise. The weight stays below the stance weight (16), as `free_foot_contact` (−8, half of it).
+
+**Checks.** `uv run pytest`: 92 passed, 2 deselected (14 new tests in `tests/test_turn.py`, stand-in env). C1: 51 tasks, 50 log groups, 0 problems. C2: 51 tasks compared, 0 differences after the new baseline entry (the 50 old fingerprints are equal). C3: 414 checkpoints, 10 known history-only, 0 problems. Strict load of `cur4c` `model_24450` (actor, critic and optimizer, `strict=True`) into the `-NoTap` task and the `-Turn` task: both load, the largest difference to the checkpoint is 0.0 for actor and critic, and the actor outputs of the two tasks on random observations are equal (largest difference 0.0). The actor takes 345 inputs, the critic 88.
+
+**Smoke test** `turn-smoke` (wandb `ubzmhdlg`, run directory `2026-11-09_13-38-48_turn-smoke`, 20 iterations from 24450 to 24470): no NaN. `Curriculum/turn/turn_weight` is 0.0159 at iteration 24469 (the ramp: 8 × 0.002), `support_foot_heading` is 0.0000.
+
+Start: a copy of `cur4c` `model_24450.pt` (SHA-256 `83ec928c…`, byte-identical to the other init copies) as `logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_turn/2026-11-09_00-00-00_init-from-cur4c-24450`.
+
+| Run | wandb | Outcome |
+|-----|-------|---------|
+| `cur8-turn` | `i86jdjb0` | **Finished** 3000 iterations (24450 → 27450, last checkpoint `model_27449`) in 2 h 53 min, 3.5 s per iteration. Run directory `2026-11-09_13-40-49_cur8-turn`, tmux session `mjlab-train-cur8`. Stable: no NaN, no divergence. The support foot did not turn (eval below). |
+
+**Training** (mean of the log entries within 20 iterations of the given iteration; the turn weight reaches 8 at about iteration 24950):
+
+| Iteration | Mean reward | Stance share | `single_leg_stance` (of 16) | `free_foot_contact` | `support_foot_turn` (weighted) |
+|---|---|---|---|---|---|
+| 24650 | 204 | 0.35 | 4.6 | −0.11 | 0.04 |
+| 24950 | 205 | 0.37 | 4.8 | −1.87 | 0.81 |
+| 25950 | 207 | 0.38 | 4.9 | −1.83 | 0.89 |
+| 27449 | 217 | 0.40 | 5.2 | −1.76 | 0.92 |
+
+At the last iteration: mean reward 240.9 (one log entry, with the turn term in it, so not comparable to `cur6` and `cur7`), episode length 805, stance share 0.41, `stance_duration` 0.51, `support_foot_turn` 0.96. The turn term rose by 14% after the ramp ended.
+
+**Eval** of `model_27449` (`--gait --probe --audit`, 1024 envs, seed 0, mount spawn, ball sizes 3-5), against `cur6`, `cur7` and `kb1`. The `kb1` column is a new run of the same command on `kb1` `model_59946` (task `Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall`); the taps value is 4.8, where the section `cur7` has 4.9:
+
+| Metric | `cur6` | `cur7` | `cur8` | `kb1` |
+|---|---|---|---|---|
+| Held-stance success (strict) | 0% | 0% | **0%** | 16% |
+| Survived | 94% | 96% | **94%** | 92% |
+| Taps per 10 s | 12.3 | 12.8 | **12.2** | 4.8 |
+| Stance share of the on-ball steps | 63% | 61% | **63%** | 78% |
+| Segment median / p90 | 0.48 / 0.68 s | 0.46 / 0.64 s | **0.48 / 0.70 s** | 0.38 / 1.62 s |
+| Support foot vs torso (p10 / p90) | −20° | −23° | **−13° (−18° / −6°)** | +109° (+99° / +116°) |
+| CoM behind the ball centre | 4.3 cm | 4.5 cm | **4.0 cm** | 1.2 cm |
+| `r_hip_pitch` at the force limit | 43% | 47% | **46%** | 3% |
+| Free foot behind the support foot | 100% | 100% | 100% | – |
+
+Other values of `cur8`: time to the stance 0.6 s, stance held 64% of the last 3 s, base tilt 10.3°, `r_thigh` at the force limit 4%, raw |a| median 1.01 (0% past the clip), targets outside the joint limits 5.6%, free foot in the air 84.4% / on the floor 12.7% / on the ball 2.9% of the single-support steps.
+
+**Conclusion.** The support foot did not turn: −13° from the torso (the start was −15°). The gait equals `cur6` and `cur7` in every column: 12.2 taps per 10 s, segments 0.48 / 0.70 s, held-stance success 0%, `r_hip_pitch` at the limit in 46% of the steps, CoM 4 cm behind the ball. Survival is unchanged (94%), so the reward cost nothing, and it also gained nothing. A pull of about 1.5 per second at the start (3.5 per second for the full turn) is not enough to move a warm start out of the straight basin in 3000 iterations, with and without a heading reward (`cur7`). The test still does not show whether a turned foot would hold the stance better: the correlation across `kb1` and `ms3-shell` stays a correlation. Not tested: a larger weight (the term must stay below the stance weight 16), a target heading that moves from −15° to +100° during the run, the turn term from the cold start (stage 5 or earlier, before the straight posture is learned), and a start from a turned posture (reset event or distillation from `kb1`).
+
+Launch command of `turn-smoke` (without tmux):
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn --name turn-smoke --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-09_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 20 --agent.seed 42
+```
+
+Launch command of `cur8-turn` (inside the tmux session `mjlab-train-cur8`, without `--tmux`):
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn --name cur8-turn --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-09_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
 ## Conclusion (Nov 6 2026)
 
 - **A cold start reaches the final stage** with ramped stages, a std cap and `action_excess` from stage 0 (`cur4` → `cur4b` → `cur4c`). The two earlier collapses (`cur2`, `cur3`) came from raw outputs drifting past the ±7 clip in stages 0-2, where no penalty has a gradient; `action_excess` from stage 0 kept them inside (median |a| ~1 against 45).

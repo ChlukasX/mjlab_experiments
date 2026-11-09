@@ -12,6 +12,7 @@ the ball top and never mounted, as st1/st3), or the full range (`straight=False`
 No start hold, no mount deadline.
 """
 
+import math
 from dataclasses import replace
 from functools import partial
 
@@ -44,6 +45,8 @@ from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import (
     set_lag,
     set_noise_scale,
     support_foot_heading,
+    _single_support,
+    _yaw,
 )
 
 FINAL_STAGE = 8
@@ -280,6 +283,46 @@ def heading_off_curriculum(env, env_ids) -> dict[str, torch.Tensor]:
     return {"heading_weight": torch.tensor(0.0)}
 
 
+# Turned support foot (-Turn, docs/mount_curriculum). The policies that hold a stance best turn the
+# support foot far from the torso (kb1 +109 deg, ms3-shell +138 deg, right foot); cur6 and cur7
+# stay at -20 deg and tap, and a warm start does not find the turn by itself (cur7). The term
+# pays for the turn from stage 8.
+TURN_TARGET = math.radians(100.0)  # rad, support foot heading - torso heading (right foot)
+TURN_WEIGHT = 8.0  # per second at the full term (half the stance weight 16); see the log section cur8
+
+
+def support_foot_turn(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg,
+                      target: float = TURN_TARGET) -> torch.Tensor:
+    """Turned support foot [B] in [0, 1] per step (give it a positive weight, per second). In a
+    gated single support (as `support_foot_heading`): 0.5 * (1 + cos(e)), e = d - target (rad),
+    d = yaw(support foot) - yaw(torso), the number that `eval_mountbalance.py --gait` prints as
+    "support foot heading - torso". The sign of d is mirrored for the left foot. The raised cosine
+    is 1 at the target and 0.5 at 90 deg from it. It has a gradient everywhere except at 180 deg,
+    also at the straight foot of cur4c (-15 deg), which a clamped cos does not reach. Else 0."""
+    single, si = _single_support(env, foot_cfg, ball_cfg, True)
+    robot = env.scene[foot_cfg.name]
+    feet = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 3:7]
+    foot = feet[torch.arange(env.num_envs, device=env.device), si]
+    torso = robot.data.body_link_pose_w[:, robot.body_names.index("torso_link"), 3:7]
+    sign = 1.0 - 2.0 * si.float()  # right foot (index 0) +1, left foot -1
+    return 0.5 * (1.0 + torch.cos(sign * (_yaw(foot) - _yaw(torso)) - target)) * single
+
+
+def turn_curriculum(env, env_ids) -> dict[str, torch.Tensor]:
+    """Set the weights of `support_foot_turn` (ramped in with stage 8, like the other stage-8
+    terms) and of `support_foot_heading` (0: the straight foot is not paid). It runs after
+    `stage_curriculum`, which sets the heading weight (1.0 from stage 8) in the same step, and
+    leaves `stage_curriculum` unchanged (a change in its source changes the old fingerprints)."""
+    t0 = env.common_step_counter if getattr(env, "_cur_t0", None) is None else env._cur_t0
+    iters = (env.common_step_counter - t0) / STEPS_PER_ITER
+    # The heading weight of the ramped stage is 0 before stage 8 and ramps to 1.0 in stage 8:
+    # it is the ramp factor of the stage-8 terms.
+    f = ramped_stage_settings(getattr(env, "_cur_stage", 0), iters)["weights"]["support_foot_heading"]
+    env.reward_manager.get_term_cfg("support_foot_heading").weight = 0.0
+    env.reward_manager.get_term_cfg("support_foot_turn").weight = TURN_WEIGHT * f
+    return {"turn_weight": torch.tensor(TURN_WEIGHT * f)}
+
+
 def curriculum_stage_obs(env) -> torch.Tensor:
     """Critic: curriculum stage / FINAL_STAGE [B, 1] (play: the final stage)."""
     s = getattr(env, "_cur_stage", FINAL_STAGE)
@@ -289,10 +332,13 @@ def curriculum_stage_obs(env) -> torch.Tensor:
 def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 0, straight: bool = True,
                                         ramp: bool = False, excess0: float = 0.0,
                                         notap: bool = False,
-                                        thigh_limit: float | None = None) -> ManagerBasedRlEnvCfg:
+                                        thigh_limit: float | None = None,
+                                        turn: bool = False) -> ManagerBasedRlEnvCfg:
     """`notap` (-NoTap): add free_foot_contact and stance_duration (weights 0 before stage 8).
     `thigh_limit` (-MidThigh, needs `straight=False`): thigh range +-thigh_limit (rad) in the model
-    and the action clip; the heading weight stays 0."""
+    and the action clip; the heading weight stays 0.
+    `turn` (-Turn, needs `straight=False` and `notap`): add support_foot_turn (weight 0 before
+    stage 8); the heading weight stays 0."""
     cfg = piplus_ball_mountmin_env_cfg(play, bounded_actions=True, blind_on_ball=True, latency=True,
         one_foot=True, latch_fix=True, kin_ball=True, free_leg=True, straight=straight, gate=True)
     r = cfg.rewards
@@ -314,13 +360,19 @@ def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 
         r["free_foot_contact"] = RewardTermCfg(func=free_foot_contact, weight=0.0, params={
             "foot_cfg": SceneEntityCfg("robot", body_names=_FEET), "ball_cfg": SceneEntityCfg("ball")})
         r["stance_duration"] = RewardTermCfg(func=stance_duration, weight=0.0, params={"cap_s": STANCE_BONUS_CAP_S})
+    if turn:
+        assert not straight and notap, "turn builds on the -NoTap task with the full thigh range"
+        r["support_foot_turn"] = RewardTermCfg(func=support_foot_turn, weight=0.0, params={
+            "foot_cfg": SceneEntityCfg("robot", body_names=_FEET), "ball_cfg": SceneEntityCfg("ball")})
     if play:
         # Final stage, static: eval and play set lag and noise themselves (latency=True sizes
         # the play actuators for the final 10-40 ms).
         st = stage_settings(FINAL_STAGE, 0, excess0, notap)
         _apply_rewards(r.__getitem__, list(r), st)
-        if thigh_limit is not None:
+        if thigh_limit is not None or turn:
             r["support_foot_heading"].weight = 0.0
+        if turn:
+            r["support_foot_turn"].weight = TURN_WEIGHT
         cfg.events["ball_size"].params["ranges"] = (BIG_BALL_MIN_RADIUS / BALL_SIZES[5][0], 1.0)
         cfg.observations["actor"].terms["ball_pos"].params["height_threshold"] = ON_BALL_BASE_HEIGHT
     else:
@@ -334,6 +386,8 @@ def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 
             cfg.curriculum["notap"] = CurriculumTermCfg(func=notap_curriculum)
         if thigh_limit is not None:
             cfg.curriculum["heading_off"] = CurriculumTermCfg(func=heading_off_curriculum)
+        if turn:
+            cfg.curriculum["turn"] = CurriculumTermCfg(func=turn_curriculum)
     return cfg
 
 

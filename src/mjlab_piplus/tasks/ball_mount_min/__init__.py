@@ -93,3 +93,13 @@ register_mjlab_task(
         play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True, thigh_limit=MID_THIGH_LIMIT),
     rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap_midthigh", max_std=MAX_ACTION_STD),
 )
+# Same as -NoTap (full thigh range), plus a reward for a support foot turned by ~100 deg from the
+# torso (kb1 +109 deg holds the stance; cur6 and cur7 stay at -20 deg and tap). Warm start from cur4c.
+register_mjlab_task(
+    task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn",
+    env_cfg=piplus_ball_mount_curriculum_env_cfg(
+        straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True, turn=True),
+    play_env_cfg=piplus_ball_mount_curriculum_env_cfg(
+        play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True, turn=True),
+    rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap_turn", max_std=MAX_ACTION_STD),
+)

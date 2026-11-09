@@ -72,7 +72,7 @@ Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone. The
 
 ## Registered Tasks
 
-One task ID per row (50 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
+One task ID per row (51 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
 
 | Task ID | Description |
 |---|---|
@@ -126,6 +126,7 @@ One task ID per row (50 tasks). The index in `docs/README.md` maps each experime
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess` | Adds `Excess` |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap` | Adds `NoTap` |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh` | Adds `MidThigh` |
+| `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn` | Adds `Turn` to `NoTap` (not to `MidThigh`) |
 
 Flag legend:
 
@@ -148,6 +149,7 @@ Flag legend:
 - `Excess`: `action_excess` penalty −1 from stage 0.
 - `NoTap`: from stage 8, a penalty on free-foot contact with the floor or the ball while on the ball (`free_foot_contact`) and a bonus that grows with the length of the current stance (`stance_duration`). Reward change only.
 - `MidThigh`: thigh (yaw) joint limited to ±1.2 rad in the model and in the action clip. The heading reward `support_foot_heading` has weight 0, so a turned support foot is allowed and not paid.
+- `Turn`: full thigh range. The heading reward `support_foot_heading` has weight 0. The reward `support_foot_turn` pays for a support foot turned by about 100° from the torso.
 
 ## Architecture
 
@@ -207,7 +209,7 @@ Task modules import from each other. `ball_mount` imports `ball_small`. `ball_mo
 
 **Platform task:** the details (geometry, motion, rewards, events, sim sizes) are in [docs/platform/platform.md](docs/platform/platform.md).
 
-**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 50 tasks.
+**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 51 tasks.
 
 ## Documentation standard
 
