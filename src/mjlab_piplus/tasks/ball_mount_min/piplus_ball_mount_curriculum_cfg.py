@@ -12,6 +12,9 @@ the ball top and never mounted, as st1/st3), or the full range (`straight=False`
 No start hold, no mount deadline.
 """
 
+from dataclasses import replace
+from functools import partial
+
 import torch
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
@@ -19,8 +22,10 @@ from mjlab.managers.observation_manager import ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
+from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     BALL_SIZES,
+    _ball_contact,
     _sole_clearance,
     _support_foot,
 )
@@ -32,6 +37,7 @@ from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import (
     NOISE_START,
     ON_BALL_BASE_HEIGHT,
     _FEET,
+    _THIGHS,
     ankle_roll_excess,
     piplus_ball_mountmin_env_cfg,
     piplus_ball_mountmin_ppo_runner_cfg,
@@ -71,22 +77,24 @@ EARLY_ACTION_EXCESS = -1.0
 
 # Stop the tap (-NoTap, docs/mount_curriculum). cur4c taps: the free sole touches the floor 14.8
 # times per 10 s and a stance lasts 0.36 s. Both terms act from stage 8 and ramp in with it.
-TAP_PENALTY = -8.0  # weight of free_sole_floor, per second of floor contact (half of the stance weight)
+TAP_PENALTY = -8.0  # weight of free_foot_contact, per second of free-foot contact with the floor or the ball
 STANCE_BONUS = 16.0  # weight of stance_duration, per second at the full bonus (the stance weight)
 STANCE_BONUS_CAP_S = 2.0  # s of one unbroken stance after which the bonus stops growing
 FLOOR_TOUCH_CLEARANCE = 0.01  # m, sole corner above the floor: the tap test of eval_mountbalance --gait
 
 
-def free_sole_floor_contact(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Tap indicator [B] (0 or 1 per step; give it a negative weight, per second). 1 while the robot
-    is latched on the ball with one foot on it (level sole) and the other sole's lowest corner is
-    within FLOOR_TOUCH_CLEARANCE (m) of the floor."""
+def free_foot_contact(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Free-foot indicator [B] (0 or 1 per step; give it a negative weight, per second). 1 while the
+    robot is latched on the ball and either (a) a sole's lowest corner is within
+    FLOOR_TOUCH_CLEARANCE (m) of the floor (the foot on the floor is never the support foot), or
+    (b) exactly one foot is the (flat) support foot and the other foot touches the ball."""
     latched = getattr(env, "_on_ball_latch", None)
     if latched is None:
         return torch.zeros(env.num_envs, device=env.device)
-    sup = _support_foot(env, foot_cfg, ball_cfg, None, "level")
-    down = _sole_clearance(env, foot_cfg) < FLOOR_TOUCH_CLEARANCE
-    return (latched & sup.any(dim=-1) & (down & ~sup).any(dim=-1)).float()
+    floor = (_sole_clearance(env, foot_cfg) < FLOOR_TOUCH_CLEARANCE).any(dim=-1)
+    sup = _support_foot(env, foot_cfg, ball_cfg, None, True)
+    on_ball = (sup.sum(dim=-1) == 1) & (_ball_contact(env) & ~sup).any(dim=-1)
+    return (latched & (floor | on_ball)).float()
 
 
 def run_length(prev: torch.Tensor, active: torch.Tensor, fresh: torch.Tensor) -> torch.Tensor:
@@ -113,13 +121,13 @@ def stance_duration(env, cap_s: float) -> torch.Tensor:
 def stage_settings(s: int, progress_iters: float, excess0: float = 0.0, notap: bool = False) -> dict:
     """Everything a stage sets; cumulative (stage s includes all earlier stages). `excess0`:
     action_excess weight of stages 0-2 (0, or EARLY_ACTION_EXCESS for -Excess). `notap`: also the
-    weights of free_sole_floor and stance_duration (0 before stage 8)."""
+    weights of free_foot_contact and stance_duration (0 before stage 8)."""
     w = {"single_leg_stance": 8.0, "com_over_ball": 2.0, "action_rate": -0.01, "upright": 2.0,
          "action_excess": excess0, "base_yaw_rate": 0.0, "torque_saturation": 0.0, "torque_demand": 0.0,
          "ankle_roll_excess": 0.0, "free_foot_ball_clear": 0.0, "support_hip_vel": 0.0,
          "support_foot_heading": 0.0}
     if notap:
-        w.update(free_sole_floor=0.0, stance_duration=0.0)
+        w.update(free_foot_contact=0.0, stance_duration=0.0)
     clearance, upright_std = 0.03, 0.2236
     if s >= 1:
         clearance = 0.06
@@ -136,7 +144,7 @@ def stage_settings(s: int, progress_iters: float, excess0: float = 0.0, notap: b
     if s >= 8:
         w.update(free_foot_ball_clear=2.0, support_hip_vel=-0.01, support_foot_heading=1.0)
         if notap:
-            w.update(free_sole_floor=TAP_PENALTY, stance_duration=STANCE_BONUS)
+            w.update(free_foot_contact=TAP_PENALTY, stance_duration=STANCE_BONUS)
     f_lag = 0.0 if s < 4 else (min(progress_iters / LAG_RAMP_ITERS, 1.0) if s == 4 else 1.0)
     f_noise = 0.0 if s < 6 else (min(progress_iters / NOISE_RAMP_ITERS, 1.0) if s == 6 else 1.0)
     return {
@@ -234,7 +242,7 @@ def stage_curriculum(env, env_ids, start_stage: int = 0, ramp: bool = False, exc
             "lag_max": torch.tensor(float(st["lag"][1])), "noise_scale": torch.tensor(st["noise"])}
 
 
-NOTAP_TERMS = ("free_sole_floor", "stance_duration")
+NOTAP_TERMS = ("free_foot_contact", "stance_duration")
 
 
 def notap_curriculum(env, env_ids) -> dict[str, torch.Tensor]:
@@ -249,6 +257,29 @@ def notap_curriculum(env, env_ids) -> dict[str, torch.Tensor]:
     return {k: torch.tensor(w[k]) for k in NOTAP_TERMS}
 
 
+# Middle thigh range (-MidThigh, docs/mount_curriculum). cur6 has the full thigh range, but the
+# heading term (stage 8) pays for a straight support foot, and the policy stays straight (-20 deg).
+# Older policies hold a stance better with the support foot turned by 109-138 deg. This task
+# limits the thigh joint to MID_THIGH_LIMIT in the model and in the action clip, and sets the
+# heading weight to 0 so that the turn is allowed, but not paid.
+MID_THIGH_LIMIT = 1.2  # rad, about 69 deg
+
+
+def _spec_thigh(limit: float):
+    spec = get_spec_with_arms()
+    for j in spec.joints:
+        if j.name in _THIGHS:
+            j.range = [-limit, limit]
+    return spec
+
+
+def heading_off_curriculum(env, env_ids) -> dict[str, torch.Tensor]:
+    """Set the weight of support_foot_heading to 0. It runs after `stage_curriculum`, which sets
+    the stage weight (1.0 from stage 8) in the same step."""
+    env.reward_manager.get_term_cfg("support_foot_heading").weight = 0.0
+    return {"heading_weight": torch.tensor(0.0)}
+
+
 def curriculum_stage_obs(env) -> torch.Tensor:
     """Critic: curriculum stage / FINAL_STAGE [B, 1] (play: the final stage)."""
     s = getattr(env, "_cur_stage", FINAL_STAGE)
@@ -257,14 +288,22 @@ def curriculum_stage_obs(env) -> torch.Tensor:
 
 def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 0, straight: bool = True,
                                         ramp: bool = False, excess0: float = 0.0,
-                                        notap: bool = False) -> ManagerBasedRlEnvCfg:
-    """`notap` (-NoTap): add free_sole_floor and stance_duration (weights 0 before stage 8)."""
+                                        notap: bool = False,
+                                        thigh_limit: float | None = None) -> ManagerBasedRlEnvCfg:
+    """`notap` (-NoTap): add free_foot_contact and stance_duration (weights 0 before stage 8).
+    `thigh_limit` (-MidThigh, needs `straight=False`): thigh range +-thigh_limit (rad) in the model
+    and the action clip; the heading weight stays 0."""
     cfg = piplus_ball_mountmin_env_cfg(play, bounded_actions=True, blind_on_ball=True, latency=True,
         one_foot=True, latch_fix=True, kin_ball=True, free_leg=True, straight=straight, gate=True)
     r = cfg.rewards
     if not straight:  # full thigh range: the heading term (stage 8) still asks to untwist the support foot
         r["support_foot_heading"] = RewardTermCfg(func=support_foot_heading, weight=0.0, params={
             "foot_cfg": SceneEntityCfg("robot", body_names=_FEET), "ball_cfg": SceneEntityCfg("ball"), "gated": True})
+    if thigh_limit is not None:
+        assert not straight, "thigh_limit replaces the +-0.6 rad limit of straight"
+        cfg.scene.entities["robot"] = replace(cfg.scene.entities["robot"], spec_fn=partial(_spec_thigh, thigh_limit))
+        clip = cfg.actions["joint_pos"].clip
+        cfg.actions["joint_pos"].clip = {**clip, **{n: (-thigh_limit, thigh_limit) for n in _THIGHS}}
     cfg.curriculum.pop("latency", None)  # the stage curriculum sets the lag
     r["ankle_roll_excess"] = RewardTermCfg(func=ankle_roll_excess, weight=0.0, params={
         "asset_cfg": SceneEntityCfg("robot", joint_names=(".*_ankle_roll_joint",)), "limit": ANKLE_ROLL_SOFT})
@@ -272,7 +311,7 @@ def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 
     r["posture"].params["release"] = False
     cfg.observations["critic"].terms["curriculum_stage"] = ObservationTermCfg(func=curriculum_stage_obs)
     if notap:
-        r["free_sole_floor"] = RewardTermCfg(func=free_sole_floor_contact, weight=0.0, params={
+        r["free_foot_contact"] = RewardTermCfg(func=free_foot_contact, weight=0.0, params={
             "foot_cfg": SceneEntityCfg("robot", body_names=_FEET), "ball_cfg": SceneEntityCfg("ball")})
         r["stance_duration"] = RewardTermCfg(func=stance_duration, weight=0.0, params={"cap_s": STANCE_BONUS_CAP_S})
     if play:
@@ -280,6 +319,8 @@ def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 
         # the play actuators for the final 10-40 ms).
         st = stage_settings(FINAL_STAGE, 0, excess0, notap)
         _apply_rewards(r.__getitem__, list(r), st)
+        if thigh_limit is not None:
+            r["support_foot_heading"].weight = 0.0
         cfg.events["ball_size"].params["ranges"] = (BIG_BALL_MIN_RADIUS / BALL_SIZES[5][0], 1.0)
         cfg.observations["actor"].terms["ball_pos"].params["height_threshold"] = ON_BALL_BASE_HEIGHT
     else:
@@ -291,6 +332,8 @@ def piplus_ball_mount_curriculum_env_cfg(play: bool = False, start_stage: int = 
             "late_threshold": THRESHOLD[6]})
         if notap:
             cfg.curriculum["notap"] = CurriculumTermCfg(func=notap_curriculum)
+        if thigh_limit is not None:
+            cfg.curriculum["heading_off"] = CurriculumTermCfg(func=heading_off_curriculum)
     return cfg
 
 

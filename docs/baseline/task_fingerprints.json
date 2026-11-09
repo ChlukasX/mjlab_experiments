@@ -202,9 +202,14 @@
    "rl": "f536498568bd9582e9e32e42fbacf3d767c43c89288502178490e25355765e58"
   },
   "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap": {
-   "env": "260da09f309455c9d31d747bd011f08832c91d7334194fa9eea8a9e0e2a8a367",
-   "play": "9945d6ab8ef993a5e5cb7524c3ade67e106cd6211aa5e81b495247e72b69be80",
+   "env": "05a6f04d67dd4ab6c2c43dd8bab85960ee4525656add4eeb1d127fe1f33cec41",
+   "play": "841aa57a7d2bacfdc5ea1c4a71e46a73223acca20d0e371030b4a7cad0ab7f4f",
    "rl": "bf0c89c13f02e5e798e82c39037992a621ada3ac535bc1a74ebc0a48ea764872"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh": {
+   "env": "3378b743c9c3801a7c186ef3e35d2e94c0816eeb57e890a3abec7c6566c51c71",
+   "play": "d1404076cc372a6268473fc38fa7f1a05d11a65bcb58d8c72aeeb9fc8fc175cd",
+   "rl": "6dac8f065cc0d50c0ec0d54172ef6f7c5557deb1419fe0a2c27bdf3d82c68281"
   },
   "Mjlab-Piplus-Ball-MountMin-Locked": {
    "env": "2545d234dca1090c0431d318a946b175bee039da4c9a342fd13d6046925d8ac0",

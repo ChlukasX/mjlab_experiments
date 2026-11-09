@@ -6,6 +6,7 @@ from .piplus_ball_mount_curriculum_cfg import (
   piplus_ball_mount_curriculum_env_cfg,
   EARLY_ACTION_EXCESS,
   MAX_ACTION_STD,
+  MID_THIGH_LIMIT,
   piplus_ball_mount_curriculum_ppo_runner_cfg,
 )
 from .piplus_ball_mountmin_env_cfg import (
@@ -81,4 +82,14 @@ register_mjlab_task(
     play_env_cfg=piplus_ball_mount_curriculum_env_cfg(
         play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True),
     rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap", max_std=MAX_ACTION_STD),
+)
+# Same, with the thigh limited to +-1.2 rad and no heading reward: a support foot turned by up to
+# ~69 deg is allowed, not paid (cur6 stays straight and taps). Warm start from cur4c.
+register_mjlab_task(
+    task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh",
+    env_cfg=piplus_ball_mount_curriculum_env_cfg(
+        straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True, thigh_limit=MID_THIGH_LIMIT),
+    play_env_cfg=piplus_ball_mount_curriculum_env_cfg(
+        play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True, thigh_limit=MID_THIGH_LIMIT),
+    rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap_midthigh", max_std=MAX_ACTION_STD),
 )
