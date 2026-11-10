@@ -42,6 +42,7 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     ball_contact_sensors,
     single_leg_stance_lifted,
 )
+from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mount_curriculum_cfg import free_foot_contact
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", required=True)
@@ -215,6 +216,10 @@ ar = torch.arange(u.num_envs, device=dev)
 gait = {"off": [], "com": [], "yaw": [], "seg": [], "taps": 0.0, "steps": 0.0}
 seg_len = torch.zeros(u.num_envs, device=dev)
 free_down_prev = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
+# Free-foot state (--gait): steps by support state, free-foot ball and floor events, the training term.
+fs = dict.fromkeys(("n", "both", "none", "ball", "floor", "air", "ball_ev", "floor_ev", "term", "any_floor"), 0.0)
+fs_ball_prev = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
+fs_floor_prev = fs_ball_prev.clone()
 
 
 def heading(q):
@@ -280,6 +285,22 @@ for step in range(n_steps):
         gait["taps"] += (on & down & ~free_down_prev).sum().item()
         free_down_prev = down
         gait["steps"] += on.sum().item()
+        flat = _support_foot(u, foot_cfg, ball_cfg, None, True)  # flat support, as the training term
+        single_flat = on & (flat.sum(dim=-1) == 1)
+        free_i = 1 - flat[:, 1].long()  # the foot that is not the support foot (valid where single_flat)
+        free_ball = _ball_contact(u)[ar, free_i]
+        free_floor = _sole_clearance(u, foot_cfg)[ar, free_i] < 0.01
+        fs["n"] += single_flat.sum().item()
+        fs["both"] += (on & (flat.sum(dim=-1) == 2)).sum().item()
+        fs["none"] += (on & (flat.sum(dim=-1) == 0)).sum().item()
+        fs["ball"] += (single_flat & free_ball).sum().item()
+        fs["floor"] += (single_flat & ~free_ball & free_floor).sum().item()
+        fs["air"] += (single_flat & ~free_ball & ~free_floor).sum().item()
+        fs["ball_ev"] += (single_flat & free_ball & ~fs_ball_prev).sum().item()
+        fs["floor_ev"] += (single_flat & free_floor & ~fs_floor_prev).sum().item()
+        fs_ball_prev, fs_floor_prev = single_flat & free_ball, single_flat & free_floor
+        fs["term"] += (on & (free_foot_contact(u, foot_cfg, ball_cfg) > 0)).sum().item()
+        fs["any_floor"] += (on & (_sole_clearance(u, foot_cfg) < 0.01).any(dim=-1)).sum().item()
         ended = on & ~held & (seg_len > 0)
         gait["seg"].append(seg_len[ended] * u.step_dt)
         seg_len = torch.where(on & held, seg_len + 1, torch.zeros_like(seg_len))
@@ -354,3 +375,12 @@ if args.gait:
     print(f"  stance {len(off) / max(gait['steps'], 1):.0%} of the on-ball steps; free-sole floor taps "
           f"{gait['taps'] / max(tot, 1e-9) * 10:.1f} per 10 s; stance segments "
           + (f"median {seg.median().item():.2f} s, p90 {seg.quantile(.9).item():.2f} s (n {len(seg)})" if len(seg) else "none"))
+    st, ns = max(gait["steps"], 1), max(fs["n"], 1)
+    print(f"  free-foot state: single support {fs['n'] / st:.0%} of the on-ball steps, both feet on the ball {fs['both'] / st:.0%}, "
+          f"neither {fs['none'] / st:.0%}")
+    print(f"  in single support the free foot: touches the ball {fs['ball'] / ns:.1%}, on the floor (no ball) "
+          f"{fs['floor'] / ns:.1%}, in the air {fs['air'] / ns:.1%}")
+    print(f"  free-foot ball-contact events {fs['ball_ev'] / max(tot, 1e-9) * 10:.1f} per 10 s, floor events "
+          f"{fs['floor_ev'] / max(tot, 1e-9) * 10:.1f} per 10 s")
+    print(f"  training term (free_foot_contact) active on {fs['term'] / st:.1%} of the on-ball steps; any sole on the floor "
+          f"{fs['any_floor'] / st:.1%}")

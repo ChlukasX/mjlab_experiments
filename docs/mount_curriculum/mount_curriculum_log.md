@@ -82,6 +82,245 @@ Resume `cur4b` `model_21600` with `start_stage 8` (free leg), `late_threshold 0.
 - **Physical limit not shown:** the earlier warm-started policies held long stances (`ms3-shell` 98% success with the ball visible and 0-15 ms; `kb1` blind with latency: full stance 77% of the steps). A test: reward/penalize against the tap and see whether stance segments lengthen.
 - Options for a next run (not started): penalize free-sole floor contact while latched; a stance-duration bonus (pay more the longer the current stance lasts); and only then a placement term (free foot to the side/front), since without the tap incentive the rear placement may change by itself.
 
+## `cur5`: warm start from `cur4c` with the `-NoTap` terms
+
+Task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap` (flag `notap`, experiment `piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap`). It adds two reward terms at stage 8: `free_sole_floor` (penalty, weight −8) and `stance_duration` (bonus, weight +16, cap 2 s). The terms are in the Design section of [mount_curriculum.md](mount_curriculum.md). Observations and network are unchanged, so the `cur4c` actor and critic load (checked: the loaded actor equals the actor of `model_24450`).
+
+Start: a copy of `cur4c` `model_24450.pt` (byte-identical) in the new log group, as `2026-11-07_00-00-00_init-from-cur4c-24450`. `--env.curriculum.stage.params.start_stage 8` starts the stage clock at stage 8. The three old stage-8 terms (`free_foot_ball_clear`, `support_hip_vel`, `support_foot_heading`) therefore ramp in again over 500 iterations, together with the new terms.
+
+4096 envs need `--env.scene.env-spacing 1.0`. With the default 2.0, a smoke run crashed at iteration 5 with NaN in the actor observation. The NaN envs lie far from the world origin (the grid reaches ±64 m at 4096 envs). Spacing 1.0 halves the extent.
+
+| Run | wandb | Outcome |
+|-----|-------|---------|
+| `cur5-notap` | `3zudj4wb` | **Killed** at iteration 24986 (last checkpoint `model_24950`) after 31 min. The log has no error. The process ended with the agent session (`setsid nohup`, not tmux). |
+| `cur5b-notap` | `xz7581wc` | **Finished** 3000 iterations (24450 → 27450, last checkpoint `model_27449`) in 2 h 53 min, 3.45 s per iteration. Restart of `cur5-notap` from the same init copy, in tmux `mjlab-train`. |
+
+Launch command of `cur5-notap`:
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap --name cur5-notap --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-07_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
+Launch command of `cur5b-notap`:
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap --name cur5b-notap --tmux --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-07_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
+**Training (`cur5b-notap`).** The run is stable: no NaN, no divergence.
+
+| Iteration | Mean reward | Stance share | `single_leg_stance` (of 16) | `free_sole_floor` | `stance_duration` |
+|---|---|---|---|---|---|
+| 24700 | 202 | 0.35 | 4.6 | −0.10 | +0.03 |
+| 24950 | 227 | 0.36 | 4.8 | −0.84 | +0.39 |
+| 26200 | 211 | 0.38 | 4.8 | −0.33 | +0.44 |
+| 27449 | 224 | 0.40 | 5.3 | −0.22 | +0.52 |
+
+The `free_sole_floor` value fell by 74% from iteration 24950 to 27449. The eval below shows that the taps did not fall by the same amount.
+
+**Gait eval** (`scripts/eval_mountbalance.py --task <task> --checkpoint <model.pt> --gait`, 1024 envs, mount spawn, ball sizes 3-5):
+
+| Metric | `cur4c` `model_24450` | `cur5-notap` `model_24950` | `cur5b-notap` `model_27449` |
+|---|---|---|---|
+| Floor taps per 10 s | 13.3 | 12.9 | **11.9** |
+| Stance share of the on-ball steps | 57% | 59% | 61% |
+| Stance segment median / p90 | 0.42 / 0.58 s | 0.44 / 0.62 s | 0.48 / 0.70 s |
+| Survived | 94% | 95% | 97% |
+| Free foot behind the support foot | 100% | 100% | 100% |
+
+The held-stance success is 0% for all three checkpoints (the test needs the stance in at least 90% of the last 3 s). The policy still taps.
+
+**Free-foot state** (final policy `model_27449` against `cur4c` `model_24450`; latched, alive, after 3 s; the numbers come from a patched copy of the `--gait` loop that is not kept in the repository):
+
+| Within single support | `cur4c` | `cur5b` |
+|---|---|---|
+| Free foot touches the ball | 7.4% (13.6 events per 10 s) | 3.1% (7.1 events per 10 s) |
+| Free foot on the floor | 14.4% (13.6 events per 10 s) | 13.2% (12.0 events per 10 s) |
+| Free foot in the air | 78.2% | 83.7% |
+
+- The ball touches fell by about half. The stance bonus needs the free foot off the ball, so this follows from `stance_duration`.
+- The floor taps stayed at about the same rate.
+- **`free_sole_floor` is blind.** On `model_27449` a sole is on the floor in 25.9% of the on-ball steps. The term is active in 1.5% of them. In 94% of the floor steps the term is zero, because it needs a flat and level support foot on the ball (`_support_foot` with `"level"`). A tap disturbs the support foot, so the gate fails when the free foot is on the floor. The fall of the term in training shows that the policy avoids the narrow case that the term penalizes. It does not show fewer taps.
+- **The price of a tap is low.** A floor contact lasts about 0.11 s. At weight −8 it costs about 0.9 reward. A fall ends the episode, so the tap stays the better choice.
+
+**Conclusion.** `stance_duration` and the stance share moved in the right direction (stance segment median 0.42 → 0.48 s, survival 94% → 97%). The floor taps did not stop (13.3 → 11.9 per 10 s), because the penalty term does not see most of them. Next run: penalize any sole on the floor, and the free foot on the ball, while latched. See Next steps in [mount_curriculum.md](mount_curriculum.md#next-steps).
+
+## `cur6`: warm start from `cur4c` with the widened `-NoTap` penalty
+
+`cur5b` showed that `free_sole_floor` was almost never active (section `cur5`). The task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap` now carries the term `free_foot_contact` in its place. The task changed in place: it exists only on the unmerged branch, and the naming convention allows one new suffix per experiment. The earlier definition is in the section `cur5` and in commit `28730cc`. The term is in the Design section of [mount_curriculum.md](mount_curriculum.md).
+
+Definition of `free_foot_contact` (value 1 or 0 per step, weight −8, from stage 8): the robot is latched on the ball, and either (a) the lowest corner of any sole is within 1 cm of the floor, or (b) exactly one foot is the support foot (flat sole on the ball) and the other foot touches the ball. There is no level test and no support-foot test in (a). The weights stay as in `cur5`: `free_foot_contact` −8, `stance_duration` +16 (cap 2 s). Observations and network are unchanged. Check: the `cur4c` `model_24450` actor and critic load strictly into the `-Excess` task and into the `-NoTap` task, and the actor outputs of the two tasks are equal (largest difference 0.0 on the real observations and on random observations).
+
+Start: the same init copy as `cur5`, `2026-11-07_00-00-00_init-from-cur4c-24450`, a fresh start of the `-NoTap` task (`cur6`).
+
+**Size of the terms.** Measured on the start policy (`cur4c` `model_24450`) with the play config of the task (stage 8, full weights), 256 envs, seed 3, 20 s episodes, steps from 3 s to 15 s, mean over all envs of the weighted value per second in the reward manager (a one-off measurement, no script is kept):
+
+| Term | Weight | Value per second | Remark |
+|---|---|---|---|
+| `free_foot_contact` | −8 | −2.32 | active on 29% of the steps |
+| `stance_duration` | +16 | +1.13 | mean factor 0.07 |
+| `single_leg_stance` | +16 | +9.22 | stance share 0.58 |
+| All terms | | +21.26 | |
+
+The penalty is 25% of the `single_leg_stance` value and 11% of the total. The first definition was −0.22 per second at iteration 27449 of `cur5b`. The penalty does not dominate the stance reward, so the weights stay at −8 and +16.
+
+**Smoke test** `notap2-smoke` (wandb `717pzj3s`, 20 iterations from 24450 to 24470, same flags as below with `--agent.max-iterations 20`, no tmux): no NaN. The curriculum logs `Curriculum/notap/free_foot_contact` and `Curriculum/notap/stance_duration`, and the reward logs show both terms (at iteration 24469: `free_foot_contact` −0.0028, `stance_duration` +0.0004 per episode step, the weights are in the ramp).
+
+**Eval script check.** `scripts/eval_mountbalance.py --gait` now prints the free-foot state. Run on `cur5b-notap` `model_27449` (1024 envs): single support 79% of the on-ball steps, neither foot on the ball 21%. In single support the free foot touches the ball in 3.1%, is on the floor in 13.2%, and is in the air in 83.7%. Ball-contact events 7.1 per 10 s, floor events 12.0 per 10 s. The new `free_foot_contact` is active on 26.7% of the on-ball steps; a sole is on the floor on 25.9%. The tracked script reproduces the free-foot numbers of the section `cur5`.
+
+| Run | wandb | Outcome |
+|-----|-------|---------|
+| `cur6-notap` | `pr33kxoj` | **Finished** 3000 iterations (24450 → 27450, last checkpoint `model_27449`) in 2 h 54 min, 3.5 s per iteration. Run directory `2026-11-07_18-42-03_cur6-notap`. Stable: no NaN, no divergence. The taps did not stop (eval below). |
+
+**Training end values** (iteration 27449): mean reward 203.7, mean episode length 731, stance share 0.39, `single_leg_stance` 4.86, `stance_duration` 0.48, `free_foot_contact` −1.66 (logged episode values).
+
+**Gait eval** (`scripts/eval_mountbalance.py --task <task> --checkpoint <model.pt> --gait --probe --audit`, 1024 envs, mount spawn, ball sizes 3-5) of `cur6-notap` `model_27449`, against `cur5b-notap` `model_27449`:
+
+| Metric | `cur5b-notap` | `cur6-notap` |
+|---|---|---|
+| Floor taps per 10 s | 11.9 | 12.3 |
+| Stance share of the on-ball steps | 61% | 63% |
+| Stance segment median / p90 | 0.48 / 0.70 s | 0.48 / 0.68 s |
+| Survived | 97% | 94% |
+| Free foot behind the support foot | 100% | 100% |
+| Free foot touches the ball (single support) | 3.1% (7.1 events per 10 s) | 2.4% (5.2 events per 10 s) |
+| Free foot on the floor, no ball (single support) | 13.2% (12.0 events per 10 s) | 12.6% (12.2 events per 10 s) |
+| `free_foot_contact` active / any sole on the floor | 26.7% / 25.9% | 23.7% / 23.5% |
+
+The held-stance success is 0%. Other values of `cur6-notap`: base tilt 9.7°, CoM 4.3 cm behind the ball centre, support foot heading −20° from the torso, raw |a| median 1.12 (0% past the clip), targets outside the joint limits 5.8%, `r_hip_pitch` at the force limit in 43% of the steps.
+
+**Conclusion.** The widened penalty is active as designed (it covers the floor steps), but the taps did not change: 12.3 against 11.9 per 10 s. The penalty of about 8 per second of contact does not outweigh what the tap gives the policy (recovery of the balance). A larger weight is risky (no termination penalty, see Design). The cause is open: the next probe looks at the motion of the support foot on the ball.
+
+Launch command of `cur6-notap`. The session `mjlab-train` held two idle shells from `cur5b`, so the command ran inside the tmux session `mjlab-train-cur6`, without `--tmux`:
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap --name cur6-notap --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-07_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
+## `cur7`: warm start from `cur4c` with a middle thigh range and no heading reward
+
+**Reason.** `cur6` keeps the support foot straight (−20° from the torso) and taps. Four policies, all measured with `scripts/eval_mountbalance.py --gait --probe --audit` (1024 envs, mount spawn):
+
+| Policy | Held-stance success | Taps per 10 s | Segment p90 | `r_hip_pitch` at the force limit | CoM behind the ball centre | Support foot vs torso |
+|---|---|---|---|---|---|---|
+| `cur6` `model_27449` | 0% | 12.3 | 0.68 s | 43% | 4.3 cm | −20° |
+| `cur4b` `model_21600` | 0% | 14.3 | 0.52 s | 58% | 5.0 cm | −15° |
+| `kb1` | 16% | 4.9 | 1.60 s | 3% | 1.2 cm | +109° |
+| `ms3-shell` | 98%, but the free foot rests on the ball in 94% of the single-support steps | 0 | – | 25% | 1.4 cm | +138° |
+
+Other one-off checks on `cur6` `model_27449` (the scripts are not kept): more actuator force (up to 4×) leaves the gait unchanged, and a fixed rule for the support foot in the kinematic ball estimate leaves it unchanged. So force limit and ball estimate do not cause the taps. The posture is the open candidate. This is a correlation across four policies, not an intervention.
+
+**Definition.** Task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh` (`thigh_limit=1.2`). The `-NoTap` task already has the full thigh range, so a limit alone does not change the policy: the heading term (weight 1.0 from stage 8) pays for a straight foot. The new task limits the two thigh joints to ±1.2 rad (about 69°) in the model and in the action clip, and the curriculum term `heading_off_curriculum` sets the weight of `support_foot_heading` to 0 (it runs after `stage_curriculum`). All other terms and weights equal `cur6`: `free_foot_contact` −8, `stance_duration` +16. The observations and the network are unchanged.
+
+Start: a copy of `cur4c` `model_24450` in the log group of the new task, `2026-11-09_00-00-00_init-from-cur4c-24450`. Same seed and flags as `cur6`. The change against `cur6` is the task only.
+
+**Checks.** `uv run pytest`: 78 passed, 2 deselected. C1: 50 tasks, 0 problems. C2: 0 differences after the new baseline entry; the other 49 entries are equal. C3: 351 checkpoints, 10 known history-only, 0 problems.
+
+**Smoke test** `midthigh-smoke` (20 iterations from 24450 to 24470, no tmux): no NaN. `support_foot_heading` is 0.0000 and `Curriculum/heading_off/heading_weight` is 0.0000. Both `-NoTap` terms are logged.
+
+**Run.** `cur7-midthigh`, wandb `dyk3z52j`, run directory `2026-11-09_09-22-56_cur7-midthigh`, started Nov 9 2026 in the tmux session `mjlab-train-cur7`. Finished 3000 iterations (24450 to 27450, last checkpoint `model_27449`) in 2 h 46 min. Training end values at iteration 27449: mean reward 188.3, mean episode length 717, stance share 0.40, `single_leg_stance` 4.95, `stance_duration` 0.47, `free_foot_contact` −1.79. The `r_thigh` joint is at the force limit in 2% of the steps.
+
+Eval of `model_27449` (`--gait --probe --audit`, 1024 envs, mount spawn), against `cur6`:
+
+| Metric | `cur6` | `cur7` |
+|---|---|---|
+| Held-stance success | 0% | 0% |
+| Survived | 94% | 96% |
+| Taps per 10 s | 12.3 | 12.8 |
+| Stance share | 63% | 61% |
+| Segment median / p90 | 0.48 / 0.68 s | 0.46 / 0.64 s |
+| Support foot vs torso | −20° | −23° |
+| CoM behind the ball centre | 4.3 cm | 4.5 cm |
+| `r_hip_pitch` at the force limit | 43% | 47% |
+
+**Conclusion.** The policy did not leave the straight posture. Without the heading reward and with the thigh range up to ±1.2 rad, the support foot still points forward (−23°), and the gait equals `cur6`. A warm start from `cur4c` stays in the straight basin. The test does not show whether a turned foot would hold better, only that this warm start does not find it.
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh --name cur7-midthigh --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-09_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
+## `cur8`: warm start from `cur4c` with a reward for a turned support foot
+
+**Reason.** `cur7` allowed a turned support foot (thigh ±1.2 rad, heading reward 0), and the policy stayed straight (−23°). The test needs a push toward the turn. Task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn` (flag `turn`, experiment `piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_turn`). It builds on `-NoTap` (full thigh range, not `-MidThigh`) and adds the reward `support_foot_turn`. The heading reward `support_foot_heading` has weight 0. This is the third new suffix in `mount_curriculum`; the naming convention allows one per experiment (the user knows). The term is in the Design section of [mount_curriculum.md](mount_curriculum.md).
+
+**Definition.** Per step, in the gated single support (as `support_foot_heading`): 0.5 × (1 + cos(e)), e = d − 100°, d = yaw(support foot) − yaw(torso). This is the number that `scripts/eval_mountbalance.py --gait` prints as "support foot heading - torso" (wrapped to ±180°). The sign of d is mirrored for the left foot. The value is 1 at the target, 0.5 at 90° from it, and 0 at 180° from it.
+
+**Side and target (measured).** Script: a copy of the `eval_mountbalance.py` loop that records d per support foot (not kept). 1024 envs, mount spawn, steps after 3 s, gated single support:
+
+| Policy | Right foot is support foot | d, median (p10 / p90) |
+|---|---|---|
+| `kb1` `model_59946` | 100% | +109° (+99° / +119°) |
+| `cur4c` `model_24450` | 100% (3 steps of 526064 left) | −15° (−23° / −6°) |
+| `cur6` `model_27449` | 100% | −20° (−27° / −10°) |
+
+No measured policy uses the left foot as support foot. The sign for the left foot is the mirror image and is not tested. The target is +100° (about the p10 of `kb1`, and a round number inside the "about 100°" of the decision).
+
+**Width.** A clamped cos around +100° is 0 for every heading from −170° to +10° (more than 90° from the target). The start policy is at −15°, 115° from the target, so it would get value 0 and no gradient. The raised cosine has a gradient everywhere except at 180° from the target. Its value on `cur4c` is 0.291 when active (p10 0.227, p90 0.363).
+
+**Size of the term.** Measured on the play config of the task (stage 8, full weights), 256 envs, seed 3, 20 s episodes, steps from 3 s to 15 s, mean over all envs of the weighted value per second in the reward manager (as in the section `cur6`; a one-off script, not kept). The measurement used weight 4. The values for weight 8 are scaled (the term is linear in the weight):
+
+| Policy | `support_foot_turn` at weight 1, mean per step | Active (gated single support) | Mean when active | All terms per second | Std of the total reward per second across envs |
+|---|---|---|---|---|---|
+| `cur4c` `model_24450` | 0.182 | 62.5% | 0.291 | 21.28 (w 4) | 1.84 |
+| `cur6` `model_27449` | 0.166 | 65.7% | 0.253 | 23.07 (w 4) | 1.92 |
+| `kb1` `model_59946` | 0.817 | 83.0% | 0.985 (p10 0.974) | 17.86 (no turn term) | 1.82 |
+
+The term is high on `kb1` (0.985 when active). Weight choice, with the numbers of `cur4c`:
+- Weight 8 gives +1.46 per second on the start policy (6.6% of the total 22.0), against +9.18 for `single_leg_stance`. The largest possible value is 8 × 0.83 = 6.6 per second, below the stance value.
+- The gain from the start posture to a turned foot at the same active share is 8 × 0.625 × (0.985 − 0.291) = 3.5 per second. This is 1.9 times the std across envs (1.84), 38% of the stance value, and 1.5 times the tap penalty (2.33 per second, which did not change the gait in `cur6`). A turn of 10° from −15° is worth 0.4 per second.
+- Weight 4 would give a gain of 1.7 per second, 0.94 times the std. This is not clearly above the noise. The weight stays below the stance weight (16), as `free_foot_contact` (−8, half of it).
+
+**Checks.** `uv run pytest`: 92 passed, 2 deselected (14 new tests in `tests/test_turn.py`, stand-in env). C1: 51 tasks, 50 log groups, 0 problems. C2: 51 tasks compared, 0 differences after the new baseline entry (the 50 old fingerprints are equal). C3: 414 checkpoints, 10 known history-only, 0 problems. Strict load of `cur4c` `model_24450` (actor, critic and optimizer, `strict=True`) into the `-NoTap` task and the `-Turn` task: both load, the largest difference to the checkpoint is 0.0 for actor and critic, and the actor outputs of the two tasks on random observations are equal (largest difference 0.0). The actor takes 345 inputs, the critic 88.
+
+**Smoke test** `turn-smoke` (wandb `ubzmhdlg`, run directory `2026-11-09_13-38-48_turn-smoke`, 20 iterations from 24450 to 24470): no NaN. `Curriculum/turn/turn_weight` is 0.0159 at iteration 24469 (the ramp: 8 × 0.002), `support_foot_heading` is 0.0000.
+
+Start: a copy of `cur4c` `model_24450.pt` (SHA-256 `83ec928c…`, byte-identical to the other init copies) as `logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_turn/2026-11-09_00-00-00_init-from-cur4c-24450`.
+
+| Run | wandb | Outcome |
+|-----|-------|---------|
+| `cur8-turn` | `i86jdjb0` | **Finished** 3000 iterations (24450 → 27450, last checkpoint `model_27449`) in 2 h 53 min, 3.5 s per iteration. Run directory `2026-11-09_13-40-49_cur8-turn`, tmux session `mjlab-train-cur8`. Stable: no NaN, no divergence. The support foot did not turn (eval below). |
+
+**Training** (mean of the log entries within 20 iterations of the given iteration; the turn weight reaches 8 at about iteration 24950):
+
+| Iteration | Mean reward | Stance share | `single_leg_stance` (of 16) | `free_foot_contact` | `support_foot_turn` (weighted) |
+|---|---|---|---|---|---|
+| 24650 | 204 | 0.35 | 4.6 | −0.11 | 0.04 |
+| 24950 | 205 | 0.37 | 4.8 | −1.87 | 0.81 |
+| 25950 | 207 | 0.38 | 4.9 | −1.83 | 0.89 |
+| 27449 | 217 | 0.40 | 5.2 | −1.76 | 0.92 |
+
+At the last iteration: mean reward 240.9 (one log entry, with the turn term in it, so not comparable to `cur6` and `cur7`), episode length 805, stance share 0.41, `stance_duration` 0.51, `support_foot_turn` 0.96. The turn term rose by 14% after the ramp ended.
+
+**Eval** of `model_27449` (`--gait --probe --audit`, 1024 envs, seed 0, mount spawn, ball sizes 3-5), against `cur6`, `cur7` and `kb1`. The `kb1` column is a new run of the same command on `kb1` `model_59946` (task `Mjlab-Piplus-Ball-MountMin-BlindOnBall-Latency-Big-OneFoot-Level-NoiseRamp-Latch45-Hold-KinBall`); the taps value is 4.8, where the section `cur7` has 4.9:
+
+| Metric | `cur6` | `cur7` | `cur8` | `kb1` |
+|---|---|---|---|---|
+| Held-stance success (strict) | 0% | 0% | **0%** | 16% |
+| Survived | 94% | 96% | **94%** | 92% |
+| Taps per 10 s | 12.3 | 12.8 | **12.2** | 4.8 |
+| Stance share of the on-ball steps | 63% | 61% | **63%** | 78% |
+| Segment median / p90 | 0.48 / 0.68 s | 0.46 / 0.64 s | **0.48 / 0.70 s** | 0.38 / 1.62 s |
+| Support foot vs torso (p10 / p90) | −20° | −23° | **−13° (−18° / −6°)** | +109° (+99° / +116°) |
+| CoM behind the ball centre | 4.3 cm | 4.5 cm | **4.0 cm** | 1.2 cm |
+| `r_hip_pitch` at the force limit | 43% | 47% | **46%** | 3% |
+| Free foot behind the support foot | 100% | 100% | 100% | – |
+
+Other values of `cur8`: time to the stance 0.6 s, stance held 64% of the last 3 s, base tilt 10.3°, `r_thigh` at the force limit 4%, raw |a| median 1.01 (0% past the clip), targets outside the joint limits 5.6%, free foot in the air 84.4% / on the floor 12.7% / on the ball 2.9% of the single-support steps.
+
+**Conclusion.** The support foot did not turn: −13° from the torso (the start was −15°). The gait equals `cur6` and `cur7` in every column: 12.2 taps per 10 s, segments 0.48 / 0.70 s, held-stance success 0%, `r_hip_pitch` at the limit in 46% of the steps, CoM 4 cm behind the ball. Survival is unchanged (94%), so the reward cost nothing, and it also gained nothing. A pull of about 1.5 per second at the start (3.5 per second for the full turn) is not enough to move a warm start out of the straight basin in 3000 iterations, with and without a heading reward (`cur7`). The test still does not show whether a turned foot would hold the stance better: the correlation across `kb1` and `ms3-shell` stays a correlation. Not tested: a larger weight (the term must stay below the stance weight 16), a target heading that moves from −15° to +100° during the run, the turn term from the cold start (stage 5 or earlier, before the straight posture is learned), and a start from a turned posture (reset event or distillation from `kb1`).
+
+Launch command of `turn-smoke` (without tmux):
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn --name turn-smoke --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-09_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 20 --agent.seed 42
+```
+
+Launch command of `cur8-turn` (inside the tmux session `mjlab-train-cur8`, without `--tmux`):
+
+```
+bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn --name cur8-turn --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-09_00-00-00_init-from-cur4c-24450 --agent.load-checkpoint model_24450.pt --env.curriculum.stage.params.start_stage 8 --agent.max-iterations 3000 --agent.seed 42
+```
+
 ## Conclusion (Nov 6 2026)
 
 - **A cold start reaches the final stage** with ramped stages, a std cap and `action_excess` from stage 0 (`cur4` → `cur4b` → `cur4c`). The two earlier collapses (`cur2`, `cur3`) came from raw outputs drifting past the ±7 clip in stages 0-2, where no penalty has a gradient; `action_excess` from stage 0 kept them inside (median |a| ~1 against 45).
