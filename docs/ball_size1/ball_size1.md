@@ -4,7 +4,7 @@ Branch: `feat/mount-feasibility` (deleted; shared with [mount_feasibility](../mo
 
 > **Correction (Oct 15 2026).** The size 1 mount runs did not mount the ball either. The run `mount-size1-flat-v2-cont` `model_9998` was re-evaluated with the sole-based test (`scripts/eval_mountbalance.py --task Mjlab-Piplus-Ball-Mount-Size1-Flat --free-foot-clearance 0.03 --probe`). It has 0% success. The centre of mass is 0.235 m from the ball. The other sole is on the floor 97% of the time. The robot stands on tiptoe beside the ball, as in [mount_feasibility](../mount_feasibility/mount_feasibility.md). The drop-balance run (`balance-size1-flat-v1`) is not affected.
 
-This document describes the mount and balance tasks of [mount_feasibility](../mount_feasibility/mount_feasibility.md) on a FIFA (International Federation of Association Football) size 1 football instead of a size 5 football. The radius 0.07 m and the mass 0.14 kg are assumptions for a mini ball (about 44 cm circumference). Check them against the real ball (`BALL_SIZES` in `tasks/ball_mount/piplus_ball_mount_env_cfg.py`).
+This document describes the mount and balance tasks of [mount_feasibility](../mount_feasibility/mount_feasibility.md) on a FIFA (International Federation of Association Football) size 1 football instead of a size 5 football. The radius 0.07 m and the mass 0.14 kg are assumptions for a mini ball (about 44 cm circumference). Check them against the real ball (`BALL_SIZES` in `common/football.py`).
 
 | Task | Description | Log dir |
 |------|-------------|---------|

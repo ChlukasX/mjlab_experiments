@@ -63,7 +63,7 @@ The stance terms share one gate, `_support_foot(flat=True)`. A foot (ankle roll 
 r is the randomized radius of each environment (`ball_radius=None`). Two helpers recur. `_com_to_ball` is the horizontal vector from the whole-robot CoM to the ball centre. `_sole_clearance` is the height of the lowest of the 4 sole corners above the floor (0 m for a foot that stands flat).
 
 #### `single_leg_stance`, weight 16.0
-- **Function:** `single_leg_stance_lifted` (`src/mjlab_piplus/tasks/ball_mount/piplus_ball_mount_env_cfg.py`)
+- **Function:** `single_leg_stance_lifted` (`src/mjlab_piplus/common/rewards/stance.py`)
 - **Measures:** 0 or 1 per step. It is 1 when one foot is on the ball with a flat sole, the other foot is not and its sole is more than 0.10 m above the floor, and the horizontal CoM-to-ball distance is below 0.12 m.
 - **Active when:** the term is always evaluated. It is non-zero only in the full target stance.
 - **Params:** `sole_clearance` 0.10 m (free sole's lowest corner above the floor); `com_max` 0.12 m; `flat` True (support sole within 0.3 rad of the ball normal). `lifted_z` 0.15 is passed but not read, because `sole_clearance` takes precedence.
@@ -115,7 +115,7 @@ r is the randomized radius of each environment (`ball_radius=None`). Two helpers
 None of these terms depends on the phase. `foot_to_ball_top` and `foot_lift` keep paying during the stance. An ankle on the ball sits above the top. Therefore `foot_lift` is 1 and `foot_to_ball_top` is ~0.91.
 
 #### `foot_to_ball_top`, weight 2.0
-- **Function:** `foot_to_ball_top` (`src/mjlab_piplus/tasks/ball_mount/piplus_ball_mount_env_cfg.py`)
+- **Function:** `foot_to_ball_top` (`src/mjlab_piplus/common/rewards/mounting.py`)
 - **Measures:** the value is `exp(−d² / 0.15²)`, where d is the distance in m from the origin of the nearer ankle roll link to the top point of the ball (centre + radius in world z). The value is 0 to 1 per step. The term is measured at the ankle, not at the sole. A foot that stands flat on the ball has its ankle ~0.045 m above the top. Therefore the term pays ~0.91 in the stance. At spawn (~0.3 m away) the term pays ~0.02.
 - **Active when:** always.
 - **Params:** `std` 0.15 m (near 0 beyond ~0.3 m); `ball_radius` None (radius of each environment).
