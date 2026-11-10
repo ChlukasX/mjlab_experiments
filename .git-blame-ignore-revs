@@ -1,3 +1,5 @@
 # Format-only commits. Use with: git config blame.ignoreRevsFile .git-blame-ignore-revs
 # ruff-format: format the non-hot modules (no AST change)
 6ac593ed1696ad73a86479cdbf95e0a7758fe41f
+# hot-set: format the hot and warm modules (no AST change)
+b9da6a96a64c976f49e0217c4e6a41e78a1de662

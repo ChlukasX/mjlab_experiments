@@ -253,7 +253,7 @@ These rules apply to **new** names. Never rename a task ID, an `experiment_name`
 
 ## MJlab coding standard
 
-These rules apply to new and edited code. Do not reformat or restructure an existing file in a feature commit. A format-only change is its own commit and must leave the fingerprint check (C2) equal. Where the mjlab upstream differs (it indents with 2 spaces), this repository follows the rules below. `ruff` skips the hot and warm files (`extend-exclude` in `pyproject.toml`) until they are formatted.
+These rules apply to new and edited code. Do not reformat or restructure an existing file in a feature commit. A format-only change is its own commit and must leave the fingerprint check (C2) equal. Where the mjlab upstream differs (it indents with 2 spaces), this repository follows the rules below. `ruff` checks and formats every tracked Python file (`pyproject.toml` has no `extend-exclude`).
 
 | ID | Rule |
 |---|---|
