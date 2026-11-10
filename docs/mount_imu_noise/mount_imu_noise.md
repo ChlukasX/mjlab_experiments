@@ -56,13 +56,30 @@ A uniform range of ±a has a standard deviation of a divided by 1.73. Compare th
 
 ## Result
 
-Open. The run `im1-imunoise` is in progress (log).
+The hypothesis "less IMU noise gives a better long-term balance on the ball" is not supported. Data: [mount_imu_noise_log.md](mount_imu_noise_log.md), run `im1-imunoise` (3000 iterations, finished).
+
+Evaluation (1024 envs, one 20 s episode per env, noise on, one seed). Each policy under the old and the low noise:
+
+| Policy | Survived, old noise | Survived, low noise | Stance share (low) | Taps per 10 s (low) | Base tilt (low) |
+|---|---|---|---|---|---|
+| `cur6-notap` | 90% | 92% | 60% | 12.7 | 10.0° |
+| `sg1-leggap` | 88% | 91% | 59% | 13.3 | 10.7° |
+| `im1-imunoise` | 86% | 88% | 60% | 12.7 | 11.7° |
+
+- **Less noise helps every policy by the same amount** (2 to 3 points of survival). This is an effect of the evaluation noise, not of the training noise.
+- **Training with less noise gives no gain.** `im1-imunoise` survives 2 to 3 points less than `sg1-leggap` and 4 points less than `cur6-notap`, under both noise levels, and its base tilt is about 1° higher. The standard error of one survival value is about 1 point (1024 envs), and the same recipe varies by a few points between runs (`cur6-notap` and `sg1-leggap` differ by 1 to 2 points). A small loss is possible but not proven. There is no sign of a gain.
+- **No change in the gait.** Stance share (58-60%), stance length (0.38-0.44 s median), taps (12.7-13.5 per 10 s), and the CoM offset (−4.2 to −4.7 cm) are equal within the spread. The held-stance success stays at 0%. These come from the gait, not from the IMU noise.
+- **Robustness.** `im1-imunoise` loses 2 points when it runs under twice its training noise (old noise: 86%, low noise: 88%). The other policies lose 2 to 3 points between the same two conditions. A policy trained with the low noise therefore shows no extra weakness against the old noise level in the simulation.
+- **Self-contact and gait with the noise off** (probe of `mount_selfcontact`, 256 envs): survival 93%, taps 12.1 per 10 s, stance share 62%, held-stance success 0%. The foot-on-foot prop stays removed (0.7% of the steps). The left wrist touches the head more often (12.5% against 3.4% in `sg1-leggap`, mean force 16 N). Details: log.
+- **Training reward.** The last iteration of `im1-imunoise` has a lower reward and episode length (188.5 and 691) than `sg1-leggap` (206 and 756), although its noise is lower. This also shows no gain.
+
+Not tested: a noisier IMU than the old noise, an IMU bias or delay (the simulation has none), and more than one training seed.
 
 ## Next steps
 
-- Evaluate the run as described in the section Design.
-- Set the noise amounts from the data of the real IMU.
+- Set the noise amounts from the data of the real IMU (section Sim2real). The result above says that the amount does not change the balance in the simulation, so choose it for the real robot: keep it at or above the measured noise.
 - Add an IMU bias and a small IMU delay to the simulation if the real IMU has them (a new task variant, not an edit of this one).
+- The held-stance success of 0% and the 12-13 taps per 10 s come from the gait. A noise change does not touch them (see `mount_curriculum` and `mount_selfcontact`).
 
 ## Re-run
 
