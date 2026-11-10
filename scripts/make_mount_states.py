@@ -31,12 +31,8 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
 import mjlab_piplus  # noqa: F401  (registers tasks)
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
-    COM_OVER_BALL,
-    STAND_FOOT_Z,
-    _ball_radius,
-    single_leg_stance_lifted,
-)
+from mjlab_piplus.common.ball_stance import COM_OVER_BALL, STAND_FOOT_Z, ball_radii
+from mjlab_piplus.common.rewards.stance import single_leg_stance_lifted
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", required=True)
@@ -65,7 +61,7 @@ foot_cfg = SceneEntityCfg("robot", body_names=("r_ankle_roll_link", "l_ankle_rol
 foot_cfg.resolve(u.scene)
 ball_cfg = SceneEntityCfg("ball")
 robot, ball = u.scene["robot"], u.scene["ball"]
-radius = _ball_radius(u, ball_cfg, None)
+radius = ball_radii(u, ball_cfg, None)
 hold_steps = max(1, int(args.hold / u.step_dt))
 counter = torch.zeros(u.num_envs, device=dev)
 rows = []

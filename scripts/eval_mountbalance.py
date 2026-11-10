@@ -29,20 +29,19 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.utils.lab_api.math import quat_apply
 
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
+from mjlab_piplus.common.ball_stance import (
     COM_OVER_BALL,
     FOOT_BALL_SENSORS,
     FREE_FOOT_LIFT,
     STAND_FOOT_Z,
-    _ball_contact,
-    _ball_radius,
-    _com_to_ball,
-    _sole_clearance,
-    _support_foot,
+    ball_contact,
     ball_contact_sensors,
-    single_leg_stance_lifted,
+    ball_radii,
+    com_to_ball,
+    sole_clearance,
+    support_foot,
 )
-from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mount_curriculum_cfg import free_foot_contact
+from mjlab_piplus.common.rewards.stance import free_foot_contact, single_leg_stance_lifted
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", required=True)
@@ -181,7 +180,7 @@ ball_cfg = SceneEntityCfg("ball")
 obs = env.get_observations()
 # Spawn mode of each env's first episode (the plain Ball-Mount tasks only have mounts).
 mount = getattr(u, "spawn_is_mount", torch.ones(u.num_envs, dtype=torch.bool, device=dev)).clone()
-radius = _ball_radius(u, ball_cfg, None).clone()
+radius = ball_radii(u, ball_cfg, None).clone()
 n_steps = int(20.0 / (u.step_dt)) - 1  # stop before the time-out reset
 last = int(3.0 / u.step_dt)
 failed = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
@@ -251,45 +250,45 @@ for step in range(n_steps):
     first_stance[new] = step * u.step_dt
     if step >= n_steps - last:
         hold += stance.float()
-        free = ~_support_foot(u, foot_cfg, ball_cfg, None, True)  # [B, 2]; with stance, exactly one
-        free_clear = ~(free & _ball_contact(u)).any(dim=-1)  # contact only: a foot may hover beside the ball
+        free = ~support_foot(u, foot_cfg, ball_cfg, None, True)  # [B, 2]; with stance, exactly one
+        free_clear = ~(free & ball_contact(u)).any(dim=-1)  # contact only: a foot may hover beside the ball
         hold_strict += (stance & free_clear).float()
         level = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, "level", STAND_FOOT_Z, COM_OVER_BALL, args.free_foot_clearance) > 0
         hold_level += (level & free_clear).float()
         roll_max.append(u.scene["robot"].data.joint_pos[:, roll_ids].abs().amax(dim=-1)[stance & ~failed])
         free_z = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 2].min(dim=-1).values
         top_z = u.scene["ball"].data.root_link_pos_w[:, 2] + radius
-        probe["com"] += _com_to_ball(u, foot_cfg, ball_cfg).norm(dim=-1)
+        probe["com"] += com_to_ball(u, foot_cfg, ball_cfg).norm(dim=-1)
         probe["base"] += robot.data.root_link_pos_w[:, 2] - top_z
         probe["free_z"] += free_z - STAND_FOOT_Z
-        sole = _sole_clearance(u, foot_cfg).min(dim=-1).values  # lower sole's lowest corner
+        sole = sole_clearance(u, foot_cfg).min(dim=-1).values  # lower sole's lowest corner
         probe["sole"] += sole
         probe["on_floor"] += (sole < 0.01).float()
-        probe["on_ball"] += _support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1).float()
+        probe["on_ball"] += support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1).float()
         probe["yaw"] += robot.data.root_link_vel_w[:, 5]  # rad/s about the world vertical
         probe["ball_yaw"] += u.scene["ball"].data.root_link_vel_w[:, 5]
         probe["tilt"] += torch.acos((-robot.data.projected_gravity_b[:, 2]).clamp(-1, 1)).rad2deg()
         saturated += (robot.data.actuator_force.abs() > 0.95 * force_max).float()
     if args.gait and step * u.step_dt > 3.0:
-        on = ~failed & getattr(u, "_on_ball_latch", _support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1))
-        sup = _support_foot(u, foot_cfg, ball_cfg, None, "level")
+        on = ~failed & getattr(u, "_on_ball_latch", support_foot(u, foot_cfg, ball_cfg, None, True).any(dim=-1))
+        sup = support_foot(u, foot_cfg, ball_cfg, None, "level")
         si = sup[:, 1].long(); fi = 1 - si; single = sup.sum(dim=-1) == 1
         held = single_leg_stance_lifted(u, foot_cfg, ball_cfg, None, "level", STAND_FOOT_Z, COM_OVER_BALL, args.free_foot_clearance) > 0
         pose = robot.data.body_link_pose_w[:, foot_cfg.body_ids]
         h = heading(robot.data.body_link_pose_w[:, torso_id, 3:7])
         k = on & single & held
         gait["off"].append(to_heading(pose[ar, fi, :2] - pose[ar, si, :2], h)[k])
-        gait["com"].append(to_heading(-_com_to_ball(u, foot_cfg, ball_cfg), h)[k])
+        gait["com"].append(to_heading(-com_to_ball(u, foot_cfg, ball_cfg), h)[k])
         gait["yaw"].append(torch.remainder(heading(pose[ar, si, 3:7]) - h + math.pi, 2 * math.pi)[k] - math.pi)
-        down = _sole_clearance(u, foot_cfg)[ar, fi] < 0.01
+        down = sole_clearance(u, foot_cfg)[ar, fi] < 0.01
         gait["taps"] += (on & down & ~free_down_prev).sum().item()
         free_down_prev = down
         gait["steps"] += on.sum().item()
-        flat = _support_foot(u, foot_cfg, ball_cfg, None, True)  # flat support, as the training term
+        flat = support_foot(u, foot_cfg, ball_cfg, None, True)  # flat support, as the training term
         single_flat = on & (flat.sum(dim=-1) == 1)
         free_i = 1 - flat[:, 1].long()  # the foot that is not the support foot (valid where single_flat)
-        free_ball = _ball_contact(u)[ar, free_i]
-        free_floor = _sole_clearance(u, foot_cfg)[ar, free_i] < 0.01
+        free_ball = ball_contact(u)[ar, free_i]
+        free_floor = sole_clearance(u, foot_cfg)[ar, free_i] < 0.01
         fs["n"] += single_flat.sum().item()
         fs["both"] += (on & (flat.sum(dim=-1) == 2)).sum().item()
         fs["none"] += (on & (flat.sum(dim=-1) == 0)).sum().item()
@@ -300,7 +299,7 @@ for step in range(n_steps):
         fs["floor_ev"] += (single_flat & free_floor & ~fs_floor_prev).sum().item()
         fs_ball_prev, fs_floor_prev = single_flat & free_ball, single_flat & free_floor
         fs["term"] += (on & (free_foot_contact(u, foot_cfg, ball_cfg) > 0)).sum().item()
-        fs["any_floor"] += (on & (_sole_clearance(u, foot_cfg) < 0.01).any(dim=-1)).sum().item()
+        fs["any_floor"] += (on & (sole_clearance(u, foot_cfg) < 0.01).any(dim=-1)).sum().item()
         ended = on & ~held & (seg_len > 0)
         gait["seg"].append(seg_len[ended] * u.step_dt)
         seg_len = torch.where(on & held, seg_len + 1, torch.zeros_like(seg_len))

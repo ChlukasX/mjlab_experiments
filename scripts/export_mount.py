@@ -27,7 +27,8 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
 import mjlab_piplus  # noqa: F401  (registers tasks)
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import BALL_SIZES, ON_BALL_Z_CENTER
+from mjlab_piplus.common.ball_stance import ON_BALL_Z_CENTER
+from mjlab_piplus.common.football import BALL_SIZES
 from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import (
     START_HOLD_S,
     HoldJointPositionAction,

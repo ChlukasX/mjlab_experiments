@@ -31,10 +31,6 @@ from mjlab_piplus.tasks.ball_mount.events import (
     reset_mount_or_drop,
 )
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
-    BALL_SIZES,
-    COM_OVER_BALL,
-    FREE_FOOT_LIFT,
-    STAND_FOOT_Z,
     _ball_radius,
     com_over_ball,
     com_toward_ball_velocity,
@@ -45,6 +41,8 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     stand_tall_on_ball,
     support_on_ball,
 )
+from mjlab_piplus.common.football import BALL_SIZES
+from mjlab_piplus.common.ball_stance import COM_OVER_BALL, FREE_FOOT_LIFT, STAND_FOOT_Z
 from mjlab_piplus.tasks.ball_small.piplus_ball_small_env_cfg import (
     piplus_ball_small_ppo_runner_cfg,
 )

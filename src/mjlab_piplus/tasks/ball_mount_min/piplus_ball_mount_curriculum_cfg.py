@@ -24,12 +24,11 @@ from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 
 from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
-    BALL_SIZES,
-    _ball_contact,
-    _sole_clearance,
-    _support_foot,
-)
+from mjlab_piplus.common.ball_stance import FLOOR_TOUCH_CLEARANCE as FLOOR_TOUCH_CLEARANCE
+from mjlab_piplus.common.football import BALL_SIZES
+from mjlab_piplus.common.rewards.stance import free_foot_contact
+from mjlab_piplus.common.rewards.stance import heading as _yaw
+from mjlab_piplus.common.rewards.stance import single_support as _single_support
 from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import (
     ANKLE_ROLL_SOFT,
     BIG_BALL_MIN_RADIUS,
@@ -45,8 +44,6 @@ from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import (
     set_lag,
     set_noise_scale,
     support_foot_heading,
-    _single_support,
-    _yaw,
 )
 
 FINAL_STAGE = 8
@@ -83,21 +80,6 @@ EARLY_ACTION_EXCESS = -1.0
 TAP_PENALTY = -8.0  # weight of free_foot_contact, per second of free-foot contact with the floor or the ball
 STANCE_BONUS = 16.0  # weight of stance_duration, per second at the full bonus (the stance weight)
 STANCE_BONUS_CAP_S = 2.0  # s of one unbroken stance after which the bonus stops growing
-FLOOR_TOUCH_CLEARANCE = 0.01  # m, sole corner above the floor: the tap test of eval_mountbalance --gait
-
-
-def free_foot_contact(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Free-foot indicator [B] (0 or 1 per step; give it a negative weight, per second). 1 while the
-    robot is latched on the ball and either (a) a sole's lowest corner is within
-    FLOOR_TOUCH_CLEARANCE (m) of the floor (the foot on the floor is never the support foot), or
-    (b) exactly one foot is the (flat) support foot and the other foot touches the ball."""
-    latched = getattr(env, "_on_ball_latch", None)
-    if latched is None:
-        return torch.zeros(env.num_envs, device=env.device)
-    floor = (_sole_clearance(env, foot_cfg) < FLOOR_TOUCH_CLEARANCE).any(dim=-1)
-    sup = _support_foot(env, foot_cfg, ball_cfg, None, True)
-    on_ball = (sup.sum(dim=-1) == 1) & (_ball_contact(env) & ~sup).any(dim=-1)
-    return (latched & (floor | on_ball)).float()
 
 
 def run_length(prev: torch.Tensor, active: torch.Tensor, fresh: torch.Tensor) -> torch.Tensor:

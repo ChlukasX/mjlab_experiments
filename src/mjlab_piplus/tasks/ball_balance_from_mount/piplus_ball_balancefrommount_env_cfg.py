@@ -11,8 +11,8 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
 
-from mjlab_piplus.tasks.ball_mount.events import last_action_restored, reset_from_mount_states
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import FREE_FOOT_LIFT
+from mjlab_piplus.common.events import last_action_restored, reset_from_mount_states
+from mjlab_piplus.common.ball_stance import FREE_FOOT_LIFT
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
     piplus_ball_mountbalance_env_cfg,
     piplus_ball_mountbalance_ppo_runner_cfg,

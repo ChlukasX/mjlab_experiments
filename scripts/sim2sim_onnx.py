@@ -29,13 +29,9 @@ from mjlab.tasks.registry import load_env_cfg
 from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse
 
 import mjlab_piplus  # noqa: F401  (registers tasks)
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
-    COM_OVER_BALL,
-    STAND_FOOT_Z,
-    _ball_radius,
-    ball_pos_base_obs,
-    single_leg_stance_lifted,
-)
+from mjlab_piplus.common.ball_stance import COM_OVER_BALL, STAND_FOOT_Z, ball_radii
+from mjlab_piplus.common.observations import ball_pos_base_obs
+from mjlab_piplus.common.rewards.stance import single_leg_stance_lifted
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "deploy" / "bitbots"))
 from mount_obs import MountObs  # noqa: E402
@@ -77,7 +73,7 @@ builders = [
     )
     for _ in range(n)
 ]
-radius = _ball_radius(u, SceneEntityCfg("ball"), None).cpu().numpy()
+radius = ball_radii(u, SceneEntityCfg("ball"), None).cpu().numpy()
 if kin:
     for b, r in zip(builders, radius):
         b.kin_ball_radius = float(r)

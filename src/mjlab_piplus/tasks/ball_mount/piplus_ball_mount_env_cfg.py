@@ -8,7 +8,6 @@ base frame (privileged for now; real perception comes in a later phase).
 See docs/mount_feasibility/mount_feasibility.md.
 """
 
-import math
 from functools import partial
 
 import torch
@@ -20,20 +19,46 @@ from mjlab.managers.observation_manager import ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
-from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
+# The ball-stance helpers moved to mjlab_piplus.common.ball_stance (public names). The old
+# names stay here: other modules and scripts import them, and the callers' source (hashed by
+# check C2) calls them. The `X as X` names are only re-exported.
+from mjlab_piplus.common.ball_stance import (
+    BALL_CONTACT_FORCE as BALL_CONTACT_FORCE,
+    BASE_ABOVE_TOP_TARGET,
+    COM_OVER_BALL as COM_OVER_BALL,
+    COM_SIGMA,
+    FOOT_BALL_SENSORS as FOOT_BALL_SENSORS,
+    FREE_FOOT_LIFT,
+    LIFTED_FOOT_Z as LIFTED_FOOT_Z,
+    STAND_FOOT_Z,
+    FOOT_ON_BALL_XY_MARGIN as FOOT_ON_BALL_XY_MARGIN,
+    MAX_SOLE_TILT as MAX_SOLE_TILT,
+    ON_BALL_Z_CENTER as ON_BALL_Z_CENTER,
+    ON_BALL_Z_HALF as ON_BALL_Z_HALF,
+    ball_contact as _ball_contact,
+    ball_contact_sensors as ball_contact_sensors,
+    ball_radii as _ball_radius,
+    com_to_ball as _com_to_ball,
+    foot_on_ball as _foot_on_ball,
+    sole_clearance as _sole_clearance,
+    sole_level_tilt as _sole_level_tilt,
+    sole_tilt as _sole_tilt,
+    support_foot as _support_foot,
+)
+from mjlab_piplus.common.football import BALL_SIZES, ROBOT_SPAWN_X, get_ball_spec
+from mjlab_piplus.common.observations import (
+    ball_pos_base_obs,
+    ball_pos_until_on_ball as ball_pos_until_on_ball,
+    kinematic_ball_pos as kinematic_ball_pos,
+)
+from mjlab_piplus.common.rewards.mounting import foot_to_ball_top, mount_potential as mount_potential
+from mjlab_piplus.common.rewards.stance import single_leg_stance_lifted
 from mjlab_piplus.tasks.ball_small.piplus_ball_small_env_cfg import (
-    FOOT_ON_BALL_XY_MARGIN,
-    ROBOT_SPAWN_X,
-    get_ball_spec,
     piplus_ball_small_env_cfg,
     piplus_ball_small_ppo_runner_cfg,
 )
-
-# FIFA ball sizes: (radius m, mass kg). Size 5 is the Ball-Small football.
-# ponytail: size 1 is a mini ball, ~44 cm circumference, ~0.14 kg; check against the real ball.
-BALL_SIZES = {5: (0.11, 0.43), 1: (0.07, 0.14)}
 
 # Home-pose standing: base at 0.39 m, right ankle link ~0.05 m ahead of base
 # and 0.0815 m to the right. Ball centre sits 0.19 m + radius in front of the
@@ -41,13 +66,6 @@ BALL_SIZES = {5: (0.11, 0.43), 1: (0.07, 0.14)}
 STAND_Z = 0.39
 RIGHT_FOOT_Y = -0.0815
 BALL_GAP_X = 0.19
-# Ankle height above the ball top for a foot standing on it, measured on trained
-# policies: 0.033-0.05 m (0.049 with the sole flat). Window is centre +- half.
-ON_BALL_Z_CENTER = 0.045
-ON_BALL_Z_HALF = 0.03
-STAND_FOOT_Z = 0.05  # ankle link height when standing on flat floor (measured)
-LIFTED_FOOT_Z = STAND_FOOT_Z + 0.03  # the non-support foot must clear the floor by this
-MAX_SOLE_TILT = 0.3  # rad (~17 deg): sole counts as flat on the ball below this
 
 # Drop spawn: the robot starts just above the ball at the home pose, so it
 # settles onto it instead of falling onto it. Right ankle is ~0.29 m below the
@@ -58,156 +76,16 @@ DROP_CLEARANCE = 0.03  # m between sole and ball top at spawn
 
 # Standing tall on the ball: base height above the ball top with the leg at its
 # loaded home pose (0.34 m unloaded, ~5 cm of PD sag). The trained crouch sat at ~0.19 m.
-BASE_ABOVE_TOP_TARGET = 0.30
-BASE_ABOVE_TOP_STD = 0.10
-FREE_FOOT_LIFT = 0.10  # m the free foot should clear the floor (trained policies: ~0.045)
+BASE_ABOVE_TOP_STD = 0.10  # BASE_ABOVE_TOP_TARGET is in common.ball_stance
 
 
-# Weight on the ball: the whole-robot centre of mass must be over the ball, not
-# beside it with a foot resting on top. Trained policies sat 0.25 m away.
-COM_OVER_BALL = 0.12  # m horizontal CoM-to-ball-centre distance that counts as supported
-COM_SIGMA = 0.25  # m, width of the dense com_over_ball reward
+# Weight on the ball: COM_OVER_BALL and COM_SIGMA are in common.ball_stance.
 COM_VEL_CAP = 0.5  # m/s cap for the momentum rewards
 
 
 def drop_base_z(radius):
     """Base height of the drop spawn for a ball of this radius (float or tensor)."""
     return 2 * radius + FLAT_ANKLE_ABOVE_TOP + HOME_BASE_ABOVE_ANKLE + DROP_CLEARANCE
-
-
-def _ball_radius(env, ball_cfg: SceneEntityCfg, ball_radius: float | None) -> torch.Tensor:
-    """[B] ball radius: the fixed value, or each env's own (randomized) geom size."""
-    if ball_radius is not None:
-        return torch.full((env.num_envs,), ball_radius, device=env.device)
-    ball = env.scene[ball_cfg.name]
-    geom_id = ball.indexing.geom_ids[ball.geom_names.index("ball_geom")]
-    return env.sim.model.geom_size[:, geom_id, 0].expand(env.num_envs)
-
-
-def _foot_on_ball(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None
-) -> torch.Tensor:
-    """[B, 2] bool: which ankle_roll links are on top of the ball.
-
-    Like Ball-Small's test, but the height window is centred on where the ankle
-    really sits (top + ON_BALL_Z_CENTER), so a foot hovering beside a small
-    ball does not count.
-    """
-    robot = env.scene[foot_cfg.name]
-    ball = env.scene[ball_cfg.name]
-    foot_pos = robot.data.body_link_pose_w[:, foot_cfg.body_ids, :3]
-    ball_pos = ball.data.root_link_pos_w
-    radius = _ball_radius(env, ball_cfg, ball_radius)
-    ankle_z = ball_pos[:, 2] + radius + ON_BALL_Z_CENTER
-    z_ok = (foot_pos[:, :, 2] - ankle_z.unsqueeze(-1)).abs() < ON_BALL_Z_HALF
-    horiz = (foot_pos[:, :, :2] - ball_pos[:, :2].unsqueeze(1)).norm(dim=-1)
-    return z_ok & (horiz < (radius + FOOT_ON_BALL_XY_MARGIN).unsqueeze(-1))
-
-
-def ball_pos_base_obs(env, asset_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Ball position relative to the base, in the base frame [B, 3]."""
-    robot = env.scene[asset_cfg.name]
-    ball = env.scene[ball_cfg.name]
-    rel = ball.data.root_link_pos_w - robot.data.root_link_pos_w
-    return quat_apply_inverse(robot.data.root_link_quat_w, rel)
-
-
-def ball_pos_until_on_ball(
-    env,
-    asset_cfg: SceneEntityCfg,
-    ball_cfg: SceneEntityCfg,
-    height_threshold: float,
-    bias: tuple[float, float, float],
-    max_tilt: float = 0.35,
-    step_noise: float = 0.0,
-    kinematic: SceneEntityCfg | None = None,
-    kin_bias: float = 0.0,
-) -> torch.Tensor:
-    """Ball position in the base frame [B, 3] as the robot's camera pipeline would give it,
-    until the robot is on the ball; zeros from then on (never a real value: the ball is
-    always below the base).
-
-    On the robot the head camera cannot see a ball in front of the feet, and the ball is
-    stationary, so before the mount the position comes from the ball filter's estimate of
-    earlier sightings: true position plus a perception error that is constant over an
-    episode (`bias`, uniform +- per axis, m; per-step noise comes from the term's noise
-    config). "On the ball" is decided as on the robot: base (IMU) height above
-    `height_threshold` while the torso is upright (tilt below `max_tilt`, rad), so a
-    robot falling sideways does not count; latched for the rest of the episode.
-    `step_noise` (m): per-step uniform noise added here, before the zeros, so they stay exact
-    as on the robot (instead of the term's noise config, which also hits the zeros).
-    `kinematic` (the two ankle roll links): once on the ball, the kinematic ball estimate
-    (`kinematic_ball_pos`) instead of zeros, with its own per-episode error (+- `kin_bias`, m).
-    """
-    true = ball_pos_base_obs(env, asset_cfg, ball_cfg)
-    fresh = env.episode_length_buf == 0
-    if not hasattr(env, "_ball_obs_bias"):
-        env._ball_obs_bias = torch.zeros(env.num_envs, 3, device=env.device)
-        env._on_ball_latch = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-        fresh = torch.ones_like(fresh)
-    if not hasattr(env, "_blind_episode"):
-        env._blind_episode = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
-    if fresh.any():
-        b = torch.tensor(bias, device=env.device)
-        env._ball_obs_bias[fresh] = (torch.rand(int(fresh.sum()), 3, device=env.device) * 2 - 1) * b
-        if kinematic is not None:
-            if not hasattr(env, "_kin_bias"):
-                env._kin_bias = torch.zeros(env.num_envs, 3, device=env.device)
-            env._kin_bias[fresh] = (torch.rand(int(fresh.sum()), 3, device=env.device) * 2 - 1) * kin_bias
-        env._on_ball_latch[fresh] = False
-        # Blindness curriculum: only this share of episodes goes blind on the ball (1 unless set).
-        env._blind_episode[fresh] = torch.rand(int(fresh.sum()), device=env.device) < getattr(env, "blind_prob", 1.0)
-    robot = env.scene[asset_cfg.name]
-    upright = -robot.data.projected_gravity_b[:, 2] > math.cos(max_tilt)
-    env._on_ball_latch |= (robot.data.root_link_pos_w[:, 2] > height_threshold) & upright
-    out = true + env._ball_obs_bias
-    if step_noise:
-        out += (torch.rand_like(out) * 2 - 1) * step_noise
-    blind = env._on_ball_latch & env._blind_episode
-    if kinematic is None:
-        out[blind] = 0.0
-    else:
-        kin = kinematic_ball_pos(env, asset_cfg, kinematic, ball_cfg) + env._kin_bias
-        if step_noise:
-            kin += (torch.rand_like(kin) * 2 - 1) * step_noise
-        out = torch.where(blind.unsqueeze(-1), kin, out)
-    return out
-
-
-def kinematic_ball_pos(
-    env, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg
-) -> torch.Tensor:
-    """Ball centre in the base frame [B, 3] as the robot can compute it standing on the ball,
-    without the camera: below the higher foot (higher in the gravity frame, i.e. from the IMU), along
-    its sole normal, by the ankle's height above the sole contact (ON_BALL_Z_CENTER) plus
-    the ball radius (known on the robot: the node is given the ball size).
-
-    ponytail: uses the true ankle pose, not FK of the biased encoders; the encoder error is
-    modelled as the per-episode `kin_bias` of ball_pos_until_on_ball (0.03 rad over the ~0.5 m
-    leg ~ 1.5 cm). Real FK if the sim2sim check shows the two differ."""
-    robot = env.scene[asset_cfg.name]
-    pose = robot.data.body_link_pose_w[:, foot_cfg.body_ids]  # [B, 2, 7]
-    # Support foot: the higher one (the free foot hangs beside the ball, below the ball top).
-    # Probe (nr1-up6, stance steps): right 99.3%; nearest under the base 93%, under the CoM 81%.
-    foot = pose[torch.arange(env.num_envs, device=env.device), pose[:, :, 2].argmax(dim=-1)]  # [B, 7]
-    up = torch.tensor([0.0, 0.0, 1.0], device=env.device).expand(env.num_envs, 3)
-    normal = quat_apply(foot[:, 3:7], up)
-    radius = _ball_radius(env, ball_cfg, None)
-    centre = foot[:, :3] - (radius + ON_BALL_Z_CENTER).unsqueeze(-1) * normal
-    return quat_apply_inverse(robot.data.root_link_quat_w, centre - robot.data.root_link_pos_w)
-
-
-def foot_to_ball_top(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, std: float
-) -> torch.Tensor:
-    """exp(-d^2/std^2) of the nearest foot's distance to the ball top point."""
-    robot = env.scene[foot_cfg.name]
-    ball = env.scene[ball_cfg.name]
-    foot = robot.data.body_link_pose_w[:, foot_cfg.body_ids, :3]  # [B, 2, 3]
-    top = ball.data.root_link_pos_w.clone()
-    top[:, 2] += _ball_radius(env, ball_cfg, ball_radius)
-    d2 = (foot - top.unsqueeze(1)).pow(2).sum(dim=-1).min(dim=-1).values
-    return torch.exp(-d2 / std**2)
 
 
 def foot_lift(
@@ -221,132 +99,14 @@ def foot_lift(
     return ((foot_z - STAND_FOOT_Z) / (top_z - STAND_FOOT_Z)).clamp(0.0, 1.0)
 
 
-def _sole_tilt(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """[B, 2] angle (rad) between each sole normal and the ball surface normal.
-
-    The ankle_roll_link z axis is the sole normal (identity quat when flat on
-    the floor). The ball surface normal under the foot is the direction from
-    the ball centre to the foot.
-    """
-    robot = env.scene[foot_cfg.name]
-    ball = env.scene[ball_cfg.name]
-    pose = robot.data.body_link_pose_w[:, foot_cfg.body_ids]  # [B, 2, 7]
-    foot_pos, quat = pose[..., :3], pose[..., 3:7]
-    up = torch.tensor([0.0, 0.0, 1.0], device=pose.device).expand_as(foot_pos)
-    normal = quat_apply(quat, up)
-    to_foot = foot_pos - ball.data.root_link_pos_w.unsqueeze(1)
-    to_foot = to_foot / to_foot.norm(dim=-1, keepdim=True).clamp_min(1e-6)
-    return torch.acos((normal * to_foot).sum(dim=-1).clamp(-1.0, 1.0))
-
-
-def _sole_level_tilt(env, foot_cfg: SceneEntityCfg) -> torch.Tensor:
-    """[B, 2] angle (rad) between each sole normal and the world vertical."""
-    quat = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 3:7]
-    up = torch.tensor([0.0, 0.0, 1.0], device=quat.device).expand(*quat.shape[:-1], 3)
-    return torch.acos(quat_apply(quat, up)[..., 2].clamp(-1.0, 1.0))
-
-
-# Sole corners in the ankle_roll_link frame (the four sole capsules: 16 cm long, 5 cm wide,
-# bottom 5 cm below the link origin).
-_SOLE_CORNERS = [(x, y, -0.05) for x in (-0.10, 0.065) for y in (-0.035, 0.035)]
-
-
-def _sole_clearance(env, foot_cfg: SceneEntityCfg) -> torch.Tensor:
-    """[B, 2] height of each sole's lowest corner above the floor (z = 0).
-
-    The ankle link height alone is not a lift test: on tiptoe the link rises ~4.5 cm
-    with the toes still on the floor (mountbalance-mix50-v1 passed the 3 cm test that way).
-    """
-    pose = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids]  # [B, 2, 7]
-    corners = torch.tensor(_SOLE_CORNERS, device=pose.device)  # [4, 3]
-    quat = pose[..., None, 3:7].expand(-1, -1, 4, -1)
-    z = pose[..., None, 2] + quat_apply(quat, corners.expand_as(quat[..., :3]))[..., 2]
-    return z.min(dim=-1).values
-
-
-# Contact sensors between each ankle roll link and the ball (r, l: the foot_cfg order), all
-# physics steps of a control step. Added by ball_contact_sensors(); read by _ball_contact().
-FOOT_BALL_SENSORS = ("r_foot_ball", "l_foot_ball")
-BALL_CONTACT_FORCE = 1.0  # N
-
-
-def ball_contact_sensors(decimation: int) -> tuple:
-    from mjlab.sensor import ContactMatch, ContactSensorCfg
-
-    return tuple(
-        ContactSensorCfg(name=name, primary=ContactMatch(mode="body", pattern=f"{name[0]}_ankle_roll_link", entity="robot"),
-                         secondary=ContactMatch(mode="body", pattern=".*", entity="ball"), fields=("found", "force"),
-                         reduce="netforce", num_slots=1, history_length=decimation)
-        for name in FOOT_BALL_SENSORS)
-
-
-def _ball_contact(env) -> torch.Tensor:
-    """[B, 2] bool: foot touched the ball in any physics step of the last control step."""
-    return torch.stack([env.scene[n].data.force_history[:, 0].norm(dim=-1).amax(dim=-1) > BALL_CONTACT_FORCE
-                        for n in FOOT_BALL_SENSORS], dim=1)
-
-
-def _support_foot(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, flat: bool | str
-) -> torch.Tensor:
-    """[B, 2] bool: foot on the ball (and the sole flat against it, if `flat`).
-
-    `flat="level"` also requires the sole within MAX_SOLE_TILT of horizontal, i.e. the foot
-    near the ball top: flat against the ball alone passes on the flank of the ball (of2-clip:
-    foot 23 deg down the side, sole 25 deg from horizontal, ankle roll at its stop)."""
-    on_ball = _foot_on_ball(env, foot_cfg, ball_cfg, ball_radius)
-    if flat:
-        on_ball = on_ball & (_sole_tilt(env, foot_cfg, ball_cfg) < MAX_SOLE_TILT)
-    if flat == "level":  # ponytail: str flag on a bool param, saves threading a new arg through 10 terms
-        on_ball = on_ball & (_sole_level_tilt(env, foot_cfg) < MAX_SOLE_TILT)
-    return on_ball
+# Contact sensors between each ankle roll link and the ball: FOOT_BALL_SENSORS in
+# mjlab_piplus.common.ball_stance, read by ball_contact() there.
 
 
 def foot_on_ball_reward(
     env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, flat: bool
 ) -> torch.Tensor:
     return _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1).float()
-
-
-def _com_to_ball(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    """[B, 2] horizontal vector from the whole-robot centre of mass to the ball centre."""
-    robot = env.scene[foot_cfg.name]
-    com = env.sim.data.subtree_com[:, robot.indexing.root_body_id]
-    return env.scene[ball_cfg.name].data.root_link_pos_w[:, :2] - com[:, :2]
-
-
-def single_leg_stance_lifted(
-    env,
-    foot_cfg: SceneEntityCfg,
-    ball_cfg: SceneEntityCfg,
-    ball_radius: float | None,
-    flat: bool,
-    lifted_z: float = LIFTED_FOOT_Z,
-    com_max: float | None = None,
-    sole_clearance: float | None = None,
-    free_off_ball: bool = False,
-) -> torch.Tensor:
-    """One foot on the ball (sole flat if `flat`), the other clearly off the floor.
-
-    Ball-Small's version of this check passes at floor height, so it never
-    required the second foot to lift. `sole_clearance` (m) tests the free sole's lowest
-    corner instead of the ankle height `lifted_z`, which a foot on tiptoe passes.
-    `free_off_ball`: the free foot must not touch the ball (needs ball_contact_sensors);
-    without it a foot resting tilted on the ball counts as free (two-foot stance).
-    """
-    on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat)
-    if sole_clearance is None:
-        foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
-        lifted = foot_z > lifted_z
-    else:
-        lifted = _sole_clearance(env, foot_cfg) > sole_clearance
-    if free_off_ball:
-        lifted = lifted & ~_ball_contact(env)
-    other_lifted = (on_ball.flip(-1) & ~on_ball) & lifted
-    stance = on_ball.any(dim=-1) & other_lifted.any(dim=-1)
-    if com_max is not None:
-        stance = stance & (_com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < com_max)
-    return stance.float()
 
 
 def support_on_ball(
@@ -436,48 +196,6 @@ def free_foot_on_floor(
     free_on_floor = (on_ball.flip(-1) & ~on_ball) & (foot_z < STAND_FOOT_Z + 0.03)
     over = _com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < com_max
     return (free_on_floor.any(dim=-1) & over).float()
-
-
-def _mount_phi(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None
-) -> torch.Tensor:
-    """Progress potential in [0, 1] along the mount: foot on the ball top, then CoM over the
-    ball, then base height and the free foot's clearance (only counted with the CoM over
-    the ball AND a foot on the ball top: without that gate, draping the body over the ball
-    with both feet off it scored 0.45 and the search converged on it)."""
-    robot = env.scene[foot_cfg.name]
-    top_z = env.scene[ball_cfg.name].data.root_link_pos_w[:, 2] + _ball_radius(env, ball_cfg, ball_radius)
-    p_foot = foot_to_ball_top(env, foot_cfg, ball_cfg, ball_radius, 0.15)
-    c = torch.exp(-(_com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) / COM_SIGMA).pow(2))
-    h = ((robot.data.root_link_pos_w[:, 2] - top_z) / BASE_ABOVE_TOP_TARGET).clamp(0.0, 1.0)
-    foot_z = robot.data.body_link_pose_w[:, foot_cfg.body_ids, 2]
-    lift = ((foot_z.min(dim=-1).values - STAND_FOOT_Z) / FREE_FOOT_LIFT).clamp(0.0, 1.0)
-    return 0.15 * p_foot + 0.85 * p_foot * c * (0.3 + 0.35 * h + 0.35 * lift)
-
-
-def mount_potential(
-    env,
-    foot_cfg: SceneEntityCfg,
-    ball_cfg: SceneEntityCfg,
-    ball_radius: float | None,
-    gamma: float,
-) -> torch.Tensor:
-    """Potential-based shaping gamma * phi(s') - phi(s): pays for progress along the mount
-    and nothing for resting in the straddle (so the straddle is not a place to farm
-    reward). Zero on the first step after a reset.
-
-    The potential of a terminal state is 0 (a fall costs -phi(s)). Without that the shaped
-    return telescopes to gamma^T phi(s_T) - phi(s_0), so diving at the ball and dying in a
-    high-potential state keeps the whole gain: the first version of this reward did exactly
-    that (episodes of 22 steps, 90% ending in fell_over)."""
-    phi = _mount_phi(env, foot_cfg, ball_cfg, ball_radius)
-    prev = getattr(env, "_mount_phi_prev", None)
-    if prev is None or prev.shape != phi.shape:
-        prev = phi.clone()
-    phi_next = torch.where(env.termination_manager.terminated, torch.zeros_like(phi), phi)
-    reward = torch.where(env.episode_length_buf <= 1, torch.zeros_like(phi), gamma * phi_next - prev)
-    env._mount_phi_prev = phi.detach().clone()
-    return reward
 
 
 def stand_tall_on_ball(

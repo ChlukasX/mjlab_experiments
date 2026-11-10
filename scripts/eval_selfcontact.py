@@ -37,18 +37,21 @@ from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
 import mjlab_piplus  # noqa: F401  (registers tasks)
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
+from mjlab_piplus.common.ball_stance import (
     COM_OVER_BALL,
     FOOT_BALL_SENSORS,
     FREE_FOOT_LIFT,
     STAND_FOOT_Z,
-    _sole_clearance,
-    _support_foot,
     ball_contact_sensors,
-    single_leg_stance_lifted,
+    sole_clearance,
+    support_foot,
 )
-from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mount_curriculum_cfg import free_foot_contact
-from mjlab_piplus.tasks.ball_mount_min.piplus_ball_mountmin_env_cfg import _single_support, _yaw
+from mjlab_piplus.common.rewards.stance import (
+    free_foot_contact,
+    heading,
+    single_leg_stance_lifted,
+    single_support,
+)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--task", required=True)
@@ -292,7 +295,7 @@ def finalize():
     t = u.episode_length_buf.float() * dt
     valid = ~failed
     latch = getattr(u, "_on_ball_latch", torch.zeros(B, dtype=torch.bool, device=dev))
-    single_g = _single_support(u, foot_cfg, ball_cfg, True)[0]
+    single_g = single_support(u, foot_cfg, ball_cfg, True)[0]
     late = t >= 3.0
     ph = torch.where(
         late, torch.where(latch, torch.where(single_g, 0, 1), 2), torch.where(latch, 4, 3)
@@ -357,7 +360,7 @@ def finalize():
             )
     # gait metrics of scripts/eval_mountbalance.py --gait, per env from t >= 3 s
     on = valid & latch & late
-    sup = _support_foot(u, foot_cfg, ball_cfg, None, "level")
+    sup = support_foot(u, foot_cfg, ball_cfg, None, "level")
     si = sup[:, 1].long()
     fi = 1 - si
     single = sup.sum(-1) == 1
@@ -367,7 +370,7 @@ def finalize():
         )
         > 0
     )
-    down = _sole_clearance(u, foot_cfg)[ar, fi] < 0.01
+    down = sole_clearance(u, foot_cfg)[ar, fi] < 0.01
     ev = on & down & ~down_prev
     down_prev = down
     env_taps.add_(ev.float())
@@ -377,7 +380,7 @@ def finalize():
     gait["taps"] += ev.sum().item()
     poses = robot.data.body_link_pose_w
     k = on & single & held
-    d_yaw = _yaw(poses[ar, fbody[si], 3:7]) - _yaw(
+    d_yaw = heading(poses[ar, fbody[si], 3:7]) - heading(
         poses[:, robot.body_names.index("torso_link"), 3:7]
     )
     gait["yaw"].append((torch.remainder(d_yaw + math.pi, 2 * math.pi) - math.pi)[k].cpu())

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from mjlab_piplus.common.rewards import stance
 from mjlab_piplus.tasks.ball_mount_min import piplus_ball_mount_curriculum_cfg as cur
 
 PREFIX = "Mjlab-Piplus-"
@@ -162,10 +163,12 @@ def _contact_env(
 
 @pytest.fixture
 def contact(monkeypatch):
-    """`free_foot_contact` with its three helpers replaced by the stand-in env's values."""
-    monkeypatch.setattr(cur, "_support_foot", lambda env, f, b, r, flat: env._sup)
-    monkeypatch.setattr(cur, "_sole_clearance", lambda env, f: env._clr)
-    monkeypatch.setattr(cur, "_ball_contact", lambda env: env._ball)
+    """`free_foot_contact` with its three helpers replaced by the stand-in env's values.
+
+    The function lives in `common/rewards/stance.py`, so the helpers are patched there."""
+    monkeypatch.setattr(stance, "_support_foot", lambda env, f, b, r, flat: env._sup)
+    monkeypatch.setattr(stance, "_sole_clearance", lambda env, f: env._clr)
+    monkeypatch.setattr(stance, "_ball_contact", lambda env: env._ball)
     return lambda env: float(cur.free_foot_contact(env, None, None)[0])
 
 

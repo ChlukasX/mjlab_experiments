@@ -13,7 +13,6 @@ See docs/ball_small/ball_small.md.
 
 import math
 
-import mujoco
 import torch
 
 from mjlab.envs import ManagerBasedRlEnvCfg
@@ -36,6 +35,11 @@ from mjlab.terrains import TerrainEntityCfg
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 from mjlab.viewer import ViewerConfig
 
+from mjlab_piplus.common.ball_stance import FOOT_ON_BALL_XY_MARGIN
+from mjlab_piplus.common.balls import ball_escaped
+from mjlab_piplus.common.football import BALL_MASS as BALL_MASS
+from mjlab_piplus.common.football import BALL_RADIUS, ROBOT_SPAWN_X, get_ball_spec
+from mjlab_piplus.common.rewards import xy_centering
 from mjlab_piplus.robot.piplus_constants import (
     FULL_COLLISION,
     HOME_KEYFRAME_WITH_ARMS,
@@ -48,20 +52,14 @@ from mjlab_piplus.terrains import AstroturfTerrainCfg, ground_softness
 # Constants
 # ---------------------------------------------------------------------------
 
-BALL_RADIUS = 0.11
-BALL_MASS   = 0.43
 BALL_TOP    = BALL_RADIUS * 2          # = 0.22 m
 ROBOT_SPAWN_Z = BALL_TOP + 0.5        # = 0.72 m — drops onto ball
-# Offset right foot over ball top; left foot lands on floor beside ball.
-# Right ankle_roll is ~0.05 m lateral from base centre — shift base by same.
-ROBOT_SPAWN_X = -0.05                 # base shifted left so right foot is over ball
 
 # Base height when standing on flat floor is ~0.39 m; below this the robot is
 # sitting/lying (e.g. slumped against the ball) even if feet stay on the ball.
 MIN_BASE_HEIGHT = 0.30
 
 FOOT_ON_BALL_Z_MARGIN  = 0.06
-FOOT_ON_BALL_XY_MARGIN = 0.05
 
 STAGE2_STEPS = 0   # single_leg active immediately — spawn already places one foot on ball
 
@@ -69,24 +67,6 @@ STAGE2_STEPS = 0   # single_leg active immediately — spawn already places one 
 # ---------------------------------------------------------------------------
 # Specs
 # ---------------------------------------------------------------------------
-
-def get_ball_spec(radius: float = BALL_RADIUS, mass: float = BALL_MASS) -> mujoco.MjSpec:
-    spec = mujoco.MjSpec()
-    body = spec.worldbody.add_body(name="ball_body", pos=[0, 0, radius])
-    body.add_freejoint(name="ball_free")
-    body.add_geom(
-        name="ball_geom",
-        type=mujoco.mjtGeom.mjGEOM_SPHERE,
-        size=[radius],
-        mass=mass,
-        rgba=[0.2, 0.6, 0.2, 1.0],
-        contype=1,
-        conaffinity=1,
-        condim=6,
-        friction=[0.8, 0.01, 0.001],
-    )
-    return spec
-
 
 def get_piplus_cfg() -> EntityCfg:
     return EntityCfg(
@@ -161,21 +141,6 @@ def single_leg_stance(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -
     one_on_ball   = on_ball.any(dim=-1)
     other_lifted  = (on_ball ^ off_ground).any(dim=-1)
     return (one_on_ball & other_lifted).float()
-
-
-def xy_centering(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    asset = env.scene[asset_cfg.name]
-    drift = asset.data.root_link_pos_w[:, :2] - env.scene.env_origins[:, :2]
-    return -drift.pow(2).sum(dim=-1)
-
-
-def ball_escaped(env, max_dist: float, ball_cfg: SceneEntityCfg) -> torch.Tensor:
-    ball = env.scene[ball_cfg.name]
-    dist_sq = (
-        (ball.data.root_link_pos_w[:, :2] - env.scene.env_origins[:, :2])
-        .pow(2).sum(dim=-1)
-    )
-    return dist_sq > max_dist ** 2
 
 
 # ---------------------------------------------------------------------------

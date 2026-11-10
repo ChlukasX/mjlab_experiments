@@ -21,27 +21,24 @@ from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
-from mjlab.utils.lab_api.math import quat_apply
 
 from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
 
-from mjlab_piplus.tasks.ball_mount.events import ball_rolling_resistance
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
-    BALL_SIZES,
-    COM_OVER_BALL,
-    _ball_radius,
-    _com_to_ball,
-    _sole_clearance,
-    _support_foot,
+from mjlab_piplus.common.ball_stance import (
+    GATE_FREE_CLEARANCE as GATE_FREE_CLEARANCE,
     ball_contact_sensors,
-    ball_pos_until_on_ball,
 )
+from mjlab_piplus.common.ball_stance import ball_radii as _ball_radius
+from mjlab_piplus.common.events import ball_rolling_resistance
+from mjlab_piplus.common.football import BALL_SIZES, MU_ROLL_LOCKED
+from mjlab_piplus.common.observations import ball_pos_until_on_ball
+from mjlab_piplus.common.rewards.stance import heading as _yaw
+from mjlab_piplus.common.rewards.stance import single_support as _single_support
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
     piplus_ball_mountbalance_env_cfg,
     piplus_ball_mountbalance_ppo_runner_cfg,
 )
 from mjlab_piplus.tasks.ball_mount_curriculum.piplus_ball_mountcurr_env_cfg import (
-    MU_ROLL_LOCKED,
     piplus_ball_mountcurr_ppo_runner_cfg,
 )
 
@@ -174,19 +171,7 @@ FREE_CLEAR_NEAR, FREE_CLEAR_FAR = 0.03, 0.10  # m, free ankle to ball surface: 0
 # Gate (gate): st1 parked on the floor with a sole flat on the ball top, which passes the plain
 # single-support test, so the -FreeLeg/-Straight terms paid for parking. Gated, they also need
 # the weight over the ball and the free sole off the floor. docs/mount_straight.
-GATE_FREE_CLEARANCE = 0.03  # m, free sole's lowest corner above the floor (stage 1 stance clearance)
-
-
-def _single_support(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False):
-    """([B] bool single support with a level sole, [B] index of the support foot, 0 = right).
-    `gated`: also CoM within COM_OVER_BALL of the ball centre and the free sole above
-    GATE_FREE_CLEARANCE (a real stance, not a sole resting on the ball from the floor)."""
-    sup = _support_foot(env, foot_cfg, ball_cfg, None, "level")
-    single, si = sup.sum(-1) == 1, sup[:, 1].long()
-    if gated:
-        free_clear = _sole_clearance(env, foot_cfg)[torch.arange(env.num_envs, device=env.device), 1 - si]
-        single = single & (_com_to_ball(env, foot_cfg, ball_cfg).norm(dim=-1) < COM_OVER_BALL) & (free_clear > GATE_FREE_CLEARANCE)
-    return single, si
+# GATE_FREE_CLEARANCE (m, free sole's lowest corner above the floor) is in common.ball_stance.
 
 
 class posture_free_leg(envs_mdp.posture):
@@ -243,12 +228,6 @@ def _spec_straight():
         if j.name in _THIGHS:
             j.range = [-THIGH_LIMIT, THIGH_LIMIT]
     return spec
-
-
-def _yaw(q: torch.Tensor) -> torch.Tensor:
-    """Heading (rad) of the body x axis in the world xy plane."""
-    x = quat_apply(q, torch.tensor([1.0, 0.0, 0.0], device=q.device).expand(q.shape[:-1] + (3,)))
-    return torch.atan2(x[..., 1], x[..., 0])
 
 
 def support_foot_heading(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False) -> torch.Tensor:

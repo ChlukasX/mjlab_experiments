@@ -17,8 +17,9 @@ from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
 
-from mjlab_piplus.tasks.ball_mount.events import ball_rolling_resistance
-from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import mount_potential
+from mjlab_piplus.common.events import ball_rolling_resistance
+from mjlab_piplus.common.football import MU_ROLL_LOCKED
+from mjlab_piplus.common.rewards.mounting import mount_potential
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
     piplus_ball_mountbalance_env_cfg,
     piplus_ball_mountbalance_ppo_runner_cfg,
@@ -27,7 +28,6 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
 STEPS_PER_ITER = 64  # num_steps_per_env of the runner below
 GAMMA = 0.995
 POTENTIAL_WEIGHT = 2000.0  # rewards are scaled by dt = 0.02: a full mount (delta phi ~0.6) is ~+24
-MU_ROLL_LOCKED = 0.2  # m: rolling-friction coefficient; cuts ball travel under a dropped robot by ~60%
 LOCK_HOLD_ITERS, LOCK_RAMP_ITERS = 1000, 3000  # locked, then released linearly (free at it 4000 of 6000)
 
 # Standing terms that pay for resting in the straddle; the potential replaces them.
