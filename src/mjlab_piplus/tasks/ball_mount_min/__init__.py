@@ -9,6 +9,7 @@ from .piplus_ball_mount_curriculum_cfg import (
   MID_THIGH_LIMIT,
   piplus_ball_mount_curriculum_ppo_runner_cfg,
 )
+from .piplus_ball_mount_imunoise_cfg import piplus_ball_mount_imunoise_env_cfg
 from .piplus_ball_mount_selfcontact_cfg import piplus_ball_mount_selfcontact_env_cfg
 from .piplus_ball_mountmin_env_cfg import (
   piplus_ball_mountmin_env_cfg,
@@ -111,4 +112,12 @@ register_mjlab_task(
     env_cfg=piplus_ball_mount_selfcontact_env_cfg(),
     play_env_cfg=piplus_ball_mount_selfcontact_env_cfg(play=True),
     rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap_leggap", max_std=MAX_ACTION_STD),
+)
+# Same as -LegGap, with half the actor noise on the two IMU inputs (projected gravity, angular
+# velocity); the IMU is better than the mjlab default assumes. Warm start from cur4c; docs/mount_imu_noise.
+register_mjlab_task(
+    task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ImuNoise",
+    env_cfg=piplus_ball_mount_imunoise_env_cfg(),
+    play_env_cfg=piplus_ball_mount_imunoise_env_cfg(play=True),
+    rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap_leggap_imunoise", max_std=MAX_ACTION_STD),
 )
