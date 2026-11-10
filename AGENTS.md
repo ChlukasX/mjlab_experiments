@@ -72,7 +72,7 @@ Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone. The
 
 ## Registered Tasks
 
-One task ID per row (51 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
+One task ID per row (52 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
 
 | Task ID | Description |
 |---|---|
@@ -127,6 +127,7 @@ One task ID per row (51 tasks). The index in `docs/README.md` maps each experime
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap` | Adds `NoTap` |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh` | Adds `MidThigh` |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn` | Adds `Turn` to `NoTap` (not to `MidThigh`) |
+| `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap` | Adds `LegGap` to `NoTap` (not to `Turn` or `MidThigh`) |
 
 Flag legend:
 
@@ -150,6 +151,7 @@ Flag legend:
 - `NoTap`: from stage 8, a penalty on free-foot contact with the floor or the ball while on the ball (`free_foot_contact`) and a bonus that grows with the length of the current stance (`stance_duration`). Reward change only.
 - `MidThigh`: thigh (yaw) joint limited to ±1.2 rad in the model and in the action clip. The heading reward `support_foot_heading` has weight 0, so a turned support foot is allowed and not paid.
 - `Turn`: full thigh range. The heading reward `support_foot_heading` has weight 0. The reward `support_foot_turn` pays for a support foot turned by about 100° from the torso.
+- `LegGap`: full thigh range. From stage 8, a penalty `leg_gap` for a right leg that is closer than 2 cm to the left leg (distance between the collision primitives of calf, ankle pitch, and ankle roll). Reward change only: the model, the observations, and the network are the same as in `NoTap`.
 
 ## Architecture
 
@@ -179,10 +181,11 @@ Experiments that use a code package are listed in the column `Code package` of t
 | `src/mjlab_piplus/tasks/ball/`, `ball_arms/`, `ball_small/` | Balance on a ball: large ball, large ball with arms, football (`ball_small` is the base of the later ball families) |
 | `src/mjlab_piplus/tasks/ball_mount/` | `piplus_ball_mount_env_cfg.py`: Mount and Balance-Size1 tasks and the shared reward and observation functions. `piplus_ball_mountbalance_env_cfg.py`: one policy for mount and balance. `events.py`: reset and randomization events, viewer spawn-mode dropdown |
 | `src/mjlab_piplus/tasks/ball_mount_curriculum/` | `MountCurr` tasks: ball lock and potential-based reward |
-| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `__init__.py`: the variant table |
+| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `piplus_ball_mount_selfcontact_cfg.py`: the `LegGap` task (leg-to-leg distance penalty). `__init__.py`: the variant table |
 | `src/mjlab_piplus/tasks/ball_balance_from_mount/` | Balance from recorded hand-off states |
 | `scripts/train.sh` | Launch training with wandb: task menu from the live registry, `--name` (required), `--tmux`, `--cpu` |
 | `scripts/eval_mountbalance.py` | Evaluate a checkpoint by ball size and spawn mode. Flags `--probe`, `--audit`, `--gait` and others |
+| `scripts/eval_selfcontact.py`, `scripts/gen_selfcontact_report.py` | Self-contact and close-call probe of a policy (contacts and distances by body pair and gait phase), and its tables |
 | `scripts/check_tasks.py` | Compatibility checks C1, C2, C3 (section Compatibility) |
 | `scripts/make_runs_index.py` | Writes `docs/runs_index.md` from `logs/` and the local `wandb/` metadata |
 | `scripts/make_mount_states.py` | Records the hand-off states that `BalanceFromMount` needs |
@@ -209,7 +212,7 @@ Task modules import from each other. `ball_mount` imports `ball_small`. `ball_mo
 
 **Platform task:** the details (geometry, motion, rewards, events, sim sizes) are in [docs/platform/platform.md](docs/platform/platform.md).
 
-**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 51 tasks.
+**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 52 tasks.
 
 ## Documentation standard
 

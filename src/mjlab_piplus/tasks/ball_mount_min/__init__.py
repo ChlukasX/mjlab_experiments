@@ -9,6 +9,7 @@ from .piplus_ball_mount_curriculum_cfg import (
   MID_THIGH_LIMIT,
   piplus_ball_mount_curriculum_ppo_runner_cfg,
 )
+from .piplus_ball_mount_selfcontact_cfg import piplus_ball_mount_selfcontact_env_cfg
 from .piplus_ball_mountmin_env_cfg import (
   piplus_ball_mountmin_env_cfg,
   piplus_ball_mountmin_ppo_runner_cfg,
@@ -102,4 +103,12 @@ register_mjlab_task(
     play_env_cfg=piplus_ball_mount_curriculum_env_cfg(
         play=True, straight=False, ramp=True, excess0=EARLY_ACTION_EXCESS, notap=True, turn=True),
     rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap_turn", max_std=MAX_ACTION_STD),
+)
+# Same as -NoTap (full thigh range), plus a penalty for a right leg that is close to the left leg
+# (term leg_gap from stage 8: a GPU distance between the leg collision primitives; docs/mount_selfcontact).
+register_mjlab_task(
+    task_id="Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap",
+    env_cfg=piplus_ball_mount_selfcontact_env_cfg(),
+    play_env_cfg=piplus_ball_mount_selfcontact_env_cfg(play=True),
+    rl_cfg=piplus_ball_mount_curriculum_ppo_runner_cfg("_fullthigh_ramp_excess_notap_leggap", max_std=MAX_ACTION_STD),
 )
