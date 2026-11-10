@@ -25,22 +25,30 @@ import torch
 from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
-from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
-from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
+from mjlab.managers.observation_manager import ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
-from mjlab.rl import RslRlModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
+from mjlab.rl import RslRlOnPolicyRunnerCfg
 from mjlab.scene import SceneCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
 from mjlab.tasks.velocity.mdp import upright
 from mjlab.terrains import TerrainEntityCfg
 from mjlab.utils.spec_config import CollisionCfg
-from mjlab.viewer import ViewerConfig
 
+from mjlab_piplus.common.env_parts import (
+    DECIMATION,
+    EPISODE_LENGTH_S,
+    PLAY_EPISODE_LENGTH_S,
+    SIM_TIMESTEP,
+    joint_pos_action,
+    ppo_runner_cfg,
+    proprio_obs_terms,
+    robot_viewer,
+    symmetric_obs_groups,
+)
 from mjlab_piplus.common.rewards import base_height_gauss, xy_drift_gauss
 from mjlab_piplus.robot.piplus_constants import (
     FULL_COLLISION,
@@ -63,6 +71,9 @@ _BASE_TO_LOWEST = 0.3415
 PLATFORM_TOP = PLATFORM_Z + PLATFORM_HALF_H  # = 0.25
 ROBOT_SPAWN_Z = PLATFORM_TOP + 0.5  # = 0.75  (0.5 m above platform)
 BASE_HEIGHT_TARGET = PLATFORM_TOP + 0.35  # = 0.60  (matches noninertial convention)
+
+HIDDEN_DIMS = (128, 128)
+MAX_ITERATIONS = 1000
 
 
 # ---------------------------------------------------------------------------
@@ -387,28 +398,15 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     platform_cfg = SceneEntityCfg("platform")
 
     obs_terms = {
-        "joint_pos": ObservationTermCfg(func=envs_mdp.joint_pos_rel),
-        "joint_vel": ObservationTermCfg(func=envs_mdp.joint_vel_rel),
-        "projected_gravity": ObservationTermCfg(func=envs_mdp.projected_gravity),
-        "actions": ObservationTermCfg(func=envs_mdp.last_action),
+        **proprio_obs_terms(),
         "platform_state": ObservationTermCfg(
             func=platform_state_obs,
             params={"asset_cfg": robot_cfg},
         ),
     }
-    observations = {
-        "actor": ObservationGroupCfg(terms=obs_terms, enable_corruption=not play),
-        "critic": ObservationGroupCfg(terms=obs_terms, enable_corruption=False),
-    }
+    observations = symmetric_obs_groups(obs_terms, play)
 
-    actions: dict[str, ActionTermCfg] = {
-        "joint_pos": JointPositionActionCfg(
-            entity_name="robot",
-            actuator_names=(".*",),
-            scale=0.5,
-            use_default_offset=True,
-        )
-    }
+    actions = joint_pos_action(scale=0.5)
 
     rewards = {
         "upright": RewardTermCfg(
@@ -587,53 +585,12 @@ def piplus_platform_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
         terminations=terminations,
         events=events,
         curriculum=curriculum,
-        viewer=ViewerConfig(
-            origin_type=ViewerConfig.OriginType.ASSET_BODY,
-            entity_name="robot",
-            body_name="base_link",
-            distance=3.0,
-            elevation=-15.0,
-            azimuth=90.0,
-        ),
-        sim=SimulationCfg(mujoco=MujocoCfg(timestep=0.005), njmax=400, nconmax=160),
-        decimation=4,
-        episode_length_s=20.0 if not play else 1e9,
+        viewer=robot_viewer(distance=3.0, elevation=-15.0),
+        sim=SimulationCfg(mujoco=MujocoCfg(timestep=SIM_TIMESTEP), njmax=400, nconmax=160),
+        decimation=DECIMATION,
+        episode_length_s=EPISODE_LENGTH_S if not play else PLAY_EPISODE_LENGTH_S,
     )
 
 
 def piplus_platform_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
-    return RslRlOnPolicyRunnerCfg(
-        actor=RslRlModelCfg(
-            hidden_dims=(128, 128),
-            activation="elu",
-            obs_normalization=True,
-            distribution_cfg={
-                "class_name": "GaussianDistribution",
-                "init_std": 1.0,
-                "std_type": "scalar",
-            },
-        ),
-        critic=RslRlModelCfg(
-            hidden_dims=(128, 128),
-            activation="elu",
-            obs_normalization=True,
-        ),
-        algorithm=RslRlPpoAlgorithmCfg(
-            value_loss_coef=1.0,
-            use_clipped_value_loss=True,
-            clip_param=0.2,
-            entropy_coef=0.01,
-            num_learning_epochs=5,
-            num_mini_batches=4,
-            learning_rate=1.0e-3,
-            schedule="adaptive",
-            gamma=0.99,
-            lam=0.95,
-            desired_kl=0.01,
-            max_grad_norm=1.0,
-        ),
-        experiment_name="piplus_platform",
-        save_interval=50,
-        num_steps_per_env=24,
-        max_iterations=1000,
-    )
+    return ppo_runner_cfg("piplus_platform", HIDDEN_DIMS, MAX_ITERATIONS)
