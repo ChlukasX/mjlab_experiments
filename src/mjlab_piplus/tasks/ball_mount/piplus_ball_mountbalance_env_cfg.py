@@ -13,15 +13,15 @@ import mujoco
 import torch
 
 from mjlab.envs import ManagerBasedRlEnvCfg
-from mjlab.envs.mdp import is_terminated
-from mjlab.envs.mdp import dr
+from mjlab.envs.mdp import dr, is_terminated
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
 
-from mjlab.managers.reward_manager import RewardTermCfg
-
+from mjlab_piplus.common.ball_stance import COM_OVER_BALL, FREE_FOOT_LIFT, STAND_FOOT_Z
+from mjlab_piplus.common.football import BALL_SIZES
 from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
 from mjlab_piplus.tasks.ball_mount.events import (
     SpawnModeCommandCfg,
@@ -41,8 +41,6 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mount_env_cfg import (
     stand_tall_on_ball,
     support_on_ball,
 )
-from mjlab_piplus.common.football import BALL_SIZES
-from mjlab_piplus.common.ball_stance import COM_OVER_BALL, FREE_FOOT_LIFT, STAND_FOOT_Z
 from mjlab_piplus.tasks.ball_small.piplus_ball_small_env_cfg import (
     piplus_ball_small_ppo_runner_cfg,
 )
@@ -74,7 +72,9 @@ def action_excess(env) -> torch.Tensor:
     else:
         if not hasattr(env, "_joint_range"):
             limits = _joint_limit_clip()
-            env._joint_range = torch.tensor([limits[n] for n in term.target_names], device=env.device)
+            env._joint_range = torch.tensor(
+                [limits[n] for n in term.target_names], device=env.device
+            )
         lo, hi = env._joint_range[:, 0], env._joint_range[:, 1]
     target = env.action_manager.action * term._scale + term._offset
     return ((lo - target).clamp(min=0.0) + (target - hi).clamp(min=0.0)).sum(dim=-1)
@@ -98,7 +98,8 @@ def torque_saturation(env) -> torch.Tensor:
     if not hasattr(env, "_force_limit"):
         mj = env.sim.mj_model
         env._force_limit = torch.tensor(
-            [mj.actuator(f"robot/{n}").forcerange[1] for n in robot.actuator_names], device=env.device
+            [mj.actuator(f"robot/{n}").forcerange[1] for n in robot.actuator_names],
+            device=env.device,
         )
     load = robot.data.actuator_force.abs() / env._force_limit
     return (load - TORQUE_SATURATION_START).clamp(min=0.0).sum(dim=-1)
@@ -214,9 +215,7 @@ def piplus_ball_mountbalance_env_cfg(
 
     # Balance quality: stand tall (not a deep crouch) and really lift the free foot.
     # The stance success test also demands the full clearance.
-    ball_params = {
-        k: v for k, v in cfg.rewards["single_leg_stance"].params.items() if k != "flat"
-    }
+    ball_params = {k: v for k, v in cfg.rewards["single_leg_stance"].params.items() if k != "flat"}
     cfg.rewards["single_leg_stance"].params["lifted_z"] = STAND_FOOT_Z + FREE_FOOT_LIFT
     cfg.rewards["single_leg_stance"].params["com_max"] = COM_OVER_BALL
     cfg.rewards["stand_tall"] = RewardTermCfg(

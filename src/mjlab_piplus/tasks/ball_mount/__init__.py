@@ -2,15 +2,15 @@ from functools import partial
 
 from mjlab.tasks.registry import register_mjlab_task
 
-from .piplus_ball_mountbalance_env_cfg import (
-    piplus_ball_mountbalance_env_cfg,
-    piplus_ball_mountbalance_ppo_runner_cfg,
-)
 from .piplus_ball_mount_env_cfg import (
     piplus_ball_balance_env_cfg,
     piplus_ball_balance_ppo_runner_cfg,
     piplus_ball_mount_env_cfg,
     piplus_ball_mount_ppo_runner_cfg,
+)
+from .piplus_ball_mountbalance_env_cfg import (
+    piplus_ball_mountbalance_env_cfg,
+    piplus_ball_mountbalance_ppo_runner_cfg,
 )
 
 # Task suffix -> flags of piplus_ball_mount_env_cfg: flat sole required, FIFA ball size (5 or 1).

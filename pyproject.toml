@@ -39,17 +39,6 @@ markers = [
 [tool.ruff]
 line-length = 100
 indent-width = 4
-# Hot and warm files keep their format until phase 10 (freeze gate). Phase 10 removes this list.
-extend-exclude = [
-    "src/mjlab_piplus/tasks/ball_mount",
-    "src/mjlab_piplus/tasks/ball_mount_curriculum",
-    "src/mjlab_piplus/tasks/ball_mount_min",
-    "src/mjlab_piplus/tasks/ball_small",
-    "src/mjlab_piplus/tasks/ball_balance_from_mount",
-    "src/mjlab_piplus/robot",
-    "src/mjlab_piplus/terrains",
-    "scripts/eval_policy.py",
-]
 
 [tool.ruff.format]
 indent-style = "space"

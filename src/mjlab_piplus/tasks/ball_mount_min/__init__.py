@@ -3,10 +3,10 @@ from functools import partial
 from mjlab.tasks.registry import register_mjlab_task
 
 from .piplus_ball_mount_curriculum_cfg import (
-    piplus_ball_mount_curriculum_env_cfg,
     EARLY_ACTION_EXCESS,
     MAX_ACTION_STD,
     MID_THIGH_LIMIT,
+    piplus_ball_mount_curriculum_env_cfg,
     piplus_ball_mount_curriculum_ppo_runner_cfg,
 )
 from .piplus_ball_mount_imunoise_cfg import piplus_ball_mount_imunoise_env_cfg

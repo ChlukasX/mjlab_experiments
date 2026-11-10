@@ -60,9 +60,7 @@ def ball_mass_from_size(
 
 
 @requires_model_fields("geom_friction")
-def ground_friction(
-    env, env_ids: torch.Tensor | None, friction_range: tuple[float, float]
-) -> None:
+def ground_friction(env, env_ids: torch.Tensor | None, friction_range: tuple[float, float]) -> None:
     """Startup: per-env sliding friction of the ground plane.
 
     MuJoCo mixes the two geoms' friction with a max unless priorities differ, so
@@ -100,7 +98,9 @@ def contact_stiffness(
     tc = lo + torch.rand(len(env_ids), device=env.device) * (hi - lo)
     robot, ball = env.scene[robot_cfg.name], env.scene[ball_cfg.name]
     geom_ids = [ball.indexing.geom_ids[ball.geom_names.index("ball_geom")]] + [
-        robot.indexing.geom_ids[i] for i, n in enumerate(robot.geom_names) if "ankle_roll_link_collision" in n
+        robot.indexing.geom_ids[i]
+        for i, n in enumerate(robot.geom_names)
+        if "ankle_roll_link_collision" in n
     ]
     for g in geom_ids:
         env.sim.model.geom_solref[env_ids, g, 0] = tc

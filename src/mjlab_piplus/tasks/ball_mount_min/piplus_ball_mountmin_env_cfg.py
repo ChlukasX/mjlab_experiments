@@ -9,23 +9,24 @@ raised in later stages. See docs/ball_mount_rewards/ball_mount_rewards.md.
 from dataclasses import dataclass, fields, replace
 
 import torch
-from mjlab.utils.noise import UniformNoiseCfg
+
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
-from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.envs.mdp.actions.actions import JointPositionAction
+from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationTermCfg
-from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
+from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
-
-from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
+from mjlab.utils.noise import UniformNoiseCfg
 
 from mjlab_piplus.common.ball_stance import (
     GATE_FREE_CLEARANCE as GATE_FREE_CLEARANCE,
+)
+from mjlab_piplus.common.ball_stance import (
     ball_contact_sensors,
 )
 from mjlab_piplus.common.ball_stance import ball_radii as _ball_radius
@@ -34,6 +35,7 @@ from mjlab_piplus.common.football import BALL_SIZES, MU_ROLL_LOCKED
 from mjlab_piplus.common.observations import ball_pos_until_on_ball
 from mjlab_piplus.common.rewards.stance import heading as _yaw
 from mjlab_piplus.common.rewards.stance import single_support as _single_support
+from mjlab_piplus.robot.piplus_constants import get_spec_with_arms
 from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
     piplus_ball_mountbalance_env_cfg,
     piplus_ball_mountbalance_ppo_runner_cfg,
@@ -45,8 +47,12 @@ from mjlab_piplus.tasks.ball_mount_curriculum.piplus_ball_mountcurr_env_cfg impo
 # No effect in mb3 (momentum), mb5 (penalties); foot_on_ball is contained in
 # support_on_ball; xy_centering had weight 0.
 _REMOVED = (
-    "foot_on_ball", "com_toward_ball_velocity", "push_up_velocity",
-    "straddle_penalty", "termination_penalty", "xy_centering",
+    "foot_on_ball",
+    "com_toward_ball_velocity",
+    "push_up_velocity",
+    "straddle_penalty",
+    "termination_penalty",
+    "xy_centering",
 )
 COM_LINEAR_RANGE = 0.30  # m: com_over_ball falls linearly to 0 at the mount spawn distance
 # Blind on the ball: base height above which the robot counts as on the ball (standing on
@@ -139,7 +145,11 @@ def _hold_steps(env) -> int:
 
 def start_hold_remaining(env) -> torch.Tensor:
     """Critic: seconds left in the start hold [B, 1]."""
-    return ((_hold_steps(env) - env.episode_length_buf).clamp_min(0) * env.step_dt).float().unsqueeze(-1)
+    return (
+        ((_hold_steps(env) - env.episode_length_buf).clamp_min(0) * env.step_dt)
+        .float()
+        .unsqueeze(-1)
+    )
 
 
 class HoldJointPositionAction(JointPositionAction):
@@ -180,14 +190,34 @@ class posture_free_leg(envs_mdp.posture):
 
     def __init__(self, cfg: RewardTermCfg, env):
         super().__init__(cfg, env)
-        _, names = env.scene[cfg.params["asset_cfg"].name].find_joints(cfg.params["asset_cfg"].joint_names)
-        leg = lambda side: [n.startswith(side) and any(f"_{j}_joint" in n for j in _LEG) for n in names]
-        self.free_mask = torch.tensor([leg("l_"), leg("r_")], device=env.device)  # row = support foot
+        _, names = env.scene[cfg.params["asset_cfg"].name].find_joints(
+            cfg.params["asset_cfg"].joint_names
+        )
+        leg = lambda side: [
+            n.startswith(side) and any(f"_{j}_joint" in n for j in _LEG) for n in names
+        ]
+        self.free_mask = torch.tensor(
+            [leg("l_"), leg("r_")], device=env.device
+        )  # row = support foot
 
-    def __call__(self, env, std, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg,
-                 gated: bool = False, release: bool = True):
+    def __call__(
+        self,
+        env,
+        std,
+        asset_cfg: SceneEntityCfg,
+        foot_cfg: SceneEntityCfg,
+        ball_cfg: SceneEntityCfg,
+        gated: bool = False,
+        release: bool = True,
+    ):
         robot = env.scene[asset_cfg.name]
-        err = ((robot.data.joint_pos[:, asset_cfg.joint_ids] - self.default_joint_pos[:, asset_cfg.joint_ids]) / self.std) ** 2
+        err = (
+            (
+                robot.data.joint_pos[:, asset_cfg.joint_ids]
+                - self.default_joint_pos[:, asset_cfg.joint_ids]
+            )
+            / self.std
+        ) ** 2
         if not release:  # plain posture (curriculum stages before the free leg)
             return torch.exp(-err.mean(-1))
         single, si = _single_support(env, foot_cfg, ball_cfg, gated)
@@ -195,22 +225,38 @@ class posture_free_leg(envs_mdp.posture):
         return torch.exp(-(err * w).sum(-1) / w.sum(-1))
 
 
-def free_foot_ball_clear(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False) -> torch.Tensor:
+def free_foot_ball_clear(
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False
+) -> torch.Tensor:
     """Single support: free ankle origin's distance to the ball surface, 0 at FREE_CLEAR_NEAR,
     1 from FREE_CLEAR_FAR (kb1: ~2.5 cm, hovering over the edge)."""
     single, si = _single_support(env, foot_cfg, ball_cfg, gated)
     pos = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, :3]
     free = pos[torch.arange(env.num_envs, device=env.device), 1 - si]
-    gap = (free - env.scene[ball_cfg.name].data.root_link_pos_w).norm(dim=-1) - _ball_radius(env, ball_cfg, None)
+    gap = (free - env.scene[ball_cfg.name].data.root_link_pos_w).norm(dim=-1) - _ball_radius(
+        env, ball_cfg, None
+    )
     return ((gap - FREE_CLEAR_NEAR) / (FREE_CLEAR_FAR - FREE_CLEAR_NEAR)).clamp(0, 1) * single
 
 
-def support_hip_vel(env, asset_cfg: SceneEntityCfg, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False) -> torch.Tensor:
+def support_hip_vel(
+    env,
+    asset_cfg: SceneEntityCfg,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    gated: bool = False,
+) -> torch.Tensor:
     """Single support: squared joint velocity of the support leg's hip roll, hip pitch, thigh and
     calf (ankle exempt), so the balance moves to the ankle. `asset_cfg` joints: right leg's four,
     then the left's."""
     single, si = _single_support(env, foot_cfg, ball_cfg, gated)
-    qd2 = env.scene[asset_cfg.name].data.joint_vel[:, asset_cfg.joint_ids].square().view(env.num_envs, 2, -1).sum(-1)
+    qd2 = (
+        env.scene[asset_cfg.name]
+        .data.joint_vel[:, asset_cfg.joint_ids]
+        .square()
+        .view(env.num_envs, 2, -1)
+        .sum(-1)
+    )
     return qd2[torch.arange(env.num_envs, device=env.device), si] * single
 
 
@@ -230,7 +276,9 @@ def _spec_straight():
     return spec
 
 
-def support_foot_heading(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False) -> torch.Tensor:
+def support_foot_heading(
+    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, gated: bool = False
+) -> torch.Tensor:
     """Single support: cos of the yaw between the support foot and the torso, clamped to [0, 1]."""
     single, si = _single_support(env, foot_cfg, ball_cfg, gated)
     robot = env.scene[foot_cfg.name]
@@ -322,8 +370,12 @@ def piplus_ball_mountmin_env_cfg(
     if blind_on_ball:
         term = cfg.observations["actor"].terms["ball_pos"]
         term.func = ball_pos_until_on_ball
-        term.params = {**term.params, "height_threshold": ON_BALL_BASE_HEIGHT,
-            "bias": BALL_OBS_BIAS, "max_tilt": ON_BALL_MAX_TILT}
+        term.params = {
+            **term.params,
+            "height_threshold": ON_BALL_BASE_HEIGHT,
+            "bias": BALL_OBS_BIAS,
+            "max_tilt": ON_BALL_MAX_TILT,
+        }
         # ponytail: the per-step noise (term.noise, +-2 cm) also hits the zeros once on the
         # ball; harmless as a "no ball" code, since a real value has z ~ -0.3 m.
 
@@ -332,10 +384,15 @@ def piplus_ball_mountmin_env_cfg(
         lo = LAG_FINAL[0] if play else 0
         # New articulation object: the robot cfg's is a module-level constant shared by all tasks.
         robot = cfg.scene.entities["robot"]
-        robot.articulation = replace(robot.articulation, actuators=tuple(
-            replace(a, delay_min_lag=lo, delay_max_lag=LAG_FINAL[1], delay_hold_prob=LAG_HOLD_PROB)
-            for a in robot.articulation.actuators
-        ))
+        robot.articulation = replace(
+            robot.articulation,
+            actuators=tuple(
+                replace(
+                    a, delay_min_lag=lo, delay_max_lag=LAG_FINAL[1], delay_hold_prob=LAG_HOLD_PROB
+                )
+                for a in robot.articulation.actuators
+            ),
+        )
         if not play:
             cfg.curriculum["latency"] = CurriculumTermCfg(
                 func=latency_curriculum,
@@ -353,48 +410,88 @@ def piplus_ball_mountmin_env_cfg(
         for term in r.values():
             if term.params.get("flat") is True:
                 term.params["flat"] = "level"
-        r["sole_flat"].params = {**r["sole_flat"].params, "level": True}  # dict shared with foot_lift
-        r["ankle_roll_excess"] = RewardTermCfg(func=ankle_roll_excess, weight=-20.0, params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=(".*_ankle_roll_joint",)), "limit": ANKLE_ROLL_SOFT})
+        r["sole_flat"].params = {
+            **r["sole_flat"].params,
+            "level": True,
+        }  # dict shared with foot_lift
+        r["ankle_roll_excess"] = RewardTermCfg(
+            func=ankle_roll_excess,
+            weight=-20.0,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=(".*_ankle_roll_joint",)),
+                "limit": ANKLE_ROLL_SOFT,
+            },
+        )
 
     if noise_ramp and not play:
-        cfg.curriculum["noise"] = CurriculumTermCfg(func=noise_curriculum,
-            params={"start": NOISE_START, "ramp_steps": NOISE_RAMP_STEPS, "t0": 0})
+        cfg.curriculum["noise"] = CurriculumTermCfg(
+            func=noise_curriculum,
+            params={"start": NOISE_START, "ramp_steps": NOISE_RAMP_STEPS, "t0": 0},
+        )
 
     if latch_fix:
         cfg.observations["actor"].terms["ball_pos"].params["max_tilt"] = LATCH_MAX_TILT
         if kin_ball:
-            cfg.observations["actor"].terms["ball_pos"].params.update(kin_bias=KIN_BALL_BIAS,
-                kinematic=SceneEntityCfg("robot", body_names=("r_ankle_roll_link", "l_ankle_roll_link")))
+            cfg.observations["actor"].terms["ball_pos"].params.update(
+                kin_bias=KIN_BALL_BIAS,
+                kinematic=SceneEntityCfg(
+                    "robot", body_names=("r_ankle_roll_link", "l_ankle_roll_link")
+                ),
+            )
         elif not play:
-            cfg.curriculum["blind"] = CurriculumTermCfg(func=blind_curriculum, params={"ramp_steps": BLIND_RAMP_STEPS, "t0": 0})
+            cfg.curriculum["blind"] = CurriculumTermCfg(
+                func=blind_curriculum, params={"ramp_steps": BLIND_RAMP_STEPS, "t0": 0}
+            )
 
     if start_hold:
         a = cfg.actions["joint_pos"]
-        cfg.actions["joint_pos"] = HoldJointPositionActionCfg(**{f.name: getattr(a, f.name) for f in fields(a) if f.init})
-        cfg.observations["critic"].terms["start_hold"] = ObservationTermCfg(func=start_hold_remaining)
+        cfg.actions["joint_pos"] = HoldJointPositionActionCfg(
+            **{f.name: getattr(a, f.name) for f in fields(a) if f.init}
+        )
+        cfg.observations["critic"].terms["start_hold"] = ObservationTermCfg(
+            func=start_hold_remaining
+        )
 
     if deadline and not play:
-        cfg.terminations["mount_deadline"] = TerminationTermCfg(func=mount_deadline, params={"deadline_s": MOUNT_DEADLINE_S})
+        cfg.terminations["mount_deadline"] = TerminationTermCfg(
+            func=mount_deadline, params={"deadline_s": MOUNT_DEADLINE_S}
+        )
 
     if free_leg:
         feet, ball = SceneEntityCfg("robot", body_names=_FEET), SceneEntityCfg("ball")
         r["posture"].func = posture_free_leg
         r["posture"].params = {**r["posture"].params, "foot_cfg": feet, "ball_cfg": ball}
-        r["free_foot_ball_clear"] = RewardTermCfg(func=free_foot_ball_clear, weight=2.0,
-            params={"foot_cfg": feet, "ball_cfg": ball})
+        r["free_foot_ball_clear"] = RewardTermCfg(
+            func=free_foot_ball_clear, weight=2.0, params={"foot_cfg": feet, "ball_cfg": ball}
+        )
         hips = tuple(f"{side}_{j}_joint" for side in ("r", "l") for j in _LEG[:4])
-        r["support_hip_vel"] = RewardTermCfg(func=support_hip_vel, weight=-0.01, params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=hips, preserve_order=True), "foot_cfg": feet, "ball_cfg": ball})
+        r["support_hip_vel"] = RewardTermCfg(
+            func=support_hip_vel,
+            weight=-0.01,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=hips, preserve_order=True),
+                "foot_cfg": feet,
+                "ball_cfg": ball,
+            },
+        )
 
     if straight:
         robot = cfg.scene.entities["robot"]
         cfg.scene.entities["robot"] = replace(robot, spec_fn=_spec_straight)
         clip = cfg.actions["joint_pos"].clip
         assert clip is not None, "straight needs bounded_actions"
-        cfg.actions["joint_pos"].clip = {**clip, **{n: (-THIGH_LIMIT, THIGH_LIMIT) for n in _THIGHS}}
-        r["support_foot_heading"] = RewardTermCfg(func=support_foot_heading, weight=1.0,
-            params={"foot_cfg": SceneEntityCfg("robot", body_names=_FEET), "ball_cfg": SceneEntityCfg("ball")})
+        cfg.actions["joint_pos"].clip = {
+            **clip,
+            **{n: (-THIGH_LIMIT, THIGH_LIMIT) for n in _THIGHS},
+        }
+        r["support_foot_heading"] = RewardTermCfg(
+            func=support_foot_heading,
+            weight=1.0,
+            params={
+                "foot_cfg": SceneEntityCfg("robot", body_names=_FEET),
+                "ball_cfg": SceneEntityCfg("ball"),
+            },
+        )
 
     if gate:
         for k in ("posture", "free_foot_ball_clear", "support_hip_vel", "support_foot_heading"):

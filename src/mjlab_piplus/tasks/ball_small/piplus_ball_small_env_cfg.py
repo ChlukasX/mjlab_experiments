@@ -15,11 +15,11 @@ import math
 
 import torch
 
+from mjlab.entity import EntityCfg
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.entity import EntityCfg
 from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
@@ -52,21 +52,22 @@ from mjlab_piplus.terrains import AstroturfTerrainCfg, ground_softness
 # Constants
 # ---------------------------------------------------------------------------
 
-BALL_TOP    = BALL_RADIUS * 2          # = 0.22 m
-ROBOT_SPAWN_Z = BALL_TOP + 0.5        # = 0.72 m — drops onto ball
+BALL_TOP = BALL_RADIUS * 2  # = 0.22 m
+ROBOT_SPAWN_Z = BALL_TOP + 0.5  # = 0.72 m — drops onto ball
 
 # Base height when standing on flat floor is ~0.39 m; below this the robot is
 # sitting/lying (e.g. slumped against the ball) even if feet stay on the ball.
 MIN_BASE_HEIGHT = 0.30
 
-FOOT_ON_BALL_Z_MARGIN  = 0.06
+FOOT_ON_BALL_Z_MARGIN = 0.06
 
-STAGE2_STEPS = 0   # single_leg active immediately — spawn already places one foot on ball
+STAGE2_STEPS = 0  # single_leg active immediately — spawn already places one foot on ball
 
 
 # ---------------------------------------------------------------------------
 # Specs
 # ---------------------------------------------------------------------------
+
 
 def get_piplus_cfg() -> EntityCfg:
     return EntityCfg(
@@ -85,15 +86,16 @@ def get_piplus_cfg() -> EntityCfg:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _foot_on_ball(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
     """[B, 2] bool: which ankle_roll links are on top of the ball."""
     robot = env.scene[foot_cfg.name]
-    ball  = env.scene[ball_cfg.name]
-    foot_pos  = robot.data.body_link_pose_w[:, foot_cfg.body_ids, :3]  # [B, 2, 3]
-    ball_pos  = ball.data.root_link_pos_w                               # [B, 3]
-    ball_top_z = ball_pos[:, 2] + BALL_RADIUS                          # [B]
+    ball = env.scene[ball_cfg.name]
+    foot_pos = robot.data.body_link_pose_w[:, foot_cfg.body_ids, :3]  # [B, 2, 3]
+    ball_pos = ball.data.root_link_pos_w  # [B, 3]
+    ball_top_z = ball_pos[:, 2] + BALL_RADIUS  # [B]
 
-    z_ok  = (foot_pos[:, :, 2] - ball_top_z.unsqueeze(-1)).abs() < FOOT_ON_BALL_Z_MARGIN
+    z_ok = (foot_pos[:, :, 2] - ball_top_z.unsqueeze(-1)).abs() < FOOT_ON_BALL_Z_MARGIN
     horiz = (foot_pos[:, :, :2] - ball_pos[:, :2].unsqueeze(1)).norm(dim=-1)
     xy_ok = horiz < (BALL_RADIUS + FOOT_ON_BALL_XY_MARGIN)
     return z_ok & xy_ok
@@ -103,27 +105,29 @@ def _foot_on_ball(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> to
 # Observations
 # ---------------------------------------------------------------------------
 
+
 def ball_rel_obs(env, asset_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
     """Ball pos relative to robot base + ball xy vel [B, 5]."""
     robot = env.scene[asset_cfg.name]
-    ball  = env.scene[ball_cfg.name]
-    rel_pos  = ball.data.root_link_pos_w - robot.data.root_link_pos_w
+    ball = env.scene[ball_cfg.name]
+    rel_pos = ball.data.root_link_pos_w - robot.data.root_link_pos_w
     ball_vel = ball.data.root_link_vel_w[:, :2]
     return torch.cat([rel_pos, ball_vel], dim=-1)
 
 
 def foot_ball_dist_obs(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
     """XYZ offset from each foot to ball centre [B, 6]."""
-    robot    = env.scene[foot_cfg.name]
-    ball     = env.scene[ball_cfg.name]
+    robot = env.scene[foot_cfg.name]
+    ball = env.scene[ball_cfg.name]
     foot_pos = robot.data.body_link_pose_w[:, foot_cfg.body_ids, :3]  # [B, 2, 3]
-    diff     = ball.data.root_link_pos_w.unsqueeze(1) - foot_pos
+    diff = ball.data.root_link_pos_w.unsqueeze(1) - foot_pos
     return diff.flatten(start_dim=1)
 
 
 # ---------------------------------------------------------------------------
 # Rewards
 # ---------------------------------------------------------------------------
+
 
 def foot_on_ball_reward(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward for at least one foot on the ball (active from step 0)."""
@@ -135,11 +139,11 @@ def single_leg_stance(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -
     """Stage 2: one foot on ball, other foot off ground."""
     if env.common_step_counter < STAGE2_STEPS:
         return torch.zeros(env.num_envs, device=env.device)
-    on_ball    = _foot_on_ball(env, foot_cfg, ball_cfg)
-    foot_z     = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
+    on_ball = _foot_on_ball(env, foot_cfg, ball_cfg)
+    foot_z = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2]
     off_ground = foot_z > 0.02
-    one_on_ball   = on_ball.any(dim=-1)
-    other_lifted  = (on_ball ^ off_ground).any(dim=-1)
+    one_on_ball = on_ball.any(dim=-1)
+    other_lifted = (on_ball ^ off_ground).any(dim=-1)
     return (one_on_ball & other_lifted).float()
 
 
@@ -147,36 +151,47 @@ def single_leg_stance(env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg) -
 # Environment config
 # ---------------------------------------------------------------------------
 
+
 def piplus_ball_small_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     robot_cfg = SceneEntityCfg("robot")
-    ball_cfg  = SceneEntityCfg("ball")
-    foot_cfg  = SceneEntityCfg("robot", body_names=("r_ankle_roll_link", "l_ankle_roll_link"))
+    ball_cfg = SceneEntityCfg("ball")
+    foot_cfg = SceneEntityCfg("robot", body_names=("r_ankle_roll_link", "l_ankle_roll_link"))
 
     # Actor: only what the real Pi Plus measures (joint encoders + IMU).
     # Noise levels follow mjlab's velocity task.
     actor_terms = {
-        "joint_pos":         ObservationTermCfg(func=envs_mdp.joint_pos_rel,     noise=Unoise(n_min=-0.01, n_max=0.01)),
-        "joint_vel":         ObservationTermCfg(func=envs_mdp.joint_vel_rel,     noise=Unoise(n_min=-1.5,  n_max=1.5)),
-        "projected_gravity": ObservationTermCfg(func=envs_mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05)),
-        "base_ang_vel":      ObservationTermCfg(func=envs_mdp.base_ang_vel,      noise=Unoise(n_min=-0.2,  n_max=0.2)),
-        "actions":           ObservationTermCfg(func=envs_mdp.last_action),
+        "joint_pos": ObservationTermCfg(
+            func=envs_mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)
+        ),
+        "joint_vel": ObservationTermCfg(
+            func=envs_mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5)
+        ),
+        "projected_gravity": ObservationTermCfg(
+            func=envs_mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05)
+        ),
+        "base_ang_vel": ObservationTermCfg(
+            func=envs_mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)
+        ),
+        "actions": ObservationTermCfg(func=envs_mdp.last_action),
     }
     # Critic: privileged — also base lin vel and ball state (sim only).
     critic_terms = {
         **actor_terms,
-        "base_lin_vel":      ObservationTermCfg(func=envs_mdp.base_lin_vel),
-        "ball_rel":          ObservationTermCfg(
+        "base_lin_vel": ObservationTermCfg(func=envs_mdp.base_lin_vel),
+        "ball_rel": ObservationTermCfg(
             func=ball_rel_obs,
             params={"asset_cfg": robot_cfg, "ball_cfg": ball_cfg},
         ),
-        "foot_ball_dist":    ObservationTermCfg(
+        "foot_ball_dist": ObservationTermCfg(
             func=foot_ball_dist_obs,
             params={"foot_cfg": foot_cfg, "ball_cfg": ball_cfg},
         ),
     }
     observations = {
         # History lets the proprio-only actor infer ball motion from its own dynamics.
-        "actor":  ObservationGroupCfg(terms=actor_terms, enable_corruption=not play, history_length=5),
+        "actor": ObservationGroupCfg(
+            terms=actor_terms, enable_corruption=not play, history_length=5
+        ),
         "critic": ObservationGroupCfg(terms=critic_terms, enable_corruption=False),
     }
 
@@ -213,35 +228,45 @@ def piplus_ball_small_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             weight=1.0,
             params={
                 "std": {
-                    ".*_hip_roll_joint":       0.10,
-                    ".*_hip_pitch_joint":      0.40,
-                    ".*_thigh_joint":          0.40,
-                    ".*_calf_joint":           0.40,
-                    ".*_ankle_pitch_joint":    0.20,
-                    ".*_ankle_roll_joint":     0.15,
+                    ".*_hip_roll_joint": 0.10,
+                    ".*_hip_pitch_joint": 0.40,
+                    ".*_thigh_joint": 0.40,
+                    ".*_calf_joint": 0.40,
+                    ".*_ankle_pitch_joint": 0.20,
+                    ".*_ankle_roll_joint": 0.15,
                     ".*_shoulder_pitch_joint": 0.40,
-                    ".*_shoulder_roll_joint":  0.20,
-                    ".*_upper_arm_joint":      0.50,
-                    ".*_elbow_joint":          0.30,
+                    ".*_shoulder_roll_joint": 0.20,
+                    ".*_upper_arm_joint": 0.50,
+                    ".*_elbow_joint": 0.30,
                 },
-                "asset_cfg": SceneEntityCfg("robot", joint_names=(
-                    ".*_hip_roll_joint", ".*_hip_pitch_joint",
-                    ".*_thigh_joint", ".*_calf_joint",
-                    ".*_ankle_pitch_joint", ".*_ankle_roll_joint",
-                    ".*_shoulder_pitch_joint", ".*_shoulder_roll_joint",
-                    ".*_upper_arm_joint", ".*_elbow_joint",
-                )),
+                "asset_cfg": SceneEntityCfg(
+                    "robot",
+                    joint_names=(
+                        ".*_hip_roll_joint",
+                        ".*_hip_pitch_joint",
+                        ".*_thigh_joint",
+                        ".*_calf_joint",
+                        ".*_ankle_pitch_joint",
+                        ".*_ankle_roll_joint",
+                        ".*_shoulder_pitch_joint",
+                        ".*_shoulder_roll_joint",
+                        ".*_upper_arm_joint",
+                        ".*_elbow_joint",
+                    ),
+                ),
             },
         ),
-        "xy_centering":     RewardTermCfg(func=xy_centering,              weight=0.3,  params={"asset_cfg": robot_cfg}),
+        "xy_centering": RewardTermCfg(
+            func=xy_centering, weight=0.3, params={"asset_cfg": robot_cfg}
+        ),
         "joint_pos_limits": RewardTermCfg(func=envs_mdp.joint_pos_limits, weight=-1.0),
-        "action_rate":      RewardTermCfg(func=envs_mdp.action_rate_l2,   weight=-0.01),
-        "joint_vel":        RewardTermCfg(func=envs_mdp.joint_vel_l2,     weight=-0.005),
+        "action_rate": RewardTermCfg(func=envs_mdp.action_rate_l2, weight=-0.01),
+        "joint_vel": RewardTermCfg(func=envs_mdp.joint_vel_l2, weight=-0.005),
     }
 
     terminations = {
-        "time_out":     TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
-        "fell_over":    TerminationTermCfg(
+        "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
+        "fell_over": TerminationTermCfg(
             func=envs_mdp.bad_orientation,
             params={"limit_angle": math.radians(60.0)},
         ),
@@ -271,7 +296,9 @@ def piplus_ball_small_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             func=dr.geom_friction,
             mode="startup",
             params={
-                "asset_cfg": SceneEntityCfg("robot", geom_names=(r".*_ankle_roll_link_collision[0-9]$",)),
+                "asset_cfg": SceneEntityCfg(
+                    "robot", geom_names=(r".*_ankle_roll_link_collision[0-9]$",)
+                ),
                 "operation": "abs",
                 "ranges": (0.3, 1.2),
                 "shared_random": True,
@@ -333,8 +360,11 @@ def piplus_ball_small_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             interval_range_s=(2.0, 5.0),
             params={
                 "velocity_range": {
-                    "x": (-0.2, 0.2), "y": (-0.2, 0.2),
-                    "roll": (-0.2, 0.2), "pitch": (-0.2, 0.2), "yaw": (-0.3, 0.3),
+                    "x": (-0.2, 0.2),
+                    "y": (-0.2, 0.2),
+                    "roll": (-0.2, 0.2),
+                    "pitch": (-0.2, 0.2),
+                    "yaw": (-0.3, 0.3),
                 },
             },
         ),
@@ -345,7 +375,7 @@ def piplus_ball_small_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
             terrain=TerrainEntityCfg(terrain_type="plane"),
             entities={
                 "robot": get_piplus_cfg(),
-                "ball":  EntityCfg(
+                "ball": EntityCfg(
                     spec_fn=get_ball_spec,
                     init_state=EntityCfg.InitialStateCfg(pos=(0.0, 0.0, BALL_RADIUS)),
                 ),

@@ -28,12 +28,23 @@ from mjlab_piplus.tasks.ball_mount.piplus_ball_mountbalance_env_cfg import (
 STEPS_PER_ITER = 64  # num_steps_per_env of the runner below
 GAMMA = 0.995
 POTENTIAL_WEIGHT = 2000.0  # rewards are scaled by dt = 0.02: a full mount (delta phi ~0.6) is ~+24
-LOCK_HOLD_ITERS, LOCK_RAMP_ITERS = 1000, 3000  # locked, then released linearly (free at it 4000 of 6000)
+LOCK_HOLD_ITERS, LOCK_RAMP_ITERS = (
+    1000,
+    3000,
+)  # locked, then released linearly (free at it 4000 of 6000)
 
 # Standing terms that pay for resting in the straddle; the potential replaces them.
 _FARMED = (
-    "support_on_ball", "com_over_ball", "stand_tall", "free_foot_lift", "foot_on_ball",
-    "foot_to_ball_top", "foot_lift", "sole_flat", "com_toward_ball_velocity", "push_up_velocity",
+    "support_on_ball",
+    "com_over_ball",
+    "stand_tall",
+    "free_foot_lift",
+    "foot_on_ball",
+    "foot_to_ball_top",
+    "foot_lift",
+    "sole_flat",
+    "com_toward_ball_velocity",
+    "push_up_velocity",
 )
 
 
@@ -51,11 +62,15 @@ def piplus_ball_mountcurr_env_cfg(
     r["free_foot_lift"].weight = 3.0
 
     if potential:
-        ref = r["support_on_ball"].params  # foot_cfg, ball_cfg, ball_radius (None = per env), flat, com_max
+        ref = r[
+            "support_on_ball"
+        ].params  # foot_cfg, ball_cfg, ball_radius (None = per env), flat, com_max
         params = {k: ref[k] for k in ("foot_cfg", "ball_cfg", "ball_radius")} | {"gamma": GAMMA}
         for k in _FARMED:
             r[k].weight = 0.0
-        r["mount_potential"] = RewardTermCfg(func=mount_potential, weight=POTENTIAL_WEIGHT, params=params)
+        r["mount_potential"] = RewardTermCfg(
+            func=mount_potential, weight=POTENTIAL_WEIGHT, params=params
+        )
 
     if lock != "none":
         cfg.events["ball_lock"] = EventTermCfg(
@@ -82,5 +97,7 @@ def piplus_ball_mountcurr_ppo_runner_cfg(variant: str) -> RslRlOnPolicyRunnerCfg
     cfg.algorithm.gamma = GAMMA
     cfg.algorithm.lam = 0.97
     cfg.algorithm.entropy_coef = 0.003
-    cfg.max_iterations = 6000  # with 2048 envs x 64 steps: as many samples as 8000 it of 4096 envs x 24
+    cfg.max_iterations = (
+        6000  # with 2048 envs x 64 steps: as many samples as 8000 it of 4096 envs x 24
+    )
     return cfg

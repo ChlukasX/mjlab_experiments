@@ -26,34 +26,77 @@ from mjlab.utils.noise import UniformNoiseCfg as Unoise
 # check C2) calls them. The `X as X` names are only re-exported.
 from mjlab_piplus.common.ball_stance import (
     BALL_CONTACT_FORCE as BALL_CONTACT_FORCE,
+)
+from mjlab_piplus.common.ball_stance import (
     BASE_ABOVE_TOP_TARGET,
-    COM_OVER_BALL as COM_OVER_BALL,
     COM_SIGMA,
-    FOOT_BALL_SENSORS as FOOT_BALL_SENSORS,
     FREE_FOOT_LIFT,
-    LIFTED_FOOT_Z as LIFTED_FOOT_Z,
     STAND_FOOT_Z,
+)
+from mjlab_piplus.common.ball_stance import (
+    COM_OVER_BALL as COM_OVER_BALL,
+)
+from mjlab_piplus.common.ball_stance import (
+    FOOT_BALL_SENSORS as FOOT_BALL_SENSORS,
+)
+from mjlab_piplus.common.ball_stance import (
     FOOT_ON_BALL_XY_MARGIN as FOOT_ON_BALL_XY_MARGIN,
+)
+from mjlab_piplus.common.ball_stance import (
+    LIFTED_FOOT_Z as LIFTED_FOOT_Z,
+)
+from mjlab_piplus.common.ball_stance import (
     MAX_SOLE_TILT as MAX_SOLE_TILT,
+)
+from mjlab_piplus.common.ball_stance import (
     ON_BALL_Z_CENTER as ON_BALL_Z_CENTER,
+)
+from mjlab_piplus.common.ball_stance import (
     ON_BALL_Z_HALF as ON_BALL_Z_HALF,
+)
+from mjlab_piplus.common.ball_stance import (
     ball_contact as _ball_contact,
+)
+from mjlab_piplus.common.ball_stance import (
     ball_contact_sensors as ball_contact_sensors,
+)
+from mjlab_piplus.common.ball_stance import (
     ball_radii as _ball_radius,
+)
+from mjlab_piplus.common.ball_stance import (
     com_to_ball as _com_to_ball,
+)
+from mjlab_piplus.common.ball_stance import (
     foot_on_ball as _foot_on_ball,
+)
+from mjlab_piplus.common.ball_stance import (
     sole_clearance as _sole_clearance,
+)
+from mjlab_piplus.common.ball_stance import (
     sole_level_tilt as _sole_level_tilt,
+)
+from mjlab_piplus.common.ball_stance import (
     sole_tilt as _sole_tilt,
+)
+from mjlab_piplus.common.ball_stance import (
     support_foot as _support_foot,
 )
 from mjlab_piplus.common.football import BALL_SIZES, ROBOT_SPAWN_X, get_ball_spec
 from mjlab_piplus.common.observations import (
     ball_pos_base_obs,
+)
+from mjlab_piplus.common.observations import (
     ball_pos_until_on_ball as ball_pos_until_on_ball,
+)
+from mjlab_piplus.common.observations import (
     kinematic_ball_pos as kinematic_ball_pos,
 )
-from mjlab_piplus.common.rewards.mounting import foot_to_ball_top, mount_potential as mount_potential
+from mjlab_piplus.common.rewards.mounting import (
+    foot_to_ball_top,
+)
+from mjlab_piplus.common.rewards.mounting import (
+    mount_potential as mount_potential,
+)
 from mjlab_piplus.common.rewards.stance import single_leg_stance_lifted
 from mjlab_piplus.tasks.ball_small.piplus_ball_small_env_cfg import (
     piplus_ball_small_env_cfg,
@@ -173,9 +216,13 @@ def push_up_velocity(
     """Pushing up: with a foot on the ball and the base still below the standing-tall height, upward speed (0 to 1 at COM_VEL_CAP)."""
     on_ball = _support_foot(env, foot_cfg, ball_cfg, ball_radius, flat).any(dim=-1)
     robot = env.scene[foot_cfg.name]
-    top_z = env.scene[ball_cfg.name].data.root_link_pos_w[:, 2] + _ball_radius(env, ball_cfg, ball_radius)
+    top_z = env.scene[ball_cfg.name].data.root_link_pos_w[:, 2] + _ball_radius(
+        env, ball_cfg, ball_radius
+    )
     below = (robot.data.root_link_pos_w[:, 2] - top_z) < BASE_ABOVE_TOP_TARGET - 0.03
-    return (on_ball & below).float() * (robot.data.root_com_lin_vel_w[:, 2] / COM_VEL_CAP).clamp(0.0, 1.0)
+    return (on_ball & below).float() * (robot.data.root_com_lin_vel_w[:, 2] / COM_VEL_CAP).clamp(
+        0.0, 1.0
+    )
 
 
 def free_foot_on_floor(
@@ -235,7 +282,9 @@ def free_foot_lift(
     if sole:
         height = _sole_clearance(env, foot_cfg)
     else:
-        height = env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2] - STAND_FOOT_Z
+        height = (
+            env.scene[foot_cfg.name].data.body_link_pose_w[:, foot_cfg.body_ids, 2] - STAND_FOOT_Z
+        )
     lift = (height / FREE_FOOT_LIFT).clamp(0.0, 1.0)
     free = on_ball.flip(-1) & ~on_ball
     if free_off_ball:
@@ -244,7 +293,11 @@ def free_foot_lift(
 
 
 def sole_flat(
-    env, foot_cfg: SceneEntityCfg, ball_cfg: SceneEntityCfg, ball_radius: float | None, level: bool = False
+    env,
+    foot_cfg: SceneEntityCfg,
+    ball_cfg: SceneEntityCfg,
+    ball_radius: float | None,
+    level: bool = False,
 ) -> torch.Tensor:
     """Dense: (1 + cos(tilt)) / 2 for a foot that is on the ball.
 

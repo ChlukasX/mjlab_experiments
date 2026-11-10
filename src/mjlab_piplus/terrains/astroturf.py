@@ -27,6 +27,7 @@ from typing import Literal
 
 import mujoco
 import torch
+
 from mjlab.managers.event_manager import requires_model_fields
 from mjlab.terrains.terrain_entity import TerrainEntity, TerrainEntityCfg
 
@@ -40,99 +41,97 @@ TOP_GEOM_NAME = "terrain_top"
 
 @dataclass
 class AstroturfTerrainCfg(TerrainEntityCfg):
-  """Two-plane astroturf terrain (soft top over a hard base)."""
+    """Two-plane astroturf terrain (soft top over a hard base)."""
 
-  terrain_type: Literal["generator", "plane", "astroturf"] = "astroturf"  # type: ignore[assignment]
+    terrain_type: Literal["generator", "plane", "astroturf"] = "astroturf"  # type: ignore[assignment]
 
-  top_solref: tuple[float, float] = (0.02, 1.0)
-  """Contact ``solref`` (timeconst, dampratio) of the soft top plane. Larger
+    top_solref: tuple[float, float] = (0.02, 1.0)
+    """Contact ``solref`` (timeconst, dampratio) of the soft top plane. Larger
   timeconst -> softer. Must stay >= 2 * sim.timestep. Ramped by the curriculum."""
-  turf_thickness: float = 0.02
-  """Vertical gap (m) between the soft top plane (z=0) and the hard base plane."""
-  top_priority: int = 2
-  """Contact priority of the top plane. Must exceed the robot foot geom priority
+    turf_thickness: float = 0.02
+    """Vertical gap (m) between the soft top plane (z=0) and the hard base plane."""
+    top_priority: int = 2
+    """Contact priority of the top plane. Must exceed the robot foot geom priority
   (1) so the top plane's solref/friction govern the foot-turf contact."""
-  top_friction: tuple[float, float, float] = (0.6, 0.005, 0.0001)
-  """Friction of the top plane. Because ``top_priority`` wins the contact, this
+    top_friction: tuple[float, float, float] = (0.6, 0.005, 0.0001)
+    """Friction of the top plane. Because ``top_priority`` wins the contact, this
   (not the per-foot friction DR) sets the turf friction."""
-  top_condim: int = 3
-  """Contact dimensionality of the top plane (match the robot feet)."""
+    top_condim: int = 3
+    """Contact dimensionality of the top plane (match the robot feet)."""
 
 
 class AstroturfTerrain(TerrainEntity):
-  """``TerrainEntity`` that additionally supports ``terrain_type="astroturf"``."""
+    """``TerrainEntity`` that additionally supports ``terrain_type="astroturf"``."""
 
-  cfg: AstroturfTerrainCfg
+    cfg: AstroturfTerrainCfg
 
-  def _build_spec(self) -> None:
-    if self.cfg.terrain_type != "astroturf":
-      super()._build_spec()
-      return
+    def _build_spec(self) -> None:
+        if self.cfg.terrain_type != "astroturf":
+            super()._build_spec()
+            return
 
-    self._spec = mujoco.MjSpec()
-    body = self._spec.worldbody.add_body(name="terrain")
+        self._spec = mujoco.MjSpec()
+        body = self._spec.worldbody.add_body(name="terrain")
 
-    # Hard base plane, a rigid backstop below the turf.
-    base = body.add_geom(
-      name=BASE_GEOM_NAME,
-      type=_PLANE,
-      size=(0.0, 0.0, 0.01),
-      pos=(0.0, 0.0, -self.cfg.turf_thickness),
-    )
-    base.priority = self.cfg.top_priority  # backstop should also win vs the feet
+        # Hard base plane, a rigid backstop below the turf.
+        base = body.add_geom(
+            name=BASE_GEOM_NAME,
+            type=_PLANE,
+            size=(0.0, 0.0, 0.01),
+            pos=(0.0, 0.0, -self.cfg.turf_thickness),
+        )
+        base.priority = self.cfg.top_priority  # backstop should also win vs the feet
 
-    # Soft top plane: the surface the robot rests on (z=0).
-    top = body.add_geom(
-      name=TOP_GEOM_NAME,
-      type=_PLANE,
-      size=(0.0, 0.0, 0.01),
-      pos=(0.0, 0.0, 0.0),
-    )
-    top.priority = self.cfg.top_priority
-    top.condim = self.cfg.top_condim
-    top.solref = list(self.cfg.top_solref)
-    top.friction = list(self.cfg.top_friction)
-    # Semi-transparent green so the checker base still shows through.
-    top.rgba = (0.25, 0.6, 0.25, 0.45)
+        # Soft top plane: the surface the robot rests on (z=0).
+        top = body.add_geom(
+            name=TOP_GEOM_NAME,
+            type=_PLANE,
+            size=(0.0, 0.0, 0.01),
+            pos=(0.0, 0.0, 0.0),
+        )
+        top.priority = self.cfg.top_priority
+        top.condim = self.cfg.top_condim
+        top.solref = list(self.cfg.top_solref)
+        top.friction = list(self.cfg.top_friction)
+        # Semi-transparent green so the checker base still shows through.
+        top.rgba = (0.25, 0.6, 0.25, 0.45)
 
-    self._configure_env_origins()
-    self._flat_patches = {}
-    self._flat_patch_radii = {}
+        self._configure_env_origins()
+        self._flat_patches = {}
+        self._flat_patch_radii = {}
 
-    if self.cfg.debug_vis:
-      self._add_env_origin_sites()
+        if self.cfg.debug_vis:
+            self._add_env_origin_sites()
 
 
 @requires_model_fields("geom_solref")
 def ground_softness(
-  env,
-  env_ids: torch.Tensor | None,
-  timeconst_range: tuple[float, float],
-  ramp_steps: int,
+    env,
+    env_ids: torch.Tensor | None,
+    timeconst_range: tuple[float, float],
+    ramp_steps: int,
 ) -> None:
-  """Reset event: per-env top-plane softness, ramped from hard to soft.
+    """Reset event: per-env top-plane softness, ramped from hard to soft.
 
-  Each reset samples timeconst uniformly from
-  ``[lo, lo + progress * (hi - lo)]`` with ``progress = step / ramp_steps``
-  (clamped to 1), so early training sees firm ground and later training the
-  full softness range.
-  """
-  if env_ids is None:
-    env_ids = torch.arange(env.num_envs, device=env.device)
-  geom_id = env.scene.terrain.indexing.geom_ids[
-    env.scene.terrain.geom_names.index(TOP_GEOM_NAME)
-  ]
-  lo, hi = timeconst_range
-  progress = min(1.0, env.common_step_counter / max(ramp_steps, 1))
-  tc = lo + torch.rand(len(env_ids), device=env.device) * progress * (hi - lo)
-  env.sim.model.geom_solref[env_ids, geom_id, 0] = tc
+    Each reset samples timeconst uniformly from
+    ``[lo, lo + progress * (hi - lo)]`` with ``progress = step / ramp_steps``
+    (clamped to 1), so early training sees firm ground and later training the
+    full softness range.
+    """
+    if env_ids is None:
+        env_ids = torch.arange(env.num_envs, device=env.device)
+    geom_id = env.scene.terrain.indexing.geom_ids[env.scene.terrain.geom_names.index(TOP_GEOM_NAME)]
+    lo, hi = timeconst_range
+    progress = min(1.0, env.common_step_counter / max(ramp_steps, 1))
+    tc = lo + torch.rand(len(env_ids), device=env.device) * progress * (hi - lo)
+    env.sim.model.geom_solref[env_ids, geom_id, 0] = tc
 
 
 def _install() -> None:
-  """Rebind the name ``Scene`` resolves so it builds :class:`AstroturfTerrain`."""
-  import mjlab.scene.scene as _scene_module
+    """Rebind the name ``Scene`` resolves so it builds :class:`AstroturfTerrain`."""
+    import mjlab.scene.scene as _scene_module
 
-  _scene_module.TerrainEntity = AstroturfTerrain
+    _scene_module.TerrainEntity = AstroturfTerrain
 
 
 _install()
