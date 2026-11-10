@@ -13,6 +13,8 @@ two tasks share a log group (`experiment_name`), except the pairs in `KNOWN_SHAR
 C2 reduces each config to a SHA-256 hash and compares it with `docs/baseline/task_fingerprints.json`.
 Functions defined in `mjlab_piplus` are hashed by the AST of their source, so reformatting, moving
 a function to another module, or re-exporting it does not change the hash. A change of any value does.
+The hash sorts dict keys, so C2 also compares the key order of the observation groups, actions,
+rewards, terminations, events, and scene entities with `docs/baseline/task_key_order.json`.
 
 C3 builds each task with one environment on the CPU and loads every checkpoint of its log group.
 It compares the first-layer width of the actor and the critic and the action width with the task.
@@ -35,6 +37,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 BASELINE = REPO / "docs" / "baseline" / "task_fingerprints.json"
+KEY_ORDER_BASELINE = REPO / "docs" / "baseline" / "task_key_order.json"
 LOGS = REPO / "logs" / "rsl_rl"
 PREFIX = "Mjlab-Piplus-"
 
@@ -257,6 +260,53 @@ def check_fingerprint(tasks, update=False):
     return problems
 
 
+def task_key_order(task):
+    """Ordered keys of the env config dicts. `norm` sorts dict keys, so C2 cannot see the order.
+
+    The order of the terms of an observation group is the layout of the actor input, so a swap
+    breaks every checkpoint of the task.
+    """
+    env = load_configs(task)["env"]
+    order = {"observations": list(env.observations)}
+    for group, cfg in env.observations.items():
+        order[f"observations.{group}"] = list(cfg.terms)
+    for name in ("actions", "rewards", "terminations", "events", "commands", "curriculum"):
+        order[name] = list(getattr(env, name, None) or {})
+    order["entities"] = list(env.scene.entities)
+    return order
+
+
+def _write_key_order(tasks):
+    lines = []
+    for task, order in sorted(tasks.items()):
+        rows = [f"  {json.dumps(key)}: {json.dumps(keys)}" for key, keys in order.items()]
+        lines.append(f" {json.dumps(task)}: {{\n" + ",\n".join(rows) + "\n }")
+    KEY_ORDER_BASELINE.write_text("{\n" + ",\n".join(lines) + "\n}\n")
+
+
+def check_key_order(tasks, update=False):
+    orders = {t: task_key_order(t) for t in tasks}
+    if update:
+        merged = {}
+        if KEY_ORDER_BASELINE.exists() and set(tasks) != set(piplus_tasks()):
+            merged = json.loads(KEY_ORDER_BASELINE.read_text())
+        merged.update(orders)
+        _write_key_order(merged)
+        print(f"C2 key order: baseline written for {len(orders)} tasks: {KEY_ORDER_BASELINE}")
+        return []
+    base = json.loads(KEY_ORDER_BASELINE.read_text()) if KEY_ORDER_BASELINE.exists() else {}
+    problems = []
+    for task, now in orders.items():
+        if task not in base:
+            problems.append(f"{task}: not in the key order baseline (run with --update-baseline)")
+            continue
+        for key in sorted(set(now) | set(base[task])):
+            if now.get(key) != base[task].get(key):
+                problems.append(f"{task}: order of {key} differs from the baseline")
+    print(f"C2 key order: {len(orders)} tasks compared, {len(problems)} differences")
+    return problems
+
+
 def dump(tasks, out_dir):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -375,6 +425,7 @@ def main():
         problems += check_load(tasks)
     if args.fingerprint or run_all:
         problems += check_fingerprint(tasks, update=args.update_baseline)
+        problems += check_key_order(tasks, update=args.update_baseline)
     if args.checkpoints or run_all:
         problems += check_checkpoints(tasks)
     for p in problems:

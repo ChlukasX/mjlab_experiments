@@ -36,6 +36,10 @@ def test_c2_configs_equal_the_baseline(ct, tasks):
     assert ct.check_fingerprint(tasks) == []
 
 
+def test_c2_key_order_equals_the_baseline(ct, tasks):
+    assert ct.check_key_order(tasks) == []
+
+
 @pytest.mark.checkpoints
 @pytest.mark.skipif(
     not (REPO / "logs" / "rsl_rl").exists(), reason="no logs/rsl_rl on this machine"
