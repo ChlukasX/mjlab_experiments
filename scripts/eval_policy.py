@@ -524,7 +524,7 @@ if args.audit:
     A = torch.cat(audit["abs"])
     q = A.quantile(0.95).item() if A.numel() < 16_000_000 else float("nan")
     print(
-        f"\nAction audit, last 3 s, envs alive (limits: mean |a| 1.0, targets outside 2%, change 0.30):"
+        "\nAction audit, last 3 s, envs alive (limits: mean |a| 1.0, targets outside 2%, change 0.30):"
     )
     print(
         f"  raw |a| mean {A.mean().item():.2f}, median {A.median().item():.2f}, p95 {q:.2f}"
@@ -537,9 +537,9 @@ if args.audit:
 
 if args.gait:
     off, com, yaw, seg = (torch.cat(gait[k]) for k in ("off", "com", "yaw", "seg"))
-    cm = lambda x, p: x.quantile(p).item() * 100
+    cm = lambda x, p: x.quantile(p).item() * 100  # noqa: E731
     print(
-        f"\nGait on the ball (after 3 s, envs alive and on the ball; heading frame x forward, y left):"
+        "\nGait on the ball (after 3 s, envs alive and on the ball; heading frame x forward, y left):"
     )
     if len(off):
         print(

@@ -193,7 +193,7 @@ class posture_free_leg(envs_mdp.posture):
         _, names = env.scene[cfg.params["asset_cfg"].name].find_joints(
             cfg.params["asset_cfg"].joint_names
         )
-        leg = lambda side: [
+        leg = lambda side: [  # noqa: E731
             n.startswith(side) and any(f"_{j}_joint" in n for j in _LEG) for n in names
         ]
         self.free_mask = torch.tensor(
