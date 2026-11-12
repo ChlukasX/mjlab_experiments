@@ -216,6 +216,11 @@
    "play": "a54ed74aa80934c2fd459364576683a6290744921e6f35ff1e09fc60851a8891",
    "rl": "04b4b520d24fa8d5bd39a1eafb769a913ad6fec34bc35580ec062825c596fc79"
   },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-TapLimit": {
+   "env": "6a553947ce953e26158535dbeeeba448a148cfc8251f224012d525039ba20061",
+   "play": "6bc61999302e6b0891ab0ad0d2ecb2ed81136307b22a01dc1d79643327802203",
+   "rl": "4d068f529c243d993fa5297edcc3fe4d115a9d72a0604734dcb9fd349c14b93a"
+  },
   "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh": {
    "env": "3378b743c9c3801a7c186ef3e35d2e94c0816eeb57e890a3abec7c6566c51c71",
    "play": "d1404076cc372a6268473fc38fa7f1a05d11a65bcb58d8c72aeeb9fc8fc175cd",
