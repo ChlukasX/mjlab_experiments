@@ -1,5 +1,6 @@
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 import mujoco
@@ -134,6 +135,31 @@ ACTUATOR_5036 = XmlActuatorCfg(
     delay_min_lag=ACTUATOR_LAG_MIN,
     delay_max_lag=ACTUATOR_LAG_MAX,
 )
+
+# Leg joint dynamics (passive damping in Nm s/rad, armature in kg m^2, Coulomb frictionloss in Nm),
+# one named set per source. "vendor": piplus.xml as exported; every task before -ActFit uses it.
+# "fit_2026_11": fit to the RoboCup 2026 game rosbags (68 bags, 5 robots, swing legs; damping
+# 0.0-0.1, frictionloss 0.2-0.5, armature 0.017-0.023 on knee, ankles, thigh yaw);
+# docs/mount_actuator_fit.
+LEG_DYNAMICS = {
+    "vendor": {"damping": 0.75, "armature": 0.044277, "frictionloss": 0.2},
+    "fit_2026_11": {"damping": 0.05, "armature": 0.02, "frictionloss": 0.3},
+}
+
+
+def get_spec_with_leg_dynamics(
+    base: Callable[[], mujoco.MjSpec], dynamics: str = "fit_2026_11"
+) -> mujoco.MjSpec:
+    """`base()` (a spec loader) with the leg joint dynamics of LEG_DYNAMICS[dynamics]."""
+    spec = base()
+    d = LEG_DYNAMICS[dynamics]
+    leg = re.compile("|".join(ACTUATOR_5036.target_names_expr))
+    for joint in spec.joints:
+        if leg.fullmatch(joint.name):
+            joint.damping = [d["damping"], 0.0, 0.0]
+            joint.armature = d["armature"]
+            joint.frictionloss = d["frictionloss"]
+    return spec
 
 
 HOME_KEYFRAME_WITH_ARMS = EntityCfg.InitialStateCfg(

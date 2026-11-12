@@ -2,6 +2,7 @@ from functools import partial
 
 from mjlab.tasks.registry import register_mjlab_task
 
+from .piplus_ball_mount_actfit_cfg import piplus_ball_mount_actfit_env_cfg
 from .piplus_ball_mount_curriculum_cfg import (
     EARLY_ACTION_EXCESS,
     MAX_ACTION_STD,
@@ -11,6 +12,7 @@ from .piplus_ball_mount_curriculum_cfg import (
 )
 from .piplus_ball_mount_imunoise_cfg import piplus_ball_mount_imunoise_env_cfg
 from .piplus_ball_mount_selfcontact_cfg import piplus_ball_mount_selfcontact_env_cfg
+from .piplus_ball_mount_taplimit_cfg import piplus_ball_mount_taplimit_env_cfg
 from .piplus_ball_mountmin_env_cfg import (
     piplus_ball_mountmin_env_cfg,
     piplus_ball_mountmin_ppo_runner_cfg,
@@ -74,6 +76,8 @@ for suffix, flags in VARIANTS.items():
 # -Turn: reward for a support foot turned by ~100 deg from the torso (kb1 holds the stance).
 # -LegGap: penalty for a right leg close to the left leg (docs/mount_selfcontact).
 # -ImuNoise: half the actor noise on the two IMU inputs (docs/mount_imu_noise).
+# -TapLimit: end the episode on too many taps after the first mount (docs/mount_tap_limit).
+# -ActFit: leg dynamics, PD gain scales and lag (10-25 ms) fit to rosbags (docs/mount_actuator_fit).
 _CURRICULUM = piplus_ball_mount_curriculum_env_cfg
 _FULL_THIGH = dict(straight=False)
 _FULL_THIGH_RAMP = dict(_FULL_THIGH, ramp=True)
@@ -94,6 +98,8 @@ CURRICULUM_VARIANTS = {
     _NOTAP_SUFFIX + "-Turn": (_CURRICULUM, dict(_NOTAP, turn=True), MAX_ACTION_STD),
     _NOTAP_SUFFIX + "-LegGap": (piplus_ball_mount_selfcontact_env_cfg, {}, MAX_ACTION_STD),
     _NOTAP_SUFFIX + "-LegGap-ImuNoise": (piplus_ball_mount_imunoise_env_cfg, {}, MAX_ACTION_STD),
+    _NOTAP_SUFFIX + "-LegGap-TapLimit": (piplus_ball_mount_taplimit_env_cfg, {}, MAX_ACTION_STD),
+    _NOTAP_SUFFIX + "-LegGap-ActFit": (piplus_ball_mount_actfit_env_cfg, {}, MAX_ACTION_STD),
 }
 
 for suffix, (factory, flags, max_std) in CURRICULUM_VARIANTS.items():

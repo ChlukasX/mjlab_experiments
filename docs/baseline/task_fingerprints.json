@@ -211,10 +211,20 @@
    "play": "6bc61999302e6b0891ab0ad0d2ecb2ed81136307b22a01dc1d79643327802203",
    "rl": "6f25b9e847504627faa39fd7fba8d8765b5275c8960028d0b122ac67074dc7bf"
   },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit": {
+   "env": "3540d258d738467d23d84ea134ff9c80a716a5d8b954f5cccb43c541f34daa0f",
+   "play": "c86bcb48a731ca95502ba1117b331a0e0d165b27c750929c395d628992d6379b",
+   "rl": "2175c865abea62981abb6d7c2172b8ffb474cfd113d03bb6ff557703297c75c2"
+  },
   "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ImuNoise": {
    "env": "897eac1e3d334cfcadea7212eba30ff10854d80a636651eb1fbe4b06e59c6566",
    "play": "a54ed74aa80934c2fd459364576683a6290744921e6f35ff1e09fc60851a8891",
    "rl": "04b4b520d24fa8d5bd39a1eafb769a913ad6fec34bc35580ec062825c596fc79"
+  },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-TapLimit": {
+   "env": "6a553947ce953e26158535dbeeeba448a148cfc8251f224012d525039ba20061",
+   "play": "6bc61999302e6b0891ab0ad0d2ecb2ed81136307b22a01dc1d79643327802203",
+   "rl": "4d068f529c243d993fa5297edcc3fe4d115a9d72a0604734dcb9fd349c14b93a"
   },
   "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-MidThigh": {
    "env": "3378b743c9c3801a7c186ef3e35d2e94c0816eeb57e890a3abec7c6566c51c71",

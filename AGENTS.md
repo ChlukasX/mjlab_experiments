@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) and other coding age
 - Commit subject: `<experiment or scope>: <summary>`, lowercase, 72 characters or fewer. The commit body names the run IDs and the doc file.
 - **A change that alters how a registered task behaves makes a new task variant.** This covers observations, network, rewards, events, terminations, and curriculum. Put the change into a new task variant (own experiment name) or into a flag whose default keeps the old behavior. Never put it into an existing task, so old checkpoints keep loading and playing. Run the compatibility checks (section Compatibility).
 - **Observation or network size changes** need extra care: a warm start into a new variant loads the actor where its inputs are unchanged. For new critic inputs, pad the old critic with zero-weight columns (`scripts/make_padded_init.py`) rather than starting it fresh: a fresh critic wrecked the warm-started actor within ~40 iterations (`bl3` first try, see docs/mount_latency). Note this in the run log.
+- **Smoke tests do not use wandb.** A smoke test is a short training run that only checks that the loop runs (for example 40 iterations). Do not start it with `scripts/train.sh`, because that script always logs to wandb. Start it with `uv run train` and `--agent.logger tensorboard`, for example `uv run train <task> --env.scene.num-envs 64 --agent.logger tensorboard --agent.run-name <run-name>-smoke --agent.max-iterations 40`.
 - **Play sessions time out after 15 minutes:** every time you run a play or viewer command for the user (`uv run play`, a play wrapper, a script that opens a viewer), run it under `timeout 15m`, for example `timeout 15m uv run play ...`. This holds for each task and each checkpoint. Then no viewer stays on the GPU. `mjx play` applies the 15 minutes by itself, so do not wrap it.
 - **Docs are one directory per experiment** (`docs/<experiment>/<experiment>.md` for the design, `docs/<experiment>/<experiment>_log.md` for its run log). Never mix several experiments in one log. Add each new experiment to the index table in `docs/README.md` in the same commit. See `docs/README.md` for the index and conventions.
 - **One fact lives in one file.** Do not copy a fact into a second file. Do not move information from one file to another without the approval of the user. Fix an error in the file that holds the fact. Owners: this file owns the task list, the commands, the rules, and the detailed repository map; `docs/README.md` owns the experiment index (status, tasks, code package, run ID prefix); the experiment docs own status and results; `docs/platform/platform.md` owns the platform task details; `README.md` owns the short overview of the repository for people.
@@ -72,7 +73,7 @@ Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone. The
 
 ## Registered Tasks
 
-One task ID per row (53 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
+One task ID per row (55 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
 
 | Task ID | Description |
 |---|---|
@@ -129,6 +130,8 @@ One task ID per row (53 tasks). The index in `docs/README.md` maps each experime
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-Turn` | Adds `Turn` to `NoTap` (not to `MidThigh`) |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap` | Adds `LegGap` to `NoTap` (not to `Turn` or `MidThigh`) |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ImuNoise` | Adds `ImuNoise` to `LegGap` |
+| `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-TapLimit` | Adds `TapLimit` to `LegGap` (not to `ImuNoise`) |
+| `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit` | Adds `ActFit` to `LegGap` (not to `ImuNoise` or `TapLimit`) |
 
 Flag legend:
 
@@ -154,6 +157,8 @@ Flag legend:
 - `Turn`: full thigh range. The heading reward `support_foot_heading` has weight 0. The reward `support_foot_turn` pays for a support foot turned by about 100° from the torso.
 - `LegGap`: full thigh range. From stage 8, a penalty `leg_gap` for a right leg that is closer than 2 cm to the left leg (distance between the collision primitives of calf, ankle pitch, and ankle roll). Reward change only: the model, the observations, and the network are the same as in `NoTap`.
 - `ImuNoise`: the actor noise on the two IMU inputs is half of the base value (`projected_gravity` ±0.025 instead of ±0.05, `base_ang_vel` ±0.1 rad/s instead of ±0.2). The encoder, ball, and critic inputs and all rewards are the same as in `LegGap`.
+- `TapLimit`: in stage 8, the episode ends when the free foot taps the floor faster than the tap rate limit after the first mount (gated single support): at most rate / 10 × (time since the mount + 3 s) taps. Termination `tap_limit`, reward `early_end` (−50 per termination other than `time_out` while the limit acts, so a fall costs as much as a tap), curriculum term `tap_rate` (a warm-up without the termination until survival is good or after at most 1500 iterations, then 14, 12, 10, 8, 6, 4, 2, 0 taps per 10 s; a level goes down on survival). Training only: the play config equals `LegGap`. The model, the observations, and the network are the same as in `LegGap`.
+- `ActFit`: leg actuator dynamics and loop latency fit to the RoboCup 2026 game rosbags. The model has the leg joint values of `LEG_DYNAMICS["fit_2026_11"]` (`get_spec_with_leg_dynamics`). Startup randomization of the leg damping (0-0.15 Nm s/rad), frictionloss (0.2-0.5 Nm), and armature (hips 0.02-0.044, other leg joints 0.017-0.025 kg m²). PD gain scales kp 0.75-1.1 and kd 0.65-1.1. Loop latency capped at 10-25 ms (curriculum term `lag_cap`; play 10-25 ms). The observations, the rewards, and the network are the same as in `LegGap`.
 
 ## Architecture
 
@@ -174,7 +179,7 @@ Experiments that use a code package are listed in the column `Code package` of t
 | `src/mjlab_piplus/__init__.py` | Re-exports `main` from `cli.py` (entry point `mjlab_piplus:main`) |
 | `src/mjlab_piplus/cli.py` | The `mjx` command line (`tasks`, `runs`, `play`, `clean`). The task list and the menu come from the live registry. `play` ends after 15 minutes |
 | `src/mjlab_piplus/naming.py` | `log_group(task_id)`: the log group of a task, with the alias table for the one known exception |
-| `src/mjlab_piplus/robot/piplus_constants.py` | Robot spec loaders (`get_spec`, `get_spec_with_arms`), actuators, keyframes, collision presets, robot config factories |
+| `src/mjlab_piplus/robot/piplus_constants.py` | Robot spec loaders (`get_spec`, `get_spec_with_arms`, `get_spec_with_leg_dynamics`), the leg joint dynamics sets `LEG_DYNAMICS`, actuators, keyframes, collision presets, robot config factories |
 | `src/mjlab_piplus/robot/piplus/` | Vendored MJCF `piplus.xml` and the STL meshes. Leave the XML unchanged |
 | `src/mjlab_piplus/common/` | Helpers and constants that several task modules share. `rewards.py`: reward functions (`base_height_gauss`, `foot_flatness`, `xy_centering`, `xy_drift_gauss`). `balls.py`: the big ball (radius 0.45 m) constants, `get_ball_spec`, and its observation, reward, and terminations. `locomotion.py`: sensor and command names. `ball_stance.py`: the ball-stance helpers of the `ball_mount` tasks (`ball_radii`, `foot_on_ball`, `support_foot`, `sole_clearance`, `com_to_ball`, `ball_contact`, `ball_contact_sensors`, and others) and their constants (`STAND_FOOT_Z`, `COM_OVER_BALL`, ...). `football.py`: the football (FIFA sizes 5 and 1) constants, `BALL_SIZES`, `ROBOT_SPAWN_X`, `MU_ROLL_LOCKED`, and its `get_ball_spec`. `observations.py`: the ball observations (`ball_pos_base_obs`, `ball_pos_until_on_ball`, `kinematic_ball_pos`). `events.py`: the events that several task packages use (`ball_rolling_resistance`, `reset_from_mount_states`, `last_action_restored`). `rewards/`: the rewards that several task packages use, one module per category (`posture`, `stance`, `mounting`); the docstring of `rewards/__init__.py` lists them. `env_parts.py`: the config parts of the 8 early task families (`proprio_obs_terms`, `symmetric_obs_groups`, `joint_pos_action`, `robot_viewer`, `ppo_runner_cfg`) and the constants `SIM_TIMESTEP`, `DECIMATION`, `EPISODE_LENGTH_S`, `PLAY_EPISODE_LENGTH_S`. A task passes its design choices (action scale, network size, iteration count) as arguments. `ball_small` uses only `joint_pos_action`, `robot_viewer`, `ppo_runner_cfg`, and the constants, because its actor terms have noise and history. The old task modules import these names from `common/`, so the old import paths still work. Some callers import a helper under its old private name (`ball_radii as _ball_radius`), because check C2 hashes the source of the callers |
 | `src/mjlab_piplus/terrains/astroturf.py` | Astroturf terrain and the ground-softness event (`Ball-Small-Turf`) |
@@ -183,7 +188,7 @@ Experiments that use a code package are listed in the column `Code package` of t
 | `src/mjlab_piplus/tasks/ball/`, `ball_arms/`, `ball_small/` | Balance on a ball: large ball, large ball with arms, football (`ball_small` is the base of the later ball families) |
 | `src/mjlab_piplus/tasks/ball_mount/` | `piplus_ball_mount_env_cfg.py`: Mount and Balance-Size1 tasks and the shared reward and observation functions. `piplus_ball_mountbalance_env_cfg.py`: one policy for mount and balance. `events.py`: reset and randomization events, viewer spawn-mode dropdown |
 | `src/mjlab_piplus/tasks/ball_mount_curriculum/` | `MountCurr` tasks: ball lock and potential-based reward |
-| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `piplus_ball_mount_selfcontact_cfg.py`: the `LegGap` task (leg-to-leg distance penalty). `piplus_ball_mount_imunoise_cfg.py`: the `ImuNoise` task (lower IMU noise on the `LegGap` task). `__init__.py`: the variant tables (`VARIANTS` for `MountMin`, `CURRICULUM_VARIANTS` for the curriculum) |
+| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `piplus_ball_mount_selfcontact_cfg.py`: the `LegGap` task (leg-to-leg distance penalty). `piplus_ball_mount_imunoise_cfg.py`: the `ImuNoise` task (lower IMU noise on the `LegGap` task). `piplus_ball_mount_taplimit_cfg.py`: the `TapLimit` task (tap-budget termination on the `LegGap` task). `piplus_ball_mount_actfit_cfg.py`: the `ActFit` task (fitted actuator dynamics and latency on the `LegGap` task). `__init__.py`: the variant tables (`VARIANTS` for `MountMin`, `CURRICULUM_VARIANTS` for the curriculum) |
 | `src/mjlab_piplus/tasks/ball_balance_from_mount/` | Balance from recorded hand-off states |
 | `scripts/train.sh` | Launch training with wandb: task menu from the live registry, `--name` (required), `--tmux`, `--cpu` |
 | `scripts/eval_policy.py` | Evaluate a checkpoint by ball size and spawn mode. Flags `--probe`, `--audit`, `--gait` and others. `scripts/eval_mountbalance.py` is a shim that runs it (run logs and docs cite the old name) |
@@ -216,7 +221,7 @@ Task modules import from each other. `ball_mount` imports `ball_small`. `ball_mo
 
 **Platform task:** the details (geometry, motion, rewards, events, sim sizes) are in [docs/platform/platform.md](docs/platform/platform.md).
 
-**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 53 tasks.
+**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 55 tasks.
 
 ## Documentation standard
 
