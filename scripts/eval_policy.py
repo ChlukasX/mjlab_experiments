@@ -169,6 +169,18 @@ parser.add_argument(
     action="store_true",
     help="floor-contact termination checks all physics steps of a control step, not only the last",
 )
+parser.add_argument(
+    "--mount-fraction",
+    type=float,
+    default=None,
+    help="share of mount spawns (the rest drop onto the ball); 0 = drops only",
+)
+parser.add_argument(
+    "--no-foot-floor",
+    action="store_true",
+    help="the feet (ankle pitch and roll links) pass through the floor: a probe of the stance "
+    "without floor taps; use with --mount-fraction 0 (a mount needs the floor)",
+)
 args = parser.parse_args()
 
 dev = "cuda:0"
@@ -264,6 +276,18 @@ if args.floor_history:
         else s
         for s in cfg.scene.sensors
     )
+if args.mount_fraction is not None:
+    cfg.events["spawn_mode"].params["mount_fraction"] = args.mount_fraction
+if args.no_foot_floor:
+    # Compile-time exclude: mujoco_warp filters the collision pairs once, at model creation.
+    assert cfg.scene.spec_fn is None
+
+    def no_foot_floor(spec):
+        for side in ("r", "l"):
+            for link in ("ankle_pitch_link", "ankle_roll_link"):
+                spec.add_exclude(bodyname1="terrain", bodyname2=f"robot/{side}_{link}")
+
+    cfg.scene.spec_fn = no_foot_floor
 # Strict test: the free foot must also not touch the ball in any physics step. The stance
 # reward without free_off_ball calls a foot free when it is not flat on the ball, which a foot
 # resting tilted on the ball passes (two-foot stance; see docs/mount_latency/mount_latency_log.md).
