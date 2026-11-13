@@ -3,6 +3,7 @@ from functools import partial
 from mjlab.tasks.registry import register_mjlab_task
 
 from .piplus_ball_mount_actfit_cfg import piplus_ball_mount_actfit_env_cfg
+from .piplus_ball_mount_comcenter_cfg import piplus_ball_mount_comcenter_env_cfg
 from .piplus_ball_mount_curriculum_cfg import (
     EARLY_ACTION_EXCESS,
     MAX_ACTION_STD,
@@ -78,12 +79,14 @@ for suffix, flags in VARIANTS.items():
 # -ImuNoise: half the actor noise on the two IMU inputs (docs/mount_imu_noise).
 # -TapLimit: end the episode on too many taps after the first mount (docs/mount_tap_limit).
 # -ActFit: leg dynamics, PD gain scales and lag (10-25 ms) fit to rosbags (docs/mount_actuator_fit).
+# -ComCenter: dense rewards for a centred, still CoM and a tighter stance gate (docs/mount_com_center).
 _CURRICULUM = piplus_ball_mount_curriculum_env_cfg
 _FULL_THIGH = dict(straight=False)
 _FULL_THIGH_RAMP = dict(_FULL_THIGH, ramp=True)
 _FULL_THIGH_RAMP_EXCESS = dict(_FULL_THIGH_RAMP, excess0=EARLY_ACTION_EXCESS)
 _NOTAP = dict(_FULL_THIGH_RAMP_EXCESS, notap=True)
 _NOTAP_SUFFIX = "-FullThigh-Ramp-Excess-NoTap"
+_LEGGAP_SUFFIX = _NOTAP_SUFFIX + "-LegGap"
 CURRICULUM_VARIANTS = {
     "": (_CURRICULUM, {}, None),
     "-FullThigh": (_CURRICULUM, _FULL_THIGH, None),
@@ -100,6 +103,7 @@ CURRICULUM_VARIANTS = {
     _NOTAP_SUFFIX + "-LegGap-ImuNoise": (piplus_ball_mount_imunoise_env_cfg, {}, MAX_ACTION_STD),
     _NOTAP_SUFFIX + "-LegGap-TapLimit": (piplus_ball_mount_taplimit_env_cfg, {}, MAX_ACTION_STD),
     _NOTAP_SUFFIX + "-LegGap-ActFit": (piplus_ball_mount_actfit_env_cfg, {}, MAX_ACTION_STD),
+    _LEGGAP_SUFFIX + "-ActFit-ComCenter": (piplus_ball_mount_comcenter_env_cfg, {}, MAX_ACTION_STD),
 }
 
 for suffix, (factory, flags, max_std) in CURRICULUM_VARIANTS.items():

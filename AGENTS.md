@@ -73,7 +73,7 @@ Run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone. The
 
 ## Registered Tasks
 
-One task ID per row (55 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
+One task ID per row (56 tasks). The index in `docs/README.md` maps each experiment to its tasks. A task ID that carries a flag name (`BlindOnBall`, `Latency`, ...) adds that flag to the task above it. The legend below the table explains each flag. `uv run pytest` fails when a registered task has no row here.
 
 | Task ID | Description |
 |---|---|
@@ -132,6 +132,7 @@ One task ID per row (55 tasks). The index in `docs/README.md` maps each experime
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ImuNoise` | Adds `ImuNoise` to `LegGap` |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-TapLimit` | Adds `TapLimit` to `LegGap` (not to `ImuNoise`) |
 | `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit` | Adds `ActFit` to `LegGap` (not to `ImuNoise` or `TapLimit`) |
+| `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit-ComCenter` | Adds `ComCenter` to `ActFit` |
 
 Flag legend:
 
@@ -159,6 +160,7 @@ Flag legend:
 - `ImuNoise`: the actor noise on the two IMU inputs is half of the base value (`projected_gravity` ±0.025 instead of ±0.05, `base_ang_vel` ±0.1 rad/s instead of ±0.2). The encoder, ball, and critic inputs and all rewards are the same as in `LegGap`.
 - `TapLimit`: in stage 8, the episode ends when the free foot taps the floor faster than the tap rate limit after the first mount (gated single support): at most rate / 10 × (time since the mount + 3 s) taps. Termination `tap_limit`, reward `early_end` (−50 per termination other than `time_out` while the limit acts, so a fall costs as much as a tap), curriculum term `tap_rate` (a warm-up without the termination until survival is good or after at most 1500 iterations, then 14, 12, 10, 8, 6, 4, 2, 0 taps per 10 s; a level goes down on survival). Training only: the play config equals `LegGap`. The model, the observations, and the network are the same as in `LegGap`.
 - `ActFit`: leg actuator dynamics and loop latency fit to the RoboCup 2026 game rosbags. The model has the leg joint values of `LEG_DYNAMICS["fit_2026_11"]` (`get_spec_with_leg_dynamics`). Startup randomization of the leg damping (0-0.15 Nm s/rad), frictionloss (0.2-0.5 Nm), and armature (hips 0.02-0.044, other leg joints 0.017-0.025 kg m²). PD gain scales kp 0.75-1.1 and kd 0.65-1.1. Loop latency capped at 10-25 ms (curriculum term `lag_cap`; play 10-25 ms). The observations, the rewards, and the network are the same as in `LegGap`.
+- `ComCenter`: from stage 8, two rewards for the centre of mass (CoM) with a level sole on the ball: `com_center` (+8, linear in the horizontal CoM-to-ball-centre distance, 0 from 0.10 m) and `com_still` (+4, linear in the horizontal CoM speed relative to the ball centre, 0 from 0.5 m/s). Curriculum term `com_gate`: the CoM limit of `single_leg_stance` steps down 0.12, 0.10, 0.08, 0.06, 0.05, 0.04 m on the running stance share. Reward `early_end`: a cost per termination other than `time_out`, weight 0 (off) in the task; a run sets it with `--env.rewards.early-end.weight`. Reward and curriculum change only: the model, the observations, and the network are the same as in `ActFit`.
 
 ## Architecture
 
@@ -188,7 +190,7 @@ Experiments that use a code package are listed in the column `Code package` of t
 | `src/mjlab_piplus/tasks/ball/`, `ball_arms/`, `ball_small/` | Balance on a ball: large ball, large ball with arms, football (`ball_small` is the base of the later ball families) |
 | `src/mjlab_piplus/tasks/ball_mount/` | `piplus_ball_mount_env_cfg.py`: Mount and Balance-Size1 tasks and the shared reward and observation functions. `piplus_ball_mountbalance_env_cfg.py`: one policy for mount and balance. `events.py`: reset and randomization events, viewer spawn-mode dropdown |
 | `src/mjlab_piplus/tasks/ball_mount_curriculum/` | `MountCurr` tasks: ball lock and potential-based reward |
-| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `piplus_ball_mount_selfcontact_cfg.py`: the `LegGap` task (leg-to-leg distance penalty). `piplus_ball_mount_imunoise_cfg.py`: the `ImuNoise` task (lower IMU noise on the `LegGap` task). `piplus_ball_mount_taplimit_cfg.py`: the `TapLimit` task (tap-budget termination on the `LegGap` task). `piplus_ball_mount_actfit_cfg.py`: the `ActFit` task (fitted actuator dynamics and latency on the `LegGap` task). `__init__.py`: the variant tables (`VARIANTS` for `MountMin`, `CURRICULUM_VARIANTS` for the curriculum) |
+| `src/mjlab_piplus/tasks/ball_mount_min/` | `piplus_ball_mountmin_env_cfg.py`: the `MountMin` family with its feature flags. `piplus_ball_mount_curriculum_cfg.py`: the staged curriculum. `piplus_ball_mount_selfcontact_cfg.py`: the `LegGap` task (leg-to-leg distance penalty). `piplus_ball_mount_imunoise_cfg.py`: the `ImuNoise` task (lower IMU noise on the `LegGap` task). `piplus_ball_mount_taplimit_cfg.py`: the `TapLimit` task (tap-budget termination on the `LegGap` task). `piplus_ball_mount_actfit_cfg.py`: the `ActFit` task (fitted actuator dynamics and latency on the `LegGap` task). `piplus_ball_mount_comcenter_cfg.py`: the `ComCenter` task (CoM rewards and stance gate on the `ActFit` task). `__init__.py`: the variant tables (`VARIANTS` for `MountMin`, `CURRICULUM_VARIANTS` for the curriculum) |
 | `src/mjlab_piplus/tasks/ball_balance_from_mount/` | Balance from recorded hand-off states |
 | `scripts/train.sh` | Launch training with wandb: task menu from the live registry, `--name` (required), `--tmux`, `--cpu` |
 | `scripts/eval_policy.py` | Evaluate a checkpoint by ball size and spawn mode. Flags `--probe`, `--audit`, `--gait` and others. `scripts/eval_mountbalance.py` is a shim that runs it (run logs and docs cite the old name) |
@@ -221,7 +223,7 @@ Task modules import from each other. `ball_mount` imports `ball_small`. `ball_mo
 
 **Platform task:** the details (geometry, motion, rewards, events, sim sizes) are in [docs/platform/platform.md](docs/platform/platform.md).
 
-**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 55 tasks.
+**Sim timestep:** 0.005 s × decimation 4 = 0.02 s control step (50 Hz). This holds for all 56 tasks.
 
 ## Documentation standard
 

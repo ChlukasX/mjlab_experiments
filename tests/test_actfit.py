@@ -94,6 +94,7 @@ def test_no_other_task_uses_the_fitted_spec():
     from mjlab.tasks.registry import list_tasks
 
     for task in list_tasks():
-        if task.startswith(PREFIX) and task != ACTFIT:
+        # Tasks built on -ActFit (-ActFit-ComCenter) keep its spec.
+        if task.startswith(PREFIX) and not task.startswith(ACTFIT):
             fn = _cfg(task).scene.entities["robot"].spec_fn
             assert getattr(fn, "func", fn) is not get_spec_with_leg_dynamics, task
