@@ -310,6 +310,7 @@ Hierarchical: Approach policy → `(vx, vy, ωz)` → frozen Locomotion policy; 
 - 4d. Balance and mount actions that a real actuator can follow, on the corrected model (two-policy state in tag `two-policy-chain`). ([docs](docs/balance_smooth/balance_smooth.md), [collision check](docs/collision_check/collision_check.md))
 - 4e. One policy for mount and stance. ([docs](docs/mount_single/mount_single.md))
 - 4f. One cold start through a staged curriculum. ([docs](docs/mount_curriculum/mount_curriculum.md))
+- 4g. A held stance without free-foot taps; selected policy `cc2-fall50` `model_36649`. ([docs](docs/mount_com_center/mount_com_center.md), [history of all mount experiments](docs/mount_lineage/mount_lineage.md))
 - 5. Connect perception, approach, locomotion, and mount/balance in one chain. The task `Mjlab-Piplus-Ball-Chain` is dropped; the mount → balance chain is in the tag `two-policy-chain`. ([docs](docs/ball_chain/ball_chain.md))
 - 6. Final docs, task table, README.
 - 7. MLOps and deploy strategy: decide how a policy gets to the robot (export, versioned deploy files, robot node). ([docs](docs/deploy_mount/deploy_mount.md))

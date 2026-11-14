@@ -1,6 +1,6 @@
 # mount_imu_noise: lower actor noise on the IMU inputs
 
-Status: active (Nov 10 2026).
+Status: finished (Nov 14 2026).
 Code: branch `feat/mount-imu-noise` (off `feat/mount-selfcontact`). Files: `tasks/ball_mount_min/piplus_ball_mount_imunoise_cfg.py`, `tests/test_imunoise.py`.
 Tasks: `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ImuNoise`.
 Log: [mount_imu_noise_log.md](mount_imu_noise_log.md). Run ID prefix: `im`.

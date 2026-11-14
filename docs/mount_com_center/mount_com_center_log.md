@@ -110,4 +110,30 @@ Warm start from `cc1b` `model_33650` (survived 90%, success 53%), last gate leve
 bash scripts/train.sh Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit-ComCenter --name cc2-fall50 --num-envs 4096 --env.scene.env-spacing 1.0 --agent.resume True --agent.load-run 2026-11-13_15-13-34_cc1b --agent.load-checkpoint model_33650.pt --env.curriculum.stage.params.start_stage 8 --env.curriculum.com-gate.params.start-level 5 --env.curriculum.com-gate.params.skip-ramp True --env.rewards.early-end.weight -50 --agent.max-iterations 3000 --agent.seed 42
 ```
 
-**Outcome:** running.
+**Outcome:** finished 3000 iterations (33650 → 36650, last checkpoint `model_36649`). Stable: no NaN. Mean of 20 iterations at each point:
+
+| Iteration | Mean reward | Episode length | Stance share (0.04 m gate) | `early_end` | `single_leg_stance` | `stance_duration` | `free_foot_contact` | `time_out` / iteration | `base_too_low` / iteration | `fell_over` / iteration |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 34150 | 299.0 | 706 | 0.43 | −1.21 | 5.71 | 0.88 | −0.67 | 2.98 | 2.31 | 0.33 |
+| 35150 | 290.8 | 693 | 0.46 | −1.32 | 6.07 | 1.00 | −0.51 | 2.80 | 2.35 | 0.41 |
+| 36150 | 301.1 | 704 | 0.50 | −1.30 | 6.68 | 1.19 | −0.40 | 2.80 | 2.17 | 0.36 |
+| 36649 | 276.3 | 659 | 0.50 | −1.38 | 6.46 | 1.17 | −0.31 | 2.74 | 2.53 | 0.44 |
+
+In training the falls did not go down: `early_end` and `base_too_low` stay flat, and the episodes stay at about 700 steps. The stance terms rise and the tap penalty falls, as in `cc1b`.
+
+**Evaluation.** Same command as for `cc1b` (mount spawn, play config of `-ActFit`, 512 envs, seed 0). The `cc1b` rows are from the section above:
+
+| Policy | Survived | Success (held stance) | Stance share (on ball) | Floor taps per 10 s | Stance segment median / p90 | Base yaw rate | Base tilt | `r_hip_pitch` at the force limit |
+|---|---|---|---|---|---|---|---|---|
+| `cc1b` `model_33650` (start) | 90% | 53% | 90% | 2.3 | 0.28 s / 1.74 s | +0.60 rad/s | 13.9° | 59% |
+| `cc1b` `model_34447` (no fall cost) | 77% | 62% | 93% | 1.1 | 0.26 s / 1.96 s | +0.12 rad/s | 14.9° | 61% |
+| `cc2` `model_35150` | 83% | 67% | 93% | 1.0 | 0.26 s / 2.22 s | −0.01 rad/s | 15.5° | 59% |
+| `cc2` `model_36649` | 82% | 75% | 95% | 0.4 | 0.26 s / 2.52 s | +0.17 rad/s | 15.7° | 62% |
+
+By ball size, `model_36649`: size 3 success 73%, survived 81%; size 4-5 success 78%, survived 85%. CoM − ball centre x −0.1 cm. Free foot behind the support foot in 100% of the stance steps (median −21.9 cm, +15.9 cm to the side).
+
+Reading: with the fall cost the survival stops falling but does not come back to the 90% of the start. After 1500 iterations it is 83% (`cc1b` without the cost: 77% after 800 iterations from an earlier start; the two runs do not start from the same checkpoint, so this is not a clean A/B). The held-stance success keeps rising: 75% of all envs, 91% of the envs that survive. The taps are almost gone (0.4 per 10 s). The remaining loss is a fall, not a tap: the policy holds the stance or it falls. `r_hip_pitch` is at the force limit in 62% of the steps and the base tilt rose from 13.9° to 15.7°. The cause of the falls is not measured yet.
+
+```
+uv run python scripts/eval_policy.py --task Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit --checkpoint logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_leggap_actfit_comcenter/2026-11-13_21-53-14_cc2-fall50/model_36649.pt --num-envs 512 --seed 0 --gait --probe
+```

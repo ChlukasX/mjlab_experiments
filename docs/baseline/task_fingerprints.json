@@ -283,6 +283,7 @@
   }
  },
  "protected_checkpoints": {
-  "logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess/2026-11-06_10-05-48_cur4c/model_24450.pt": "83ec928cf688e4d64af330dd5b7980f7fec9fa8ce6bb34498e6b9ff5d105fa45"
+  "logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess/2026-11-06_10-05-48_cur4c/model_24450.pt": "83ec928cf688e4d64af330dd5b7980f7fec9fa8ce6bb34498e6b9ff5d105fa45",
+  "logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_leggap_actfit_comcenter/2026-11-13_21-53-14_cc2-fall50/model_36649.pt": "37fcdf093d70db6344d0815736232b0e5c3b4d96d27c0b6aae569303d7cd494d"
  }
 }

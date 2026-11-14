@@ -1,7 +1,7 @@
 # mount_com_center: dense reward for a centred, still centre of mass on the ball
 
-Status: active (Nov 12 2026).
-Code: branch `feat/mount-com-center` (off `main` `9d42400`). Files: `tasks/ball_mount_min/piplus_ball_mount_comcenter_cfg.py`, `tests/test_comcenter.py`, `scripts/eval_policy.py` (flags `--mount-fraction`, `--no-foot-floor`).
+Status: finished (Nov 14 2026). Selected policy: `cc2-fall50` `model_36649` (protected checkpoint). The history of all experiments that led to it is in [mount_lineage](../mount_lineage/mount_lineage.md).
+Code: branch `feat/mount-com-center` (off `main` `9d42400`), first commit `77e3f88`. Files: `tasks/ball_mount_min/piplus_ball_mount_comcenter_cfg.py`, `tests/test_comcenter.py`, `scripts/eval_policy.py` (flags `--mount-fraction`, `--no-foot-floor`).
 Tasks: `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit-ComCenter`.
 Log: [mount_com_center_log.md](mount_com_center_log.md). Run ID prefix: `cc`.
 
@@ -59,6 +59,29 @@ Wandb: `Curriculum/com_gate/com_gate` (m), `Curriculum/com_gate/com_weight`, `Ep
 
 **How the result is measured.** `scripts/eval_policy.py --num-envs 512 --seed 0 --gait --probe` on the play config of `-ActFit` (the gap check of `af1`): survival, floor taps per 10 s, stance segment median, CoM − ball centre, held-stance success.
 
+## Result
+
+The tap gait is gone. The selected policy `cc2-fall50` `model_36649` holds the single-leg stance on the ball in 75% of the episodes and survives in 82% (play config of `-ActFit`, mount spawn, ball sizes 3-5). The free foot taps the floor 0.4 times per 10 s (`af1`: 12.4). The robot either holds the stance or falls. The numbers of each run are in the [log](mount_com_center_log.md).
+
+| Step | Change | Effect |
+|---|---|---|
+| `cc1` | `com_center`, `com_still` and the stance gate (0.12 → 0.04 m), warm start from `af1` | CoM over the ball centre, taps down by about a quarter, first held stances |
+| `cc1b` | resume of `cc1` at the last gate level without the ramp | taps nearly gone, held-stance success up, survival down: a lost balance ends in a fall |
+| `cc2-fall50` | `early_end` −50 per fall, warm start from `cc1b` `model_33650` | the survival stops falling, the held-stance success rises further |
+
+What made the difference: the dense, linear CoM terms. They give a slope from the tap gait to a still stance. The tap penalty and the tap termination of the earlier experiments had no such slope. The fall cost only stopped the trade of survival for stance; it did not remove the falls.
+
+The user accepted the result after play (Nov 14 2026): a survival near 82% is acceptable for this task.
+
+## Next steps
+
+- Export `cc2-fall50` `model_36649` and test it in the Bit-Bots stack. The work continues in [deploy_mount](../deploy_mount/deploy_mount.md).
+- Measure the cause of the falls (termination, time, hip torque, CoM offset, ball state before each fall). `r_hip_pitch` is at its force limit in about 60% of the steps.
+- The free foot hangs behind the support foot in every stance step. No term sets its place.
+- The stance segments are short (median 0.26 s) at a stance share of 95%. The cause of the short breaks is not measured.
+
 ## Re-run
 
 Copy the init checkpoint first (`af1-actfit` `model_27449.pt`) to `logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_leggap_actfit_comcenter/2026-11-12_00-00-00_init-from-af1-27449/`. The launch commands and the run IDs are in the [log](mount_com_center_log.md).
+
+Runs, in order: `cc1-comcenter` (warm start from `af1`), `cc1b` (resume of `cc1` `model_31448`), `cc2-fall50` (warm start from `cc1b` `model_33650`, `--env.rewards.early-end.weight -50`). Each log section has the full launch command. The selected checkpoint is `cc2-fall50` `model_36649`. Code: commits `77e3f88` (eval flags) and `734aaa9` (task) on `feat/mount-com-center`.
