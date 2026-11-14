@@ -216,6 +216,11 @@
    "play": "c86bcb48a731ca95502ba1117b331a0e0d165b27c750929c395d628992d6379b",
    "rl": "2175c865abea62981abb6d7c2172b8ffb474cfd113d03bb6ff557703297c75c2"
   },
+  "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit-ComCenter": {
+   "env": "81f01675224a621b1246c3ca768410c54bd91d4d2f61c44796dc87d2c49b0fbd",
+   "play": "67a1b3815c021873b34e8463c1273fea2ca679399cf7744640a5c52a45b52929",
+   "rl": "1d4056f5cebb019c69a58bc9cb6962aeaaaf52fe435094be26d77fd091e4c682"
+  },
   "Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ImuNoise": {
    "env": "897eac1e3d334cfcadea7212eba30ff10854d80a636651eb1fbe4b06e59c6566",
    "play": "a54ed74aa80934c2fd459364576683a6290744921e6f35ff1e09fc60851a8891",
@@ -278,6 +283,7 @@
   }
  },
  "protected_checkpoints": {
-  "logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess/2026-11-06_10-05-48_cur4c/model_24450.pt": "83ec928cf688e4d64af330dd5b7980f7fec9fa8ce6bb34498e6b9ff5d105fa45"
+  "logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess/2026-11-06_10-05-48_cur4c/model_24450.pt": "83ec928cf688e4d64af330dd5b7980f7fec9fa8ce6bb34498e6b9ff5d105fa45",
+  "logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_leggap_actfit_comcenter/2026-11-13_21-53-14_cc2-fall50/model_36649.pt": "37fcdf093d70db6344d0815736232b0e5c3b4d96d27c0b6aae569303d7cd494d"
  }
 }

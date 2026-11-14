@@ -1,6 +1,6 @@
 # mount_tap_limit: end the episode on free-foot taps after the first mount
 
-Status: active (Nov 10 2026).
+Status: finished (Nov 14 2026).
 Code: branch `feat/mount-tap-limit` (off `main` `e4f36d3`). Files: `tasks/ball_mount_min/piplus_ball_mount_taplimit_cfg.py`, `tests/test_taplimit.py`.
 Tasks: `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-TapLimit`.
 Log: [mount_tap_limit_log.md](mount_tap_limit_log.md). Run ID prefix: `tl`.
@@ -49,3 +49,22 @@ The warm-up ends after `TAP_WARMUP_MAX_ITERS` (1500) iterations in any case. The
 **Run.** Warm start from `cur4c` `model_24450` (copy as `init-from-cur4c-24450` in the log group of the new task), `--env.curriculum.stage.params.start_stage 8`, seed 42, 4096 envs. This is the recipe of `sg1-leggap`, so the two runs are an A/B pair. The warm-up (500 to 1500 iterations) and 8 rate levels (at least 2400 iterations) need at least 2900 iterations; plan 4000 and resume if the budget has not reached 0. Smoke test first with `--agent.logger tensorboard` (no wandb).
 
 **How the result is measured.** `scripts/eval_mountbalance.py --obs-noise --gait --probe --audit` (1024 envs, task `-LegGap`, so the episode does not end on a tap) for each `tl` run and `sg1-leggap`: survival at 20 s, taps per 10 s, stance segment median, stance held in the last 3 s, held-stance success.
+
+## Result
+
+A termination on free-foot taps does not teach the balance. The runs and their numbers are in the [log](mount_tap_limit_log.md).
+
+- `tl1-taplimit` (fixed tap budget, penalty only on `tap_limit`): reward hacking. The policy learned to fall before its taps ran out.
+- `tl2-earlyend` and `tl3-budget10` (fixed budget, `early_end` on every early end): the survival stayed near 0, and the budget never went down. A fixed budget ends every episode of a policy that taps at a constant rate.
+- `tl4-taprate` (tap rate limit): the limit went down one level only. The policy keeps the survival of `sg1-leggap` and taps only a little less. A constant turn on the ball appeared.
+
+The taps were removed later by dense rewards for the centre of mass over the ball centre, in [mount_com_center](../mount_com_center/mount_com_center.md).
+
+## Next steps
+
+None. The work continued in [mount_com_center](../mount_com_center/mount_com_center.md).
+
+## Re-run
+
+Copy `cur4c` `model_24450.pt` as `logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_leggap_taplimit/2026-11-10_00-00-00_init-from-cur4c-24450/`. The full launch commands of `tl1` to `tl4` are in the [log](mount_tap_limit_log.md). `tl1` to `tl3` ran on earlier, uncommitted versions of the task code; the diff of each is in its run directory (`git/`).
+

@@ -1,6 +1,6 @@
 # mount_curriculum: mount and stance from a cold start in one staged run
 
-Branch: `feat/mount-curriculum` (off `feat/mount-straight`). Tasks `Mjlab-Piplus-Ball-MountMin-Curriculum[-FullThigh[-Ramp[-Excess]]]`, config `tasks/ball_mount_min/piplus_ball_mount_curriculum_cfg.py`. Run log: [mount_curriculum_log.md](mount_curriculum_log.md). **Status (Nov 6 2026): stopped after `cur4c`; see Result and Next steps below.**
+Branch: `feat/mount-curriculum` (off `feat/mount-straight`). Tasks `Mjlab-Piplus-Ball-MountMin-Curriculum[-FullThigh[-Ramp[-Excess]]]`, config `tasks/ball_mount_min/piplus_ball_mount_curriculum_cfg.py`. Run log: [mount_curriculum_log.md](mount_curriculum_log.md). **Status: finished (Nov 14 2026).** Stopped after `cur4c`; see Result and Next steps below. The line of policies continued to the selected policy, see [mount_lineage](../mount_lineage/mount_lineage.md).
 
 ## Why
 

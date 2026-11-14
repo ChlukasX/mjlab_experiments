@@ -1,6 +1,6 @@
 # mount_selfcontact: penalty for a right leg that is close to the left leg
 
-Status: active (Nov 9 2026).
+Status: finished (Nov 14 2026).
 Code: branch `feat/mount-selfcontact` (off `feat/mount-curriculum-turn`). Files: `tasks/ball_mount_min/piplus_ball_mount_selfcontact_cfg.py`, `scripts/eval_selfcontact.py`, `scripts/gen_selfcontact_report.py`, `tests/test_leggap.py`.
 Tasks: `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap`.
 Log: [mount_selfcontact_log.md](mount_selfcontact_log.md). Run ID prefix: `sg`.

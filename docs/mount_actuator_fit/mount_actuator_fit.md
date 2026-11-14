@@ -1,6 +1,6 @@
 # mount_actuator_fit: leg actuator dynamics and latency fit to the game rosbags
 
-Status: active (Nov 12 2026).
+Status: finished (Nov 14 2026).
 Code: branch `feat/mount-actuator-fit` (off `main`). Files: `robot/piplus_constants.py` (`LEG_DYNAMICS`, `get_spec_with_leg_dynamics`), `tasks/ball_mount_min/piplus_ball_mount_actfit_cfg.py`, `tests/test_actfit.py`.
 Tasks: `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-ActFit`.
 Log: [mount_actuator_fit_log.md](mount_actuator_fit_log.md). Run ID prefix: `af`.
@@ -42,3 +42,19 @@ Task `Mjlab-Piplus-Ball-MountMin-Curriculum-FullThigh-Ramp-Excess-NoTap-LegGap-A
 **Not in this task.** The torque-speed curve (`DcMotorActuatorCfg`) replaces the XML position actuators. `scripts/export_mount.py` reads the gains of the XML actuators, so the curve is a separate step. The IMU noise of the fit (gyro std 0.0015-0.0024 rad/s, accelerometer std 0.013-0.015 m/s², gyro bias up to 0.01 rad/s) is the topic of [mount_imu_noise](../mount_imu_noise/mount_imu_noise.md).
 
 Suggested first runs: evaluate `cur4c` on the play config of this task (`scripts/eval_policy.py`) to measure the gap, then a warm start from `cur4c` `model_24450` at stage 8 with the recipe of `sg1-leggap`.
+
+## Result
+
+The fitted dynamics matter. `cur4c`, trained on the vendor dynamics, loses much of its survival on the fitted model, although the lag is lower. `af1-actfit` (warm start from `cur4c` on this task) recovers the survival and holds the stance longer than `cur4c` on its own task. It still taps the floor with the free foot, and its held-stance success is 0%. It does not cover the old model. The gap check and its numbers are in the [log](mount_actuator_fit_log.md).
+
+`af1-actfit` `model_27449` is the start of [mount_com_center](../mount_com_center/mount_com_center.md), which led to the selected policy.
+
+## Next steps
+
+- The torque-speed curve of the leg actuators is not modelled (see Design).
+- The real leg gains are open (Nov 14 2026): the robot model of the Bit-Bots stack simulation (`bitbots_mujoco_sim`) has leg kp 100 and kv 1.0; this model has kp 50 and kv 1.1. The team decides which one the robot uses.
+
+## Re-run
+
+Copy `cur4c` `model_24450.pt` as `logs/rsl_rl/piplus_ball_mountmin_curriculum_fullthigh_ramp_excess_notap_leggap_actfit/2026-11-12_00-00-00_init-from-cur4c-24450/`. The full launch command of `af1-actfit` is in the [log](mount_actuator_fit_log.md).
+
